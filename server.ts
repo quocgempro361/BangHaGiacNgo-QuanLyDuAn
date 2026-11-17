@@ -249,6 +249,13 @@ async function createServer() {
         'server_data',
         'TBHGN_du_lieu_20_cong_viec_da_khoi_phuc_URL_38662941.json'
       );
+      if (!fs.existsSync(sourcePath)) {
+        res.status(404).json({
+          error:
+            'Tệp JSON nguồn đã được gỡ bỏ khỏi máy chủ sau khi nhập hoàn tất lên Firestore.',
+        });
+        return;
+      }
       const rawJson = fs.readFileSync(sourcePath, 'utf8');
       res.setHeader('Content-Type', 'application/json; charset=utf-8');
       res.setHeader('Cache-Control', 'no-store');

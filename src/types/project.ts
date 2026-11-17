@@ -23,7 +23,7 @@ export interface CategoryItem {
   updatedBy: string;
 }
 
-export type UserRole = 'admin' | 'member' | 'viewer';
+export type UserRole = 'admin' | 'moderator' | 'member' | 'viewer';
 
 export type ReviewFlag =
   | 'missing_assignee'
@@ -133,4 +133,10 @@ export interface AuthSettings {
   updatedBy?: string | null;
 }
 
-export type AppRoute = 'overview' | 'tasks' | 'my-tasks' | 'members';
+export type AppRoute =
+  | 'overview'
+  | 'tasks'
+  | 'my-tasks'
+  | 'categories'
+  | 'members'
+  | 'admin-settings';

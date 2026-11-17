@@ -36,12 +36,13 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   onSelectTask,
   onNavigateToTasks,
 }) => {
-  const isAdmin = currentUser.role === 'admin';
-  const [reviewExpanded, setReviewExpanded] = useState<boolean>(isAdmin);
+  const isManager =
+    currentUser.role === 'admin' || currentUser.role === 'moderator';
+  const [reviewExpanded, setReviewExpanded] = useState<boolean>(isManager);
 
   useEffect(() => {
-    setReviewExpanded(isAdmin);
-  }, [isAdmin]);
+    setReviewExpanded(isManager);
+  }, [isManager]);
 
   const activeTasks = tasks.filter((t) => !t.archivedAt && !isB1TestTask(t));
   const parentTasks = activeTasks.filter((t) => t.parentId === null);
@@ -69,8 +70,8 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
       value: String(activeTasks.length),
       sub: `${parentTasks.length} cha · ${childTasks.length} con`,
       bg: '#FFFFFF',
-      text: '#13294B',
-      border: '#E2E8F0',
+      text: '#14243F',
+      border: '#E6E2D8',
       icon: null,
       onClick: () => onNavigateToTasks(),
     },
@@ -135,20 +136,20 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
       {/* Page Title */}
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2">
         <div>
-          <h1 className="text-lg sm:text-2xl font-bold text-[#13294B] tracking-tight">
+          <h1 className="text-lg sm:text-2xl font-bold text-huyen-lam tracking-tight">
             Tổng quan dự án
           </h1>
-          <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
+          <p className="text-xs sm:text-sm text-ink-muted mt-0.5">
             Theo dõi nhanh tiến độ biên soạn sách Từ Băng Hà Đến Giác Ngộ.
           </p>
         </div>
         <button
           type="button"
           onClick={() => onNavigateToTasks()}
-          className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-medium text-[#13294B] hover:text-[#B8860B] transition-colors self-start sm:self-auto whitespace-nowrap shrink-0 min-h-[38px]"
+          className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-huyen-lam hover:text-lam-tri-tue transition-colors self-start sm:self-auto whitespace-nowrap shrink-0 min-h-[38px]"
         >
           <span>Xem toàn bộ đầu việc</span>
-          <ArrowRight className="w-4 h-4" />
+          <ArrowRight className="w-4 h-4 shrink-0" />
         </button>
       </div>
 
@@ -167,13 +168,13 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                   borderColor: m.border,
                   color: m.text,
                 }}
-                className="text-left px-3 py-2.5 rounded-xl border transition-transform active:scale-[0.99] hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#13294B] min-h-[68px] flex flex-col justify-between"
+                className="text-left px-3 py-2.5 rounded-xl border transition-colors hover:brightness-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lam-tri-tue min-h-[68px] flex flex-col justify-between"
               >
                 <div className="flex items-center justify-between gap-1">
                   <span className="text-[11px] font-semibold opacity-90 truncate">
                     {m.label}
                   </span>
-                  {Icon && <Icon className="w-3.5 h-3.5 opacity-75 shrink-0" />}
+                  {Icon && <Icon className="w-3.5 h-3.5 opacity-80 shrink-0" />}
                 </div>
                 <div className="mt-1 flex items-baseline justify-between gap-2">
                   <span className="text-xl font-bold font-mono-tabular leading-none">
@@ -189,31 +190,31 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
         </div>
       </section>
 
-      {/* Attention Required + Collapsible Admin Review Queue (items-start avoids forced whitespace) */}
+      {/* Attention Required + Collapsible Admin Review Queue */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
         {/* Column 1: Pending Approval & Overdue */}
-        <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between gap-2">
+        <section className="bg-white border border-nga-xam rounded-xl overflow-hidden">
+          <div className="px-4 py-3 bg-nga-thien/70 border-b border-nga-xam flex items-center justify-between gap-2">
             <div className="min-w-0">
-              <h2 className="text-sm sm:text-base font-semibold text-[#13294B]">
+              <h2 className="text-sm sm:text-base font-semibold text-huyen-lam">
                 Công việc cần chú ý
               </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
+              <p className="text-xs text-ink-muted mt-0.5">
                 Đang chờ duyệt hoặc quá hạn xử lý
               </p>
             </div>
-            <span className="text-xs font-mono-tabular font-medium text-slate-600 shrink-0">
+            <span className="text-xs font-mono-tabular font-semibold text-huyen-lam shrink-0">
               {pendingApprovalTasks.length + overdueTasks.length} việc
             </span>
           </div>
 
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-nga-xam/60">
             {overdueTasks.map((task) => (
               <button
                 key={`overdue_${task.id}`}
                 type="button"
                 onClick={() => onSelectTask(task.id)}
-                className="w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors flex items-start justify-between gap-3 min-h-[52px]"
+                className="w-full text-left px-4 py-3 hover:bg-nga-thien transition-colors flex items-start justify-between gap-3 min-h-[52px]"
               >
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 text-xs text-red-700 font-medium">
@@ -221,10 +222,10 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                     <span aria-hidden="true">·</span>
                     <span>Quá hạn ({formatShortDate(task.dueDate)})</span>
                   </div>
-                  <div className="text-sm font-medium text-slate-900 mt-0.5 break-words">
+                  <div className="text-sm font-medium text-huyen-lam mt-0.5 break-words">
                     {task.title}
                   </div>
-                  <div className="text-xs text-slate-500 mt-0.5">
+                  <div className="text-xs text-ink-muted mt-0.5">
                     {task.assignees.length > 0
                       ? task.assignees.join(', ')
                       : 'Chưa phân công'}
@@ -239,11 +240,11 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                 key={`approval_${task.id}`}
                 type="button"
                 onClick={() => onSelectTask(task.id)}
-                className="w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors flex items-start justify-between gap-3 min-h-[52px]"
+                className="w-full text-left px-4 py-3 hover:bg-nga-thien transition-colors flex items-start justify-between gap-3 min-h-[52px]"
               >
                 <div className="min-w-0">
-                  <div className="flex items-center gap-2 text-xs text-slate-500">
-                    <span className="font-mono-tabular font-semibold text-[#13294B]">
+                  <div className="flex items-center gap-2 text-xs text-ink-muted">
+                    <span className="font-mono-tabular font-semibold text-huyen-lam">
                       {task.displayCode}
                     </span>
                     <span aria-hidden="true">·</span>
@@ -253,11 +254,11 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                         : 'Chưa phân công'}
                     </span>
                   </div>
-                  <div className="text-sm font-medium text-slate-900 mt-0.5 break-words">
+                  <div className="text-sm font-medium text-huyen-lam mt-0.5 break-words">
                     {task.title}
                   </div>
                   {task.nextStep && (
-                    <div className="text-xs text-[#7C4D00] mt-0.5">
+                    <div className="text-xs text-minh-kim-ink mt-0.5">
                       Bước tiếp theo: {task.nextStep}
                     </div>
                   )}
@@ -267,16 +268,16 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
             ))}
 
             {pendingApprovalTasks.length === 0 && overdueTasks.length === 0 && (
-              <div className="px-4 py-6 text-center text-sm text-slate-500">
+              <div className="px-4 py-6 text-center text-sm text-ink-muted">
                 Hiện không có đầu việc nào chờ duyệt hoặc quá hạn.
               </div>
             )}
           </div>
         </section>
 
-        {/* Column 2: Collapsible Source Review Queue (prioritized open for Admin) */}
-        <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-          <div className="px-4 py-3 flex items-center justify-between gap-2">
+        {/* Column 2: Collapsible Source Review Queue */}
+        <section className="bg-white border border-nga-xam rounded-xl overflow-hidden">
+          <div className="px-4 py-3 bg-nga-thien/70 flex items-center justify-between gap-2">
             <button
               type="button"
               onClick={() => setReviewExpanded((v) => !v)}
@@ -284,51 +285,51 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
               className="flex items-center gap-2 text-left min-w-0 flex-1 py-0.5"
             >
               {reviewExpanded ? (
-                <ChevronDown className="w-4 h-4 text-slate-500 shrink-0" />
+                <ChevronDown className="w-4 h-4 text-ink-muted shrink-0" />
               ) : (
-                <ChevronRight className="w-4 h-4 text-slate-500 shrink-0" />
+                <ChevronRight className="w-4 h-4 text-ink-muted shrink-0" />
               )}
               <div className="min-w-0">
-                <h2 className="text-sm sm:text-base font-semibold text-[#13294B] truncate">
+                <h2 className="text-sm sm:text-base font-semibold text-huyen-lam truncate">
                   Cần rà soát từ bảng tính nguồn ({flaggedTasks.length})
                 </h2>
-                <p className="text-xs text-slate-500 mt-0.5 truncate">
-                  {isAdmin
+                <p className="text-xs text-ink-muted mt-0.5 truncate">
+                  {isManager
                     ? flaggedTasks.length > 0
-                      ? `Ưu tiên quản trị viên: ${flaggedTasks.length} đầu việc có trường cần rà soát`
+                      ? `Ưu tiên quản lý: ${flaggedTasks.length} đầu việc có trường cần rà soát`
                       : 'Hiện không có đầu việc nào bị gắn cờ rà soát'
-                    : 'Dành cho quản trị viên rà soát dữ liệu'}
+                    : 'Dành cho Admin & Moderator rà soát dữ liệu'}
                 </p>
               </div>
             </button>
             <button
               type="button"
               onClick={() => onNavigateToTasks({ reviewOnly: true })}
-              className="text-xs font-medium text-[#13294B] hover:text-[#B8860B] whitespace-nowrap shrink-0 px-2 py-1"
+              className="text-xs font-semibold text-huyen-lam hover:text-lam-tri-tue whitespace-nowrap shrink-0 px-2 py-1"
             >
               Lọc ({flaggedTasks.length})
             </button>
           </div>
 
           {reviewExpanded && (
-            <div className="border-t border-slate-200 divide-y divide-slate-100">
+            <div className="border-t border-nga-xam divide-y divide-nga-xam/60">
               {flaggedTasks.map((task) => (
                 <button
                   key={`flag_${task.id}`}
                   type="button"
                   onClick={() => onSelectTask(task.id)}
-                  className="w-full text-left px-4 py-2.5 hover:bg-slate-50 transition-colors flex items-start justify-between gap-3 min-h-[48px]"
+                  className="w-full text-left px-4 py-2.5 hover:bg-nga-thien transition-colors flex items-start justify-between gap-3 min-h-[48px]"
                 >
                   <div className="min-w-0">
                     <div className="flex items-baseline gap-2 text-xs">
-                      <span className="font-mono-tabular font-semibold text-[#13294B] shrink-0">
+                      <span className="font-mono-tabular font-semibold text-huyen-lam shrink-0">
                         {task.displayCode}
                       </span>
-                      <span className="font-medium text-slate-800 break-words">
+                      <span className="font-medium text-huyen-lam break-words">
                         {task.title}
                       </span>
                     </div>
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5 text-[11px] text-[#7C4D00]">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5 text-[11px] text-minh-kim-ink">
                       {task.reviewFlags.map((flag) => (
                         <span
                           key={flag}
@@ -345,7 +346,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
               ))}
 
               {flaggedTasks.length === 0 && (
-                <div className="px-4 py-6 text-center text-sm text-slate-500">
+                <div className="px-4 py-6 text-center text-sm text-ink-muted">
                   Chưa có đầu việc nào cần rà soát.
                 </div>
               )}
@@ -355,23 +356,23 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
       </div>
 
       {/* Parent Groups Summary */}
-      <section className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-        <div className="px-4 py-3 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-          <h2 className="text-sm sm:text-base font-semibold text-[#13294B]">
+      <section className="bg-white border border-nga-xam rounded-xl overflow-hidden">
+        <div className="px-4 py-3 bg-nga-thien/70 border-b border-nga-xam flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+          <h2 className="text-sm sm:text-base font-semibold text-huyen-lam">
             {parentTasks.length} nhóm công việc chính
           </h2>
-          <span className="text-xs text-slate-500">
+          <span className="text-xs text-ink-muted">
             Tiến độ tính tự động cho các nhóm có việc con
           </span>
         </div>
         {parentTasks.length === 0 ? (
           <div className="px-4 py-8 text-center">
-            <p className="text-sm text-slate-600">
+            <p className="text-sm text-ink-muted">
               Chưa có công việc nào trên hệ thống.
             </p>
           </div>
         ) : (
-          <div className="divide-y divide-slate-100">
+          <div className="divide-y divide-nga-xam/60">
             {parentTasks.map((parent) => {
               const prog = computeParentProgress(parent.id, activeTasks);
               return (
@@ -379,18 +380,18 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                   key={parent.id}
                   type="button"
                   onClick={() => onSelectTask(parent.id)}
-                  className="w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-2 min-h-[52px]"
+                  className="w-full text-left px-4 py-3 hover:bg-nga-thien transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-2 min-h-[52px]"
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline gap-2">
-                      <span className="font-mono-tabular text-xs font-semibold text-[#13294B] shrink-0">
+                      <span className="font-mono-tabular text-xs font-bold text-huyen-lam shrink-0">
                         {parent.displayCode}
                       </span>
-                      <span className="text-sm font-medium text-slate-900 break-words">
+                      <span className="text-sm font-medium text-huyen-lam break-words">
                         {parent.title}
                       </span>
                     </div>
-                    <div className="text-xs text-slate-500 mt-0.5 flex flex-wrap items-center gap-x-2">
+                    <div className="text-xs text-ink-muted mt-0.5 flex flex-wrap items-center gap-x-2">
                       <span>
                         {getEffectiveCategory(parent, activeTasks, categories)
                           .category || 'Chưa phân hạng mục'}
@@ -407,13 +408,13 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                   <div className="flex items-center gap-3 shrink-0 self-start sm:self-center">
                     {prog.total > 0 && (
                       <div className="flex items-center gap-2">
-                        <div className="w-16 sm:w-20 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                        <div className="w-16 sm:w-20 h-1.5 bg-nga-xam rounded-full overflow-hidden">
                           <div
-                            className="h-full bg-[#13294B] transition-all"
+                            className="h-full bg-minh-kim transition-all"
                             style={{ width: `${prog.percentage}%` }}
                           />
                         </div>
-                        <span className="text-xs font-mono-tabular text-slate-700 w-8 text-right">
+                        <span className="text-xs font-mono-tabular text-huyen-lam font-medium w-8 text-right">
                           {prog.completed}/{prog.total}
                         </span>
                       </div>

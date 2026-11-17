@@ -159,7 +159,9 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const canApprove = canUserApproveTask(currentUser, task);
   const statusLockedByCompletion = task.status === 'Hoàn thành' && !canApprove;
   const canCreateSubHere = canUserCreateSubtaskInParent(currentUser, task);
-  const isAdmin = currentUser.role === 'admin' && currentUser.isActive;
+  const isManager =
+    (currentUser.role === 'admin' || currentUser.role === 'moderator') &&
+    currentUser.isActive;
   const parentTask = task.parentId
     ? allTasks.find((t) => t.id === task.parentId) ?? null
     : null;
@@ -227,7 +229,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
 
       const selectedCat = categories.find((c) => c.id === categoryId);
 
-      const patch: Partial<TaskItem> = isAdmin
+      const patch: Partial<TaskItem> = isManager
         ? {
             displayCode: displayCode.trim() || task.displayCode,
             title: title.trim() || task.title,
@@ -362,23 +364,23 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   };
 
   const renderLinksSection = (editable: boolean) => (
-    <div className="pt-3 border-t border-slate-200 space-y-3">
-      <div className="text-xs font-semibold text-[#13294B]">
+    <div className="pt-3 border-t border-nga-xam space-y-3">
+      <div className="text-xs font-semibold text-huyen-lam">
         Kết quả nghiên cứu hiện tại (Google Drive)
       </div>
 
       {resultLinks.length === 0 ? (
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-ink-muted">
           Chưa có liên kết kết quả nghiên cứu.
         </p>
       ) : (
         resultLinks.map((lnk) => (
           <div
             key={lnk.id}
-            className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg space-y-1.5"
+            className="p-2.5 bg-nga-thien border border-nga-xam rounded-lg space-y-1.5"
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-medium text-slate-800 truncate">
+              <span className="text-xs font-medium text-huyen-lam truncate">
                 {lnk.label}
               </span>
               {lnk.url ? (
@@ -386,20 +388,20 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   href={lnk.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-xs font-semibold text-[#13294B] hover:underline shrink-0 py-0.5"
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-huyen-lam hover:text-lam-tri-tue hover:underline shrink-0 py-0.5"
                 >
                   <span>Mở Drive</span>
-                  <ExternalLink className="w-3.5 h-3.5" />
+                  <ExternalLink className="w-3.5 h-3.5 shrink-0" />
                 </a>
               ) : (
-                <span className="inline-flex items-center gap-1 text-[11px] text-[#7C4D00] shrink-0">
-                  <Link2Off className="w-3 h-3" />
+                <span className="inline-flex items-center gap-1 text-[11px] text-minh-kim-ink shrink-0">
+                  <Link2Off className="w-3 h-3 shrink-0" />
                   <span>Chưa có URL</span>
                 </span>
               )}
             </div>
             {lnk.url && (
-              <div className="text-[11px] font-mono-tabular text-slate-500 break-all">
+              <div className="text-[11px] font-mono-tabular text-ink-muted break-all">
                 {lnk.url}
               </div>
             )}
@@ -411,7 +413,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   handleUpdateLinkUrl(lnk.id, e.target.value, 'result')
                 }
                 placeholder="https://drive.google.com/..."
-                className="w-full px-2.5 py-2 text-xs bg-white border border-slate-200 rounded focus:outline-none focus:ring-2 focus:ring-[#13294B] min-h-[38px]"
+                className="w-full px-2.5 py-2 text-xs bg-white border border-nga-xam rounded focus:outline-none focus:ring-2 focus:ring-lam-tri-tue min-h-[38px]"
               />
             )}
           </div>
@@ -419,11 +421,11 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
       )}
 
       <div className="pt-1">
-        <div className="text-xs font-semibold text-slate-700 mb-1.5">
+        <div className="text-xs font-semibold text-huyen-lam/85 mb-1.5">
           Tài liệu phục vụ nghiên cứu
         </div>
         {referenceLinks.length === 0 ? (
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-ink-muted">
             Chưa có liên kết tài liệu tham khảo.
           </p>
         ) : (
@@ -431,10 +433,10 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
             {referenceLinks.map((lnk) => (
               <div
                 key={lnk.id}
-                className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg space-y-1.5"
+                className="p-2.5 bg-nga-thien border border-nga-xam rounded-lg space-y-1.5"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-medium text-slate-800 truncate">
+                  <span className="text-xs font-medium text-huyen-lam truncate">
                     {lnk.label}
                   </span>
                   {lnk.url && (
@@ -442,15 +444,15 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                       href={lnk.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-[#13294B] hover:underline shrink-0 py-0.5"
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-huyen-lam hover:text-lam-tri-tue hover:underline shrink-0 py-0.5"
                     >
                       <span>Mở tài liệu</span>
-                      <ExternalLink className="w-3.5 h-3.5" />
+                      <ExternalLink className="w-3.5 h-3.5 shrink-0" />
                     </a>
                   )}
                 </div>
                 {lnk.url && (
-                  <div className="text-[11px] font-mono-tabular text-slate-500 break-all">
+                  <div className="text-[11px] font-mono-tabular text-ink-muted break-all">
                     {lnk.url}
                   </div>
                 )}
@@ -466,7 +468,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                       )
                     }
                     placeholder="https://drive.google.com/..."
-                    className="w-full px-2.5 py-2 text-xs bg-white border border-slate-200 rounded min-h-[38px]"
+                    className="w-full px-2.5 py-2 text-xs bg-white border border-nga-xam rounded focus:outline-none focus:ring-2 focus:ring-lam-tri-tue min-h-[38px]"
                   />
                 )}
               </div>
@@ -483,7 +485,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
             onChange={(e) =>
               setNewUrlType(e.target.value as 'result' | 'reference')
             }
-            className="sm:col-span-3 px-2.5 py-2 text-xs bg-white border border-slate-200 rounded-lg min-h-[40px]"
+            className="sm:col-span-3 px-2.5 py-2 text-xs bg-white border border-nga-xam rounded-lg focus:outline-none focus:ring-2 focus:ring-lam-tri-tue min-h-[40px]"
           >
             <option value="result">Kết quả</option>
             <option value="reference">Tham khảo</option>
@@ -493,19 +495,19 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
             value={newUrlLabel}
             onChange={(e) => setNewUrlLabel(e.target.value)}
             placeholder="Nhãn liên kết"
-            className="sm:col-span-3 px-2.5 py-2 text-xs bg-white border border-slate-200 rounded-lg min-h-[40px]"
+            className="sm:col-span-3 px-2.5 py-2 text-xs bg-white border border-nga-xam rounded-lg focus:outline-none focus:ring-2 focus:ring-lam-tri-tue min-h-[40px]"
           />
           <input
             type="url"
             value={newUrlValue}
             onChange={(e) => setNewUrlValue(e.target.value)}
             placeholder="https://drive.google.com/..."
-            className="sm:col-span-4 px-2.5 py-2 text-xs bg-white border border-slate-200 rounded-lg min-h-[40px]"
+            className="sm:col-span-4 px-2.5 py-2 text-xs bg-white border border-nga-xam rounded-lg focus:outline-none focus:ring-2 focus:ring-lam-tri-tue min-h-[40px]"
           />
           <button
             type="button"
             onClick={handleAddLink}
-            className="sm:col-span-2 px-3 py-2 text-xs font-medium bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg min-h-[40px]"
+            className="sm:col-span-2 px-3 py-2 text-xs font-medium bg-surface-muted hover:bg-nga-xam text-huyen-lam rounded-lg transition-colors min-h-[40px]"
           >
             Thêm link
           </button>
@@ -516,40 +518,40 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
 
   const renderSubtasksSection = () =>
     task.parentId === null ? (
-      <div className="pt-2 border-t border-slate-200 space-y-2.5">
+      <div className="pt-2 border-t border-nga-xam space-y-2.5">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-xs font-semibold text-[#13294B]">
+          <span className="text-xs font-semibold text-huyen-lam">
             Việc con trực thuộc ({childTasks.length})
           </span>
           {canCreateSubHere && (
             <button
               type="button"
               onClick={() => onOpenAddSubtask(task.id)}
-              className="inline-flex items-center gap-1 text-xs font-medium text-[#13294B] hover:text-[#B8860B] py-1 px-2 rounded-lg hover:bg-slate-100 min-h-[36px]"
+              className="inline-flex items-center gap-1 text-xs font-medium text-huyen-lam hover:text-minh-kim-ink py-1 px-2 rounded-lg hover:bg-nga-thien transition-colors min-h-[36px]"
             >
-              <Plus className="w-3.5 h-3.5" />
+              <Plus className="w-3.5 h-3.5 shrink-0" />
               <span>Thêm việc con</span>
             </button>
           )}
         </div>
         {childTasks.length === 0 ? (
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-ink-muted">
             Nhóm này không có việc con.
           </p>
         ) : (
-          <div className="divide-y divide-slate-100 border border-slate-200 rounded-lg overflow-hidden">
+          <div className="divide-y divide-nga-xam/60 border border-nga-xam rounded-lg overflow-hidden">
             {childTasks.map((c) => (
               <button
                 key={c.id}
                 type="button"
                 onClick={() => onSelectTask(c.id)}
-                className="w-full text-left px-3 py-2.5 hover:bg-slate-50 flex items-center justify-between gap-2 text-xs min-h-[44px]"
+                className="w-full text-left px-3 py-2.5 hover:bg-nga-thien flex items-center justify-between gap-2 text-xs min-h-[44px] transition-colors"
               >
                 <div className="min-w-0 truncate">
-                  <span className="font-mono-tabular font-semibold text-[#13294B] mr-2">
+                  <span className="font-mono-tabular font-semibold text-huyen-lam mr-2">
                     {c.displayCode}
                   </span>
-                  <span className="text-slate-800">{c.title}</span>
+                  <span className="text-huyen-lam/90">{c.title}</span>
                 </div>
                 <StatusBadge status={c.status} compact />
               </button>
@@ -561,22 +563,22 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex justify-end bg-slate-900/40 backdrop-blur-[1px]"
+      className="fixed inset-0 z-50 flex justify-end bg-huyen-lam/45 backdrop-blur-[1px]"
       role="dialog"
       aria-modal="true"
       aria-label={`Chi tiết công việc ${task.displayCode}`}
     >
       <div className="flex-1 hidden sm:block" onClick={onClose} />
 
-      <div className="w-full sm:max-w-xl bg-white h-full flex flex-col border-l border-slate-200 shadow-2xl">
+      <div className="w-full sm:max-w-xl bg-white h-full flex flex-col border-l border-nga-xam shadow-2xl">
         {/* Top Drawer Bar */}
-        <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between gap-2 shrink-0">
+        <div className="px-4 py-3 bg-nga-thien/75 border-b border-nga-xam flex items-center justify-between gap-2 shrink-0">
           <div className="flex items-center gap-2 min-w-0">
-            <span className="font-mono-tabular text-xs font-bold px-2 py-1 rounded bg-[#13294B] text-white shrink-0">
+            <span className="font-mono-tabular text-xs font-bold px-2 py-1 rounded bg-huyen-lam text-kim-quang shrink-0">
               {task.displayCode}
             </span>
             <StatusBadge status={task.status} compact />
-            <span className="text-xs font-mono-tabular text-slate-400">
+            <span className="text-xs font-mono-tabular text-ink-muted">
               v{task.version}
             </span>
           </div>
@@ -585,21 +587,21 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
             type="button"
             onClick={onClose}
             aria-label="Đóng chi tiết"
-            className="w-10 h-10 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 shrink-0"
+            className="w-10 h-10 flex items-center justify-center rounded-lg text-ink-muted hover:bg-surface-muted hover:text-huyen-lam shrink-0 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Sub-navigation tabs */}
-        <div className="px-4 border-b border-slate-200 flex items-center gap-5 text-xs sm:text-sm shrink-0 overflow-x-auto">
+        <div className="px-4 border-b border-nga-xam flex items-center gap-5 text-xs sm:text-sm shrink-0 overflow-x-auto bg-white">
           <button
             type="button"
             onClick={() => setActiveTab('info')}
             className={`py-2.5 min-h-[44px] border-b-2 font-medium transition-colors whitespace-nowrap ${
               activeTab === 'info'
-                ? 'border-[#13294B] text-[#13294B]'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
+                ? 'border-minh-kim text-huyen-lam font-semibold'
+                : 'border-transparent text-ink-muted hover:text-huyen-lam'
             }`}
           >
             Thông tin &amp; Liên kết
@@ -609,11 +611,11 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
             onClick={() => setActiveTab('comments')}
             className={`py-2.5 min-h-[44px] border-b-2 font-medium transition-colors whitespace-nowrap inline-flex items-center gap-1.5 ${
               activeTab === 'comments'
-                ? 'border-[#13294B] text-[#13294B]'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
+                ? 'border-minh-kim text-huyen-lam font-semibold'
+                : 'border-transparent text-ink-muted hover:text-huyen-lam'
             }`}
           >
-            <MessageSquare className="w-3.5 h-3.5" />
+            <MessageSquare className="w-3.5 h-3.5 shrink-0" />
             <span>Góp ý ({taskComments.length})</span>
           </button>
           <button
@@ -621,11 +623,11 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
             onClick={() => setActiveTab('history')}
             className={`py-2.5 min-h-[44px] border-b-2 font-medium transition-colors whitespace-nowrap inline-flex items-center gap-1.5 ${
               activeTab === 'history'
-                ? 'border-[#13294B] text-[#13294B]'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
+                ? 'border-minh-kim text-huyen-lam font-semibold'
+                : 'border-transparent text-ink-muted hover:text-huyen-lam'
             }`}
           >
-            <History className="w-3.5 h-3.5" />
+            <History className="w-3.5 h-3.5 shrink-0" />
             <span>Lịch sử ({taskLogs.length})</span>
           </button>
         </div>
@@ -633,17 +635,17 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {task.archivedAt && (
-            <div className="bg-slate-100 border border-slate-300 rounded-lg p-3 flex items-center justify-between gap-2 text-xs text-slate-700">
+            <div className="bg-surface-muted border border-nga-xam rounded-lg p-3 flex items-center justify-between gap-2 text-xs text-huyen-lam/85">
               <span>
                 Đầu việc này đã được lưu trữ lúc {formatDateTime(task.archivedAt)}.
               </span>
-              {isAdmin && (
+              {isManager && (
                 <button
                   type="button"
                   onClick={() => onRestoreTask(task.id)}
-                  className="inline-flex items-center gap-1 font-semibold text-[#13294B] hover:underline shrink-0"
+                  className="inline-flex items-center gap-1 font-semibold text-huyen-lam hover:text-lam-tri-tue hover:underline shrink-0"
                 >
-                  <RotateCcw className="w-3.5 h-3.5" />
+                  <RotateCcw className="w-3.5 h-3.5 shrink-0" />
                   <span>Khôi phục</span>
                 </button>
               )}
@@ -679,7 +681,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
           )}
 
           {task.reviewFlags.length > 0 && (
-            <div className="bg-[#FFF8E7] border border-[#D9A84E] rounded-lg p-3 text-xs text-[#7C4D00] space-y-1">
+            <div className="bg-minh-kim-soft border border-minh-kim-border rounded-lg p-3 text-xs text-minh-kim-ink space-y-1">
               <div className="font-semibold flex items-center gap-1.5">
                 <ShieldAlert className="w-4 h-4 shrink-0" />
                 <span>Cờ rà soát dữ liệu</span>
@@ -695,8 +697,8 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
           {activeTab === 'info' && !canEdit && (
             <div className="space-y-4">
               {/* Clear Read-Only View for Viewer or Unassigned Member (no disabled form boxes) */}
-              <div className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2.5 text-xs text-slate-600 flex items-start gap-2">
-                <Info className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
+              <div className="bg-nga-thien border border-nga-xam rounded-lg px-3 py-2.5 text-xs text-ink-muted flex items-start gap-2">
+                <Info className="w-4 h-4 text-huyen-lam shrink-0 mt-0.5" />
                 <span>
                   {currentUser.role === 'viewer'
                     ? 'Bạn đang xem ở chế độ Chỉ đọc (Viewer).'
@@ -705,12 +707,12 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               </div>
 
               {parentTask && (
-                <div className="text-xs text-slate-500">
+                <div className="text-xs text-ink-muted">
                   Thuộc đầu việc cha:{' '}
                   <button
                     type="button"
                     onClick={() => onSelectTask(parentTask.id)}
-                    className="font-medium text-[#13294B] hover:underline"
+                    className="font-medium text-huyen-lam hover:text-lam-tri-tue hover:underline"
                   >
                     {parentTask.displayCode}. {parentTask.title}
                   </button>
@@ -718,60 +720,60 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               )}
 
               <div className="space-y-1">
-                <div className="text-xs font-semibold text-slate-500">
+                <div className="text-xs font-semibold text-ink-muted">
                   Đầu việc
                 </div>
-                <h2 className="text-base sm:text-lg font-bold text-[#13294B] break-words">
+                <h2 className="text-base sm:text-lg font-bold text-huyen-lam break-words">
                   {task.displayCode}. {task.title}
                 </h2>
               </div>
 
-              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 border border-slate-200 rounded-xl p-3.5 text-xs">
+              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-nga-thien border border-nga-xam rounded-xl p-3.5 text-xs">
                 <div>
-                  <dt className="text-slate-500">Hạng mục</dt>
-                  <dd className="font-medium text-slate-900 mt-0.5">
+                  <dt className="text-ink-muted">Hạng mục</dt>
+                  <dd className="font-medium text-huyen-lam mt-0.5">
                     {effCategory.category || 'Chưa phân hạng mục'}
                     {effCategory.inherited ? ' (theo nhóm cha)' : ''}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-slate-500">Trạng thái hiện tại</dt>
+                  <dt className="text-ink-muted">Trạng thái hiện tại</dt>
                   <dd className="mt-1">
                     <StatusBadge status={task.status} compact />
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-slate-500">Người phụ trách</dt>
-                  <dd className="font-medium text-slate-900 mt-0.5">
+                  <dt className="text-ink-muted">Người phụ trách</dt>
+                  <dd className="font-medium text-huyen-lam mt-0.5">
                     {task.assignees.length > 0
                       ? task.assignees.join(', ')
                       : 'Chưa phân công'}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-slate-500">Hạn xử lý</dt>
-                  <dd className="font-mono-tabular font-medium text-slate-900 mt-0.5">
+                  <dt className="text-ink-muted">Hạn xử lý</dt>
+                  <dd className="font-mono-tabular font-medium text-huyen-lam mt-0.5">
                     {formatShortDate(task.dueDate)}
                   </dd>
                 </div>
               </dl>
 
               <div className="space-y-3 text-xs sm:text-sm">
-                <div className="bg-white border border-slate-200 rounded-xl p-3.5 space-y-1">
-                  <div className="text-xs font-semibold text-slate-500">
+                <div className="bg-white border border-nga-xam rounded-xl p-3.5 space-y-1">
+                  <div className="text-xs font-semibold text-ink-muted">
                     Bước tiếp theo
                   </div>
-                  <p className="text-slate-800 break-words">
+                  <p className="text-huyen-lam/90 break-words">
                     {task.nextStep || 'Chưa ghi nhận bước tiếp theo.'}
                   </p>
                 </div>
 
                 {task.notes && (
-                  <div className="bg-white border border-slate-200 rounded-xl p-3.5 space-y-1">
-                    <div className="text-xs font-semibold text-slate-500">
+                  <div className="bg-white border border-nga-xam rounded-xl p-3.5 space-y-1">
+                    <div className="text-xs font-semibold text-ink-muted">
                       Ghi chú
                     </div>
-                    <p className="text-slate-800 whitespace-pre-wrap break-words">
+                    <p className="text-huyen-lam/90 whitespace-pre-wrap break-words">
                       {task.notes}
                     </p>
                   </div>
@@ -781,7 +783,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               {renderLinksSection(false)}
               {renderSubtasksSection()}
 
-              <div className="pt-2 border-t border-slate-100 text-[11px] text-slate-500">
+              <div className="pt-2 border-t border-nga-xam/70 text-[11px] text-ink-muted">
                 Cập nhật gần nhất: {formatDateTime(task.updatedAt)}
                 {task.updatedBy ? ` (${task.updatedBy})` : ''}
               </div>
@@ -791,23 +793,23 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
           {activeTab === 'info' && canEdit && (
             <form id="task-detail-form" onSubmit={handleSave} className="space-y-4">
               {parentTask && (
-                <div className="text-xs text-slate-500">
+                <div className="text-xs text-ink-muted">
                   Thuộc đầu việc cha:{' '}
                   <button
                     type="button"
                     onClick={() => onSelectTask(parentTask.id)}
-                    className="font-medium text-[#13294B] hover:underline"
+                    className="font-medium text-huyen-lam hover:text-lam-tri-tue hover:underline"
                   >
                     {parentTask.displayCode}. {parentTask.title}
                   </button>
                 </div>
               )}
 
-              {isAdmin ? (
+              {isManager ? (
                 <>
                   <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                     <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1">
+                      <label className="block text-xs font-medium text-huyen-lam/85 mb-1">
                         Mã hiển thị
                       </label>
                       <input
@@ -815,11 +817,11 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                         maxLength={24}
                         value={displayCode}
                         onChange={(e) => setDisplayCode(e.target.value)}
-                        className="w-full px-3 py-2 text-sm font-mono-tabular bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#13294B] min-h-[42px]"
+                        className="w-full px-3 py-2 text-sm font-mono-tabular bg-white border border-nga-xam rounded-lg focus:outline-none focus:ring-2 focus:ring-lam-tri-tue min-h-[42px]"
                       />
                     </div>
                     <div className="sm:col-span-3">
-                      <label className="block text-xs font-medium text-slate-700 mb-1">
+                      <label className="block text-xs font-medium text-huyen-lam/85 mb-1">
                         Tên đầu việc
                       </label>
                       <input
@@ -827,20 +829,20 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                         maxLength={300}
                         value={title}
                         onChange={(e) => setTitle(e.target.value)}
-                        className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#13294B] min-h-[42px]"
+                        className="w-full px-3 py-2 text-sm bg-white border border-nga-xam rounded-lg focus:outline-none focus:ring-2 focus:ring-lam-tri-tue min-h-[42px]"
                       />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1">
+                      <label className="block text-xs font-medium text-huyen-lam/85 mb-1">
                         Hạng mục (từ Firestore)
                       </label>
                       <select
                         value={categoryId}
                         onChange={(e) => setCategoryId(e.target.value)}
-                        className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#13294B] min-h-[42px]"
+                        className="w-full px-3 py-2 text-sm bg-white border border-nga-xam rounded-lg focus:outline-none focus:ring-2 focus:ring-lam-tri-tue min-h-[42px]"
                       >
                         <option value="">
                           {effCategory.inherited
@@ -859,20 +861,20 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     </div>
 
                     <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1">
-                        Hạn xử lý (Admin)
+                      <label className="block text-xs font-medium text-huyen-lam/85 mb-1">
+                        Hạn xử lý (Quản lý)
                       </label>
                       <input
                         type="date"
                         value={dueDate}
                         onChange={(e) => setDueDate(e.target.value)}
-                        className="w-full px-3 py-2 text-sm font-mono-tabular bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#13294B] min-h-[42px]"
+                        className="w-full px-3 py-2 text-sm font-mono-tabular bg-white border border-nga-xam rounded-lg focus:outline-none focus:ring-2 focus:ring-lam-tri-tue min-h-[42px]"
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">
+                    <label className="block text-xs font-medium text-huyen-lam/85 mb-1">
                       Tên hiển thị người phụ trách (giữ tên gốc bảng tính)
                     </label>
                     <input
@@ -880,20 +882,20 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                       value={assigneesText}
                       onChange={(e) => setAssigneesText(e.target.value)}
                       placeholder="VD: Quốc, Khả Tuệ"
-                      className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#13294B] min-h-[42px]"
+                      className="w-full px-3 py-2 text-sm bg-white border border-nga-xam rounded-lg focus:outline-none focus:ring-2 focus:ring-lam-tri-tue min-h-[42px]"
                     />
                   </div>
                 </>
               ) : (
                 /* Assigned Member sees ONLY clean read-only metadata for Admin-locked fields */
-                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-2">
-                  <div className="text-sm sm:text-base font-bold text-[#13294B] break-words">
+                <div className="bg-nga-thien border border-nga-xam rounded-xl p-3.5 space-y-2">
+                  <div className="text-sm sm:text-base font-bold text-huyen-lam break-words">
                     {task.displayCode}. {task.title}
                   </div>
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-muted">
                     <span>
                       Hạng mục:{' '}
-                      <strong className="font-medium text-slate-800">
+                      <strong className="font-medium text-huyen-lam">
                         {effCategory.category || 'Chưa phân hạng mục'}
                         {effCategory.inherited ? ' (theo nhóm cha)' : ''}
                       </strong>
@@ -901,7 +903,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     <span aria-hidden="true">·</span>
                     <span>
                       Phụ trách:{' '}
-                      <strong className="font-medium text-slate-800">
+                      <strong className="font-medium text-huyen-lam">
                         {task.assignees.length > 0
                           ? task.assignees.join(', ')
                           : 'Chưa phân công'}
@@ -920,11 +922,11 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               )}
 
               {/* Workflow Status & Review/Approval Actions (editable by assigned Member & Admin) */}
-              <div className="p-3.5 bg-slate-50/70 border border-slate-200 rounded-xl space-y-2.5">
+              <div className="p-3.5 bg-nga-thien border border-nga-xam rounded-xl space-y-2.5">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <label
                     htmlFor="task-status-select"
-                    className="text-xs font-semibold text-[#13294B]"
+                    className="text-xs font-semibold text-huyen-lam"
                   >
                     Trạng thái &amp; quy trình duyệt
                   </label>
@@ -955,7 +957,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   value={statusValue}
                   disabled={statusLockedByCompletion}
                   onChange={(e) => setStatusValue(e.target.value)}
-                  className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#13294B] disabled:bg-slate-100 disabled:text-slate-600 min-h-[42px]"
+                  className="w-full px-3 py-2 text-sm bg-white border border-nga-xam rounded-lg focus:outline-none focus:ring-2 focus:ring-lam-tri-tue disabled:bg-surface-muted disabled:text-ink-muted min-h-[42px]"
                 >
                   <option value="">-- Chưa có trạng thái (Cần rà soát) --</option>
                   {ALL_STATUSES.map((st) => {
@@ -969,7 +971,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   })}
                 </select>
 
-                <p className="text-[11px] text-slate-500 leading-relaxed">
+                <p className="text-[11px] text-ink-muted leading-relaxed">
                   {statusLockedByCompletion ? (
                     <>
                       Đầu việc này đã được duyệt <strong>Hoàn thành</strong>. Chỉ Quản trị viên hoặc người có quyền phê duyệt mới thay đổi lại trạng thái (bạn vẫn có thể bổ sung ghi chú hoặc liên kết bên dưới).
@@ -985,20 +987,20 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 </p>
               </div>
 
-              {/* Admin-only explicit UID assignment & approval scope */}
-              {isAdmin && members.length > 0 && (
-                <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2.5 text-xs">
+              {/* Admin & Moderator explicit UID assignment & approval scope */}
+              {isManager && members.length > 0 && (
+                <div className="p-3 bg-nga-thien border border-nga-xam rounded-lg space-y-2.5 text-xs">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="font-semibold text-[#13294B]">
-                      Phân công tài khoản phụ trách (Admin)
+                    <span className="font-semibold text-huyen-lam">
+                      Phân công tài khoản phụ trách (Quản lý)
                     </span>
                     {assigneeUids.length === 0 && (
-                      <span className="text-[11px] font-medium text-[#7C4D00]">
+                      <span className="text-[11px] font-medium text-minh-kim-ink">
                         Chưa liên kết tài khoản
                       </span>
                     )}
                   </div>
-                  <p className="text-[11px] text-slate-500">
+                  <p className="text-[11px] text-ink-muted">
                     Quyền sửa và tạo việc con dựa vào tài khoản được tích bên dưới. Khi chuyển sang tài khoản chính thức sau này, Admin chỉ cần tích tài khoản mới và bỏ tích tài khoản cũ để thu hồi quyền mà vẫn giữ nguyên công việc và lịch sử.
                   </p>
                   <div className="flex flex-wrap gap-2">
@@ -1010,11 +1012,12 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                           className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 border rounded-lg cursor-pointer min-h-[38px] ${
                             !m.isActive
                               ? 'bg-red-50 border-red-200 text-red-800'
-                              : 'bg-white border-slate-200'
+                              : 'bg-white border-nga-xam text-huyen-lam'
                           }`}
                         >
                           <input
                             type="checkbox"
+                            className="accent-huyen-lam"
                             checked={assigneeUids.includes(m.uid)}
                             onChange={() => {
                               const nextUids = toggleUid(assigneeUids, m.uid);
@@ -1039,21 +1042,32 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                         </label>
                       ))}
                   </div>
-                  {members.some((m) => m.canApprove && m.role !== 'admin') && (
-                    <div className="pt-1 border-t border-slate-200">
-                      <div className="text-[11px] text-slate-600 mb-1">
+                  {members.some(
+                    (m) =>
+                      m.canApprove &&
+                      m.role !== 'admin' &&
+                      m.role !== 'moderator'
+                  ) && (
+                    <div className="pt-1 border-t border-nga-xam">
+                      <div className="text-[11px] text-ink-muted mb-1">
                         Phạm vi người có quyền duyệt công việc:
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {members
-                          .filter((m) => m.canApprove && m.role !== 'admin')
+                          .filter(
+                            (m) =>
+                              m.canApprove &&
+                              m.role !== 'admin' &&
+                              m.role !== 'moderator'
+                          )
                           .map((m) => (
                             <label
                               key={`appr_${m.uid}`}
-                              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-[#FFF8E7] border border-[#D9A84E] rounded-lg cursor-pointer min-h-[38px]"
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-minh-kim-soft border border-minh-kim-border text-minh-kim-ink rounded-lg cursor-pointer min-h-[38px]"
                             >
                               <input
                                 type="checkbox"
+                                className="accent-huyen-lam"
                                 checked={approverUids.includes(m.uid)}
                                 onChange={() =>
                                   setApproverUids((prev) =>
@@ -1077,7 +1091,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               )}
 
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
+                <label className="block text-xs font-medium text-huyen-lam/85 mb-1">
                   Bước tiếp theo
                 </label>
                 <input
@@ -1086,12 +1100,12 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   value={nextStep}
                   onChange={(e) => setNextStep(e.target.value)}
                   placeholder="VD: Chờ Sư phụ duyệt bản nháp"
-                  className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#13294B] min-h-[42px]"
+                  className="w-full px-3 py-2 text-sm bg-white border border-nga-xam rounded-lg focus:outline-none focus:ring-2 focus:ring-lam-tri-tue min-h-[42px]"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
+                <label className="block text-xs font-medium text-huyen-lam/85 mb-1">
                   Ghi chú
                 </label>
                 <textarea
@@ -1100,14 +1114,14 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Ghi chú nội dung hoặc trao đổi thêm..."
-                  className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#13294B]"
+                  className="w-full px-3 py-2 text-sm bg-white border border-nga-xam rounded-lg focus:outline-none focus:ring-2 focus:ring-lam-tri-tue"
                 />
               </div>
 
               {renderLinksSection(true)}
               {renderSubtasksSection()}
 
-              <div className="pt-2 border-t border-slate-100 text-[11px] text-slate-500">
+              <div className="pt-2 border-t border-nga-xam/70 text-[11px] text-ink-muted">
                 Cập nhật gần nhất: {formatDateTime(task.updatedAt)}
                 {task.updatedBy ? ` (${task.updatedBy})` : ''}
               </div>
@@ -1125,7 +1139,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     disabled={postingComment}
                     onChange={(e) => setCommentText(e.target.value)}
                     placeholder={`Viết góp ý dưới tên ${currentUser.displayName}...`}
-                    className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#13294B] disabled:bg-slate-50"
+                    className="w-full px-3 py-2 text-sm bg-white border border-nga-xam rounded-lg focus:outline-none focus:ring-2 focus:ring-lam-tri-tue disabled:bg-nga-thien"
                   />
                   {commentError && (
                     <div className="p-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-800">
@@ -1136,39 +1150,39 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     <button
                       type="submit"
                       disabled={!commentText.trim() || postingComment}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium bg-[#13294B] text-white rounded-lg disabled:opacity-40 hover:bg-[#1E3A66] min-h-[42px]"
+                      className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium bg-huyen-lam text-white rounded-lg disabled:opacity-40 hover:bg-lam-tri-tue transition-colors min-h-[42px]"
                     >
-                      <Send className="w-3.5 h-3.5" />
+                      <Send className="w-3.5 h-3.5 shrink-0" />
                       <span>{postingComment ? 'Đang gửi...' : 'Gửi góp ý'}</span>
                     </button>
                   </div>
                 </form>
               ) : (
-                <div className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-600">
+                <div className="bg-nga-thien border border-nga-xam rounded-lg px-3 py-2 text-xs text-ink-muted">
                   Vai trò Viewer chỉ xem được các góp ý hiện có.
                 </div>
               )}
 
               <div className="space-y-2.5">
                 {taskComments.length === 0 ? (
-                  <p className="text-sm text-slate-500 py-6 text-center">
+                  <p className="text-sm text-ink-muted py-6 text-center">
                     Chưa có góp ý nào cho đầu việc này.
                   </p>
                 ) : (
                   taskComments.map((c) => (
                     <div
                       key={c.id}
-                      className="p-3 bg-slate-50 border border-slate-200 rounded-lg"
+                      className="p-3 bg-nga-thien border border-nga-xam rounded-lg"
                     >
                       <div className="flex items-center justify-between gap-2 text-xs">
-                        <span className="font-semibold text-[#13294B]">
+                        <span className="font-semibold text-huyen-lam">
                           {c.authorName}
                         </span>
-                        <span className="font-mono-tabular text-slate-400">
+                        <span className="font-mono-tabular text-ink-muted">
                           {formatDateTime(c.createdAt)}
                         </span>
                       </div>
-                      <p className="text-sm text-slate-800 mt-1.5 whitespace-pre-wrap break-words">
+                      <p className="text-sm text-huyen-lam/90 mt-1.5 whitespace-pre-wrap break-words">
                         {c.content}
                       </p>
                     </div>
@@ -1181,24 +1195,24 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
           {activeTab === 'history' && (
             <div className="space-y-2.5">
               {taskLogs.length === 0 ? (
-                <p className="text-sm text-slate-500 py-6 text-center">
+                <p className="text-sm text-ink-muted py-6 text-center">
                   Chưa có lịch sử cập nhật trên Firestore.
                 </p>
               ) : (
                 taskLogs.map((log) => (
                   <div
                     key={log.id}
-                    className="p-3 bg-white border border-slate-200 rounded-lg text-xs space-y-1"
+                    className="p-3 bg-white border border-nga-xam rounded-lg text-xs space-y-1"
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-semibold text-slate-800">
+                      <span className="font-semibold text-huyen-lam">
                         {log.actorName}
                       </span>
-                      <span className="font-mono-tabular text-slate-400">
+                      <span className="font-mono-tabular text-ink-muted">
                         {formatDateTime(log.createdAt)}
                       </span>
                     </div>
-                    <p className="text-slate-600 break-words">{log.summary}</p>
+                    <p className="text-ink-muted break-words">{log.summary}</p>
                   </div>
                 ))
               )}
@@ -1208,7 +1222,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
 
         {/* Bottom Sticky Action Footer */}
         {activeTab === 'info' && (
-          <div className="px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-slate-200 bg-slate-50 space-y-2 shrink-0">
+          <div className="px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-nga-xam bg-nga-thien space-y-2 shrink-0">
             {saveFeedback && (
               <div
                 className={`text-xs flex items-center gap-1.5 ${
@@ -1226,19 +1240,19 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               </div>
             )}
             <div className="flex items-center justify-between gap-3">
-              {isAdmin && !task.archivedAt ? (
+              {isManager && !task.archivedAt ? (
                 <button
                   type="button"
                   onClick={() => onArchiveTask(task.id)}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-600 hover:text-red-700 hover:bg-red-50 rounded-lg min-h-[42px] shrink-0"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-ink-muted hover:text-chu-sa hover:bg-chu-sa-soft rounded-lg min-h-[42px] shrink-0 transition-colors"
                 >
-                  <Archive className="w-4 h-4" />
+                  <Archive className="w-4 h-4 shrink-0" />
                   <span>Lưu trữ</span>
                 </button>
               ) : (
-                <span className="text-xs text-slate-500">
+                <span className="text-xs text-ink-muted">
                   {canEdit
-                    ? 'Chỉ bạn & Admin có thể cập nhật'
+                    ? 'Chỉ bạn & Quản lý có thể cập nhật'
                     : 'Chế độ chỉ đọc'}
                 </span>
               )}
@@ -1248,9 +1262,9 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   type="submit"
                   form="task-detail-form"
                   disabled={saving}
-                  className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-5 py-2.5 text-sm font-medium bg-[#13294B] text-white rounded-lg hover:bg-[#1E3A66] disabled:opacity-50 min-h-[44px]"
+                  className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-5 py-2.5 text-sm font-medium bg-huyen-lam text-white rounded-lg hover:bg-lam-tri-tue disabled:opacity-50 transition-colors min-h-[44px]"
                 >
-                  <Save className="w-4 h-4" />
+                  <Save className="w-4 h-4 shrink-0" />
                   <span>{saving ? 'Đang lưu...' : 'Lưu thay đổi'}</span>
                 </button>
               )}

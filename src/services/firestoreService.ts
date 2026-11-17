@@ -891,7 +891,8 @@ export async function updateTaskInFirestore(
       }
 
       const nextVersion = existing.version + 1;
-      const isAdmin = currentUser.role === 'admin';
+      const isManager =
+        currentUser.role === 'admin' || currentUser.role === 'moderator';
 
       const updatePayload: Record<string, unknown> = {
         version: nextVersion,
@@ -900,7 +901,7 @@ export async function updateTaskInFirestore(
         updatedByUid: currentUser.uid,
       };
 
-      if (isAdmin) {
+      if (isManager) {
         if (patch.displayCode !== undefined) updatePayload.displayCode = patch.displayCode;
         if (patch.parentId !== undefined) updatePayload.parentId = patch.parentId;
         if (patch.sortOrder !== undefined) updatePayload.sortOrder = patch.sortOrder;
@@ -934,13 +935,13 @@ export async function updateTaskInFirestore(
       ) {
         changes.push('Cập nhật bước tiếp theo');
       }
-      if (isAdmin && patch.title && patch.title !== existing.title) {
+      if (isManager && patch.title && patch.title !== existing.title) {
         changes.push('Đổi tên đầu việc');
       }
-      if (isAdmin && patch.categoryId !== undefined && patch.categoryId !== existing.categoryId) {
+      if (isManager && patch.categoryId !== undefined && patch.categoryId !== existing.categoryId) {
         changes.push('Cập nhật hạng mục');
       }
-      if (isAdmin && patch.assigneeUids !== undefined) {
+      if (isManager && patch.assigneeUids !== undefined) {
         const prevUids = existing.assigneeUids ?? [];
         const nextUids = patch.assigneeUids ?? [];
         const addedUids = nextUids.filter((u) => !prevUids.includes(u));
@@ -1346,7 +1347,10 @@ export async function createOrUpdateInvite(
       displayName: input.displayName.trim(),
       sheetAlias: input.sheetAlias.trim(),
       role: input.role,
-      canApprove: input.role === 'admin' ? true : input.canApprove,
+      canApprove:
+        input.role === 'admin' || input.role === 'moderator'
+          ? true
+          : input.canApprove,
       isActive: true,
       createdBy: adminUser.uid,
       createdAt: serverTimestamp(),

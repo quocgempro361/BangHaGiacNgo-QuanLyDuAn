@@ -43,21 +43,21 @@ export class ErrorBoundary extends React.Component<
       }
 
       return (
-        <div className="min-h-screen bg-[#F7F8FA] flex items-center justify-center p-4">
-          <div className="max-w-md w-full bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+        <div className="min-h-screen bg-nga-thien flex items-center justify-center p-4">
+          <div className="max-w-md w-full bg-white border border-nga-xam rounded-xl p-6 space-y-4">
             <div className="flex items-center gap-2.5 text-red-700">
               <AlertTriangle className="w-5 h-5 shrink-0" />
               <h1 className="text-base font-bold">
                 Đã xảy ra lỗi truy cập dữ liệu
               </h1>
             </div>
-            <p className="text-sm text-slate-600 break-words">{friendlyMsg}</p>
+            <p className="text-sm text-ink-muted break-words">{friendlyMsg}</p>
             <button
               type="button"
               onClick={() => window.location.reload()}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[#13294B] text-white rounded-lg hover:bg-[#1E3A66]"
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-huyen-lam text-nga-thien rounded-lg hover:bg-lam-tri-tue transition-colors min-h-[42px]"
             >
-              <RotateCcw className="w-4 h-4" />
+              <RotateCcw className="w-4 h-4 shrink-0" />
               <span>Tải lại trang</span>
             </button>
           </div>

@@ -206,6 +206,13 @@ export function getEffectiveCategory(
   return { categoryId: null, category: '', inherited: false };
 }
 
+export function isTaskManagerRole(member: ProjectMember): boolean {
+  return (
+    member.isActive &&
+    (member.role === 'admin' || member.role === 'moderator')
+  );
+}
+
 /**
  * Strictly UID-based task edit check (never uses text display names for permissions).
  */
@@ -214,7 +221,7 @@ export function canUserEditTask(
   task: TaskItem
 ): boolean {
   if (!member.isActive) return false;
-  if (member.role === 'admin') return true;
+  if (isTaskManagerRole(member)) return true;
   if (member.role === 'viewer') return false;
   return task.assigneeUids.includes(member.uid);
 }
@@ -229,7 +236,7 @@ export function canUserCreateSubtaskInParent(
   if (!member.isActive || parentTask.parentId !== null || parentTask.archivedAt) {
     return false;
   }
-  if (member.role === 'admin') return true;
+  if (isTaskManagerRole(member)) return true;
   if (member.role === 'member') {
     return parentTask.assigneeUids.includes(member.uid);
   }
@@ -241,7 +248,7 @@ export function canUserApproveTask(
   task?: TaskItem
 ): boolean {
   if (!member.isActive) return false;
-  if (member.role === 'admin') return true;
+  if (isTaskManagerRole(member)) return true;
   if (!member.canApprove) return false;
   if (!task) return true;
   return (
@@ -251,7 +258,12 @@ export function canUserApproveTask(
 }
 
 export function canUserCreateSubtask(member: ProjectMember): boolean {
-  return member.isActive && (member.role === 'admin' || member.role === 'member');
+  return (
+    member.isActive &&
+    (member.role === 'admin' ||
+      member.role === 'moderator' ||
+      member.role === 'member')
+  );
 }
 
 export function formatShortDate(iso: string | null): string {

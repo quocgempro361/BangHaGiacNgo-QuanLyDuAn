@@ -153,7 +153,7 @@ export const MyTasksView: React.FC<MyTasksViewProps> = ({
     return (
       <div
         key={task.id}
-        className="bg-white border border-slate-200 rounded-xl p-3.5 sm:p-4 space-y-3"
+        className="bg-white border border-nga-xam rounded-xl p-3.5 sm:p-4 space-y-3"
       >
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2.5">
           <button
@@ -162,19 +162,19 @@ export const MyTasksView: React.FC<MyTasksViewProps> = ({
             className="text-left flex-1 min-w-0 group"
           >
             <div className="flex items-baseline gap-2 flex-wrap">
-              <span className="font-mono-tabular text-xs font-bold text-[#13294B] shrink-0">
+              <span className="font-mono-tabular text-xs font-bold text-huyen-lam shrink-0">
                 {task.displayCode}
               </span>
-              <span className="text-sm sm:text-base font-semibold text-slate-900 group-hover:text-[#13294B] group-hover:underline break-words">
+              <span className="text-sm sm:text-base font-semibold text-huyen-lam group-hover:text-lam-tri-tue group-hover:underline break-words">
                 {task.title}
               </span>
               {isCollectiveOnly && (
-                <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                <span className="text-[11px] font-medium px-1.5 py-0.5 rounded bg-nga-thien text-ink-muted border border-nga-xam">
                   Nhóm chung
                 </span>
               )}
             </div>
-            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500">
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-ink-muted">
               <span>
                 {effCat.category || 'Chưa phân hạng mục'}
                 {effCat.inherited ? ' (theo nhóm cha)' : ''}
@@ -208,7 +208,7 @@ export const MyTasksView: React.FC<MyTasksViewProps> = ({
                 value={task.status ?? ''}
                 disabled={isSavingThisStatus}
                 onChange={(e) => handleStatusChange(task, e.target.value)}
-                className="w-full sm:w-auto px-3 py-2 text-xs font-medium bg-slate-50 border border-slate-200 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#13294B] disabled:opacity-60 min-h-[42px]"
+                className="w-full sm:w-auto px-3 py-2 text-xs font-medium bg-nga-thien/70 border border-nga-xam rounded-lg text-huyen-lam focus:outline-none focus:bg-white focus:ring-2 focus:ring-lam-tri-tue disabled:opacity-60 min-h-[42px]"
               >
                 {task.status === null && (
                   <option value="">Cần rà soát (chưa có trạng thái)</option>
@@ -227,7 +227,7 @@ export const MyTasksView: React.FC<MyTasksViewProps> = ({
               <>
                 <StatusBadge status={task.status} />
                 {canEdit && statusLockedForNonApprover && (
-                  <span className="text-[11px] text-slate-500">
+                  <span className="text-[11px] text-ink-muted">
                     Đã duyệt · cần quyền duyệt để đổi
                   </span>
                 )}
@@ -244,7 +244,7 @@ export const MyTasksView: React.FC<MyTasksViewProps> = ({
         )}
 
         {/* Quick Next Step Editor */}
-        <div className="pt-2.5 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+        <div className="pt-2.5 border-t border-nga-xam/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
           {editingNextStepId === task.id && canEdit ? (
             <div className="flex-1 flex flex-col sm:flex-row sm:items-center gap-2">
               <input
@@ -262,33 +262,33 @@ export const MyTasksView: React.FC<MyTasksViewProps> = ({
                 }}
                 placeholder="Nhập bước tiếp theo..."
                 autoFocus
-                className="flex-1 min-w-0 px-3 py-2 text-xs bg-white border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#13294B] disabled:bg-slate-50 min-h-[42px]"
+                className="flex-1 min-w-0 px-3 py-2 text-xs bg-white border border-nga-xam rounded-lg text-huyen-lam focus:outline-none focus:ring-2 focus:ring-lam-tri-tue disabled:bg-nga-thien min-h-[42px]"
               />
               <div className="flex items-center gap-2 shrink-0">
                 <button
                   type="button"
                   disabled={isSavingThisNextStep}
                   onClick={() => commitNextStep(task)}
-                  className="flex-1 sm:flex-initial px-3.5 py-2 text-xs font-medium bg-[#13294B] text-white rounded-lg inline-flex items-center justify-center gap-1 min-h-[42px] disabled:opacity-60"
+                  className="flex-1 sm:flex-initial px-3.5 py-2 text-xs font-semibold bg-huyen-lam hover:bg-lam-tri-tue text-nga-thien rounded-lg inline-flex items-center justify-center gap-1.5 min-h-[42px] disabled:opacity-60 transition-colors"
                 >
-                  <Check className="w-3.5 h-3.5" />
+                  <Check className="w-3.5 h-3.5 shrink-0" />
                   <span>{isSavingThisNextStep ? 'Đang lưu...' : 'Lưu'}</span>
                 </button>
                 <button
                   type="button"
                   disabled={isSavingThisNextStep}
                   onClick={cancelEditNextStep}
-                  className="px-3 py-2 text-xs font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 inline-flex items-center justify-center gap-1 min-h-[42px] disabled:opacity-50"
+                  className="px-3 py-2 text-xs font-medium text-ink-muted border border-nga-xam rounded-lg hover:bg-nga-thien hover:text-huyen-lam inline-flex items-center justify-center gap-1.5 min-h-[42px] disabled:opacity-50 transition-colors"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <X className="w-3.5 h-3.5 shrink-0" />
                   <span>Hủy</span>
                 </button>
               </div>
             </div>
           ) : (
             <div className="flex-1 flex items-center justify-between gap-2 text-xs">
-              <span className="text-slate-600 break-words">
-                <strong className="font-medium text-slate-700">
+              <span className="text-slate-700 break-words">
+                <strong className="font-semibold text-huyen-lam">
                   Bước tiếp theo:
                 </strong>{' '}
                 {task.nextStep || 'Chưa ghi nhận'}
@@ -297,7 +297,7 @@ export const MyTasksView: React.FC<MyTasksViewProps> = ({
                 <button
                   type="button"
                   onClick={() => startEditNextStep(task)}
-                  className="text-[#13294B] hover:text-[#B8860B] font-medium whitespace-nowrap shrink-0 py-1.5 px-2.5 rounded-lg hover:bg-slate-100 min-h-[36px]"
+                  className="text-huyen-lam hover:text-lam-tri-tue font-semibold whitespace-nowrap shrink-0 py-1.5 px-2.5 rounded-lg hover:bg-nga-thien min-h-[36px] transition-colors"
                 >
                   Sửa nhanh
                 </button>
@@ -310,9 +310,9 @@ export const MyTasksView: React.FC<MyTasksViewProps> = ({
               href={validDriveLinks[0].url ?? '#'}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs font-medium text-[#13294B] hover:underline shrink-0 min-h-[36px]"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-lam-tri-tue hover:text-huyen-lam hover:underline shrink-0 min-h-[36px]"
             >
-              <ExternalLink className="w-3.5 h-3.5" />
+              <ExternalLink className="w-3.5 h-3.5 shrink-0" />
               <span>Mở tài liệu</span>
             </a>
           )}
@@ -325,15 +325,17 @@ export const MyTasksView: React.FC<MyTasksViewProps> = ({
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
         <div>
-          <h1 className="text-lg sm:text-2xl font-bold text-[#13294B] tracking-tight">
+          <h1 className="text-lg sm:text-2xl font-bold text-huyen-lam tracking-tight">
             Việc của tôi
           </h1>
-          <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
-            Tài khoản: <strong className="text-slate-900">{currentUser.displayName}</strong>
+          <p className="text-xs sm:text-sm text-ink-muted mt-0.5">
+            Tài khoản: <strong className="text-huyen-lam">{currentUser.displayName}</strong>
             {' · '}
             <span>
               {currentUser.role === 'admin'
                 ? 'Quản trị viên'
+                : currentUser.role === 'moderator'
+                ? 'Moderator (Quản lý)'
                 : currentUser.role === 'member'
                 ? 'Thành viên'
                 : 'Viewer (Chỉ đọc)'}
@@ -342,12 +344,12 @@ export const MyTasksView: React.FC<MyTasksViewProps> = ({
           </p>
         </div>
 
-        <label className="inline-flex items-center gap-2 text-xs sm:text-sm text-slate-700 cursor-pointer select-none min-h-[42px]">
+        <label className="inline-flex items-center gap-2 text-xs sm:text-sm text-huyen-lam cursor-pointer select-none min-h-[42px]">
           <input
             type="checkbox"
             checked={includeGroupTasks}
             onChange={(e) => setIncludeGroupTasks(e.target.checked)}
-            className="w-4 h-4 rounded border-slate-300 text-[#13294B] focus:ring-[#13294B]"
+            className="w-4 h-4 rounded border-nga-xam accent-huyen-lam focus:ring-lam-tri-tue"
           />
           <span>
             Hiển thị thêm việc chung của nhóm ({allCollectiveGroupTasks.length})
@@ -356,8 +358,8 @@ export const MyTasksView: React.FC<MyTasksViewProps> = ({
       </div>
 
       {currentUser.role === 'viewer' && (
-        <div className="bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-xs sm:text-sm text-slate-700 flex items-start gap-2.5">
-          <Info className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
+        <div className="bg-surface-muted border border-nga-xam rounded-xl px-4 py-3 text-xs sm:text-sm text-huyen-lam flex items-start gap-2.5">
+          <Info className="w-4 h-4 text-lam-tri-tue shrink-0 mt-0.5" />
           <span>
             Tài khoản của bạn đang ở quyền <strong>Viewer (Chỉ đọc)</strong>. Bạn có thể xem tiến độ toàn bộ 20 đầu việc ở mục <strong>Công việc</strong>, nhưng chưa thể chỉnh sửa dữ liệu.
           </span>
@@ -367,28 +369,28 @@ export const MyTasksView: React.FC<MyTasksViewProps> = ({
       {/* Section 1: Tasks directly assigned to this user's Firebase UID */}
       <section className="space-y-3" aria-label="Việc được giao cho tài khoản của bạn">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="text-xs sm:text-sm font-semibold text-[#13294B]">
+          <h2 className="text-xs sm:text-sm font-semibold text-huyen-lam">
             Việc được giao theo tài khoản ({directTasks.length})
           </h2>
           {currentUser.sheetAlias && (
-            <span className="text-[11px] text-slate-500">
+            <span className="text-[11px] text-ink-muted">
               Nhân sự đối chiếu: {currentUser.sheetAlias}
             </span>
           )}
         </div>
 
         {directTasks.length === 0 ? (
-          <div className="bg-white border border-slate-200 rounded-xl px-4 py-7 text-center space-y-3">
+          <div className="bg-white border border-nga-xam rounded-xl px-4 py-7 text-center space-y-3">
             <div className="space-y-1 max-w-md mx-auto">
-              <p className="text-sm font-semibold text-slate-800">
+              <p className="text-sm font-semibold text-huyen-lam">
                 Tài khoản của bạn chưa được giao đầu việc riêng nào
               </p>
-              <p className="text-xs text-slate-600 leading-relaxed">
+              <p className="text-xs text-ink-muted leading-relaxed">
                 {currentUser.role === 'viewer'
                   ? 'Hiện bạn đang ở quyền Viewer (Chỉ đọc). Bạn vẫn có thể theo dõi toàn bộ dự án tại mục Tổng quan hoặc Công việc.'
-                  : currentUser.role === 'admin'
+                  : currentUser.role === 'admin' || currentUser.role === 'moderator'
                   ? 'Bạn có thể xem và cập nhật trực tiếp toàn bộ công việc tại mục Công việc, hoặc tự gán tài khoản mình vào các đầu việc cần theo dõi.'
-                  : 'Dù tên của bạn có thể đã ghi trên bảng tính nguồn, Admin cần xác nhận giao việc cho tài khoản Google này thì đầu việc mới hiện tại đây để bạn chỉnh sửa.'}
+                  : 'Dù tên của bạn có thể đã ghi trên bảng tính nguồn, Admin hoặc Moderator cần xác nhận giao việc cho tài khoản Google này thì đầu việc mới hiện tại đây để bạn chỉnh sửa.'}
               </p>
             </div>
             <div className="flex flex-wrap items-center justify-center gap-2">
@@ -396,19 +398,19 @@ export const MyTasksView: React.FC<MyTasksViewProps> = ({
                 <button
                   type="button"
                   onClick={onNavigateToTasks}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium bg-[#13294B] text-white rounded-lg hover:bg-[#1E3A66] min-h-[40px]"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold bg-huyen-lam text-nga-thien rounded-lg hover:bg-lam-tri-tue transition-colors min-h-[40px]"
                 >
                   <span>Xem tất cả công việc dự án</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
+                  <ArrowRight className="w-3.5 h-3.5 shrink-0" />
                 </button>
               )}
               {allCollectiveGroupTasks.length > 0 && !includeGroupTasks && (
                 <button
                   type="button"
                   onClick={() => setIncludeGroupTasks(true)}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium border border-slate-200 text-slate-700 rounded-lg hover:bg-slate-50 min-h-[40px]"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium border border-nga-xam text-huyen-lam rounded-lg hover:bg-nga-thien transition-colors min-h-[40px]"
                 >
-                  <Users className="w-3.5 h-3.5" />
+                  <Users className="w-3.5 h-3.5 shrink-0" />
                   <span>Xem {allCollectiveGroupTasks.length} việc chung của nhóm</span>
                 </button>
               )}
@@ -424,23 +426,23 @@ export const MyTasksView: React.FC<MyTasksViewProps> = ({
       {/* Section 2: Collective "Nhóm" tasks when toggled on */}
       {includeGroupTasks && (
         <section
-          className="space-y-2.5 pt-2 border-t border-slate-200"
+          className="space-y-2.5 pt-2 border-t border-nga-xam"
           aria-label="Việc chung của nhóm"
         >
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-            <h2 className="text-xs sm:text-sm font-semibold text-slate-700 flex items-center gap-1.5">
-              <Users className="w-4 h-4 text-slate-500" />
+            <h2 className="text-xs sm:text-sm font-semibold text-huyen-lam flex items-center gap-1.5">
+              <Users className="w-4 h-4 text-lam-tri-tue shrink-0" />
               <span>
                 Việc chung của nhóm — Nhãn &ldquo;Nhóm&rdquo; ({visibleGroupTasks.length})
               </span>
             </h2>
-            <span className="text-[11px] text-slate-500">
+            <span className="text-[11px] text-ink-muted">
               Việc tập thể để theo dõi chung; chỉ tài khoản được Admin gán mới chỉnh sửa trực tiếp.
             </span>
           </div>
 
           {visibleGroupTasks.length === 0 ? (
-            <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-5 text-center text-xs text-slate-500">
+            <div className="bg-surface-muted border border-nga-xam rounded-xl px-4 py-5 text-center text-xs text-ink-muted">
               Các việc chung của nhóm đã nằm trong danh sách việc được giao cho tài khoản của bạn.
             </div>
           ) : (

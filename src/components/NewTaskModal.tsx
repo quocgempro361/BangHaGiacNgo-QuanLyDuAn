@@ -47,7 +47,9 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
   onClose,
   onCreateTask,
 }) => {
-  const isAdmin = currentUser.role === 'admin' && currentUser.isActive;
+  const isManager =
+    (currentUser.role === 'admin' || currentUser.role === 'moderator') &&
+    currentUser.isActive;
   const activeCategories = useMemo(
     () =>
       categories
@@ -56,7 +58,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
     [categories]
   );
 
-  // Admin sees all active official parent tasks; Member sees ONLY active official parent tasks assigned to their UID
+  // Admin & Moderator see all active official parent tasks; Member sees ONLY active official parent tasks assigned to their UID
   const eligibleParents = useMemo(() => {
     return tasks
       .filter((t) => !isB1TestTask(t) && t.parentId === null && !t.archivedAt)
@@ -67,9 +69,9 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
     if (defaultParentId && eligibleParents.some((p) => p.id === defaultParentId)) {
       return defaultParentId;
     }
-    if (isAdmin) return defaultParentId ?? '';
+    if (isManager) return defaultParentId ?? '';
     return eligibleParents[0]?.id ?? '';
-  }, [defaultParentId, eligibleParents, isAdmin]);
+  }, [defaultParentId, eligibleParents, isManager]);
 
   const [parentId, setParentId] = useState<string>(initialParentId);
   const [displayCode, setDisplayCode] = useState('');
@@ -93,7 +95,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
     const nextParent =
       defaultParentId && eligibleParents.some((p) => p.id === defaultParentId)
         ? defaultParentId
-        : isAdmin
+        : isManager
         ? defaultParentId ?? ''
         : eligibleParents[0]?.id ?? '';
     setParentId(nextParent);
@@ -105,14 +107,14 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
     } else {
       setCategoryId(activeCategories[0]?.id ?? '');
     }
-    setAssigneeUids(isAdmin ? [] : [currentUser.uid]);
+    setAssigneeUids(isManager ? [] : [currentUser.uid]);
     setCustomAssigneeNote('');
     setStatus('Chưa bắt đầu');
     setNextStep('');
     setDueDate('');
     setError(null);
     setSubmitting(false);
-  }, [isOpen, defaultParentId, isAdmin, currentUser.uid]);
+  }, [isOpen, defaultParentId, isManager, currentUser.uid]);
 
   // Inherit parent's categoryId automatically when parent selection changes
   useEffect(() => {
@@ -124,7 +126,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
 
   if (!isOpen) return null;
 
-  const memberCannotCreate = !isAdmin && eligibleParents.length === 0;
+  const memberCannotCreate = !isManager && eligibleParents.length === 0;
 
   const suggestedCode = (() => {
     const visibleTasks = tasks.filter((t) => !isB1TestTask(t) && !t.archivedAt);
@@ -152,7 +154,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
     setError(null);
 
     const cleanParentId = parentId || null;
-    if (!isAdmin && !cleanParentId) {
+    if (!isManager && !cleanParentId) {
       setError(
         'Thành viên chỉ được tạo việc con trực thuộc một nhóm việc cha đã được phân công theo UID.'
       );
@@ -170,14 +172,14 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
     }
 
     const effectiveCatId = cleanParentId
-      ? isAdmin
+      ? isManager
         ? categoryId || selectedParent?.categoryId || null
         : selectedParent?.categoryId || null
       : categoryId || null;
 
     const matchedCategory = categories.find((c) => c.id === effectiveCatId);
 
-    const resolvedUids = isAdmin ? assigneeUids : [currentUser.uid];
+    const resolvedUids = isManager ? assigneeUids : [currentUser.uid];
     const uidNames = resolvedUids
       .map((uid) => {
         const matched =
@@ -188,7 +190,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
           : '';
       })
       .filter((n): n is string => Boolean(n));
-    const extraNames = isAdmin
+    const extraNames = isManager
       ? customAssigneeNote
           .split(',')
           .map((s) => s.trim())
@@ -224,29 +226,29 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/40 p-0 sm:p-4"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-huyen-lam/45 backdrop-blur-[1px] p-0 sm:p-4"
       role="dialog"
       aria-modal="true"
-      aria-label={isAdmin ? 'Thêm đầu việc mới' : 'Thêm việc con'}
+      aria-label={isManager ? 'Thêm đầu việc mới' : 'Thêm việc con'}
     >
-      <div className="bg-white w-full sm:max-w-lg rounded-t-2xl sm:rounded-xl border border-slate-200 shadow-xl overflow-hidden">
-        <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
-          <h2 className="text-base font-semibold text-[#13294B]">
-            {!isAdmin || parentId ? 'Thêm việc con' : 'Thêm đầu việc mới'}
+      <div className="bg-white w-full sm:max-w-lg rounded-t-2xl sm:rounded-xl border border-nga-xam shadow-xl overflow-hidden">
+        <div className="px-4 py-3 bg-nga-thien border-b border-nga-xam flex items-center justify-between">
+          <h2 className="text-base font-semibold text-huyen-lam">
+            {!isManager || parentId ? 'Thêm việc con' : 'Thêm đầu việc mới'}
           </h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="Đóng"
-            className="w-10 h-10 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"
+            className="w-10 h-10 flex items-center justify-center rounded-lg text-ink-muted hover:bg-surface-muted hover:text-huyen-lam transition-colors"
           >
-            <X className="w-5 h-5" />
+            <X className="w-5 h-5 shrink-0" />
           </button>
         </div>
 
         {memberCannotCreate ? (
           <div className="p-5 space-y-4">
-            <div className="p-3.5 rounded-xl bg-[#FFF8E7] border border-[#D9A84E] text-xs sm:text-sm text-[#7C4D00] flex items-start gap-2.5">
+            <div className="p-3.5 rounded-xl bg-minh-kim-soft border border-minh-kim-border text-xs sm:text-sm text-minh-kim-ink flex items-start gap-2.5">
               <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
               <div className="space-y-1">
                 <div className="font-semibold">
@@ -261,7 +263,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 text-sm font-medium bg-[#13294B] text-white rounded-lg hover:bg-[#1E3A66]"
+                className="px-4 py-2 text-sm font-semibold bg-huyen-lam text-nga-thien rounded-lg hover:bg-lam-tri-tue transition-colors min-h-[42px]"
               >
                 Đã hiểu
               </button>
@@ -279,17 +281,17 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
             )}
 
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">
-                {isAdmin
+              <label className="block text-xs font-medium text-huyen-lam mb-1">
+                {isManager
                   ? 'Cấp công việc (tối đa 2 cấp)'
                   : 'Thuộc nhóm việc cha được phân quyền'}
               </label>
               <select
                 value={parentId}
                 onChange={(e) => setParentId(e.target.value)}
-                className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#13294B] min-h-[42px]"
+                className="w-full px-3 py-2 text-sm bg-white border border-nga-xam rounded-lg text-huyen-lam focus:outline-none focus:ring-2 focus:ring-lam-tri-tue min-h-[42px]"
               >
-                {isAdmin && <option value="">Đầu việc cha (cấp 1)</option>}
+                {isManager && <option value="">Đầu việc cha (cấp 1)</option>}
                 {eligibleParents.map((p) => (
                   <option key={p.id} value={p.id}>
                     Việc con của: {p.displayCode}. {p.title}
@@ -300,7 +302,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
+                <label className="block text-xs font-medium text-huyen-lam mb-1">
                   Mã hiển thị
                 </label>
                 <input
@@ -309,11 +311,11 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
                   value={displayCode}
                   onChange={(e) => setDisplayCode(e.target.value)}
                   placeholder={suggestedCode}
-                  className="w-full px-3 py-2 text-sm font-mono-tabular border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#13294B] min-h-[42px]"
+                  className="w-full px-3 py-2 text-sm font-mono-tabular bg-white border border-nga-xam rounded-lg text-huyen-lam focus:outline-none focus:ring-2 focus:ring-lam-tri-tue min-h-[42px]"
                 />
               </div>
               <div className="sm:col-span-3">
-                <label className="block text-xs font-medium text-slate-700 mb-1">
+                <label className="block text-xs font-medium text-huyen-lam mb-1">
                   Tên đầu việc
                 </label>
                 <input
@@ -323,26 +325,26 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="Nhập tên công việc..."
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#13294B] min-h-[42px]"
+                  className="w-full px-3 py-2 text-sm bg-white border border-nga-xam rounded-lg text-huyen-lam focus:outline-none focus:ring-2 focus:ring-lam-tri-tue min-h-[42px]"
                 />
               </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
+                <label className="block text-xs font-medium text-huyen-lam mb-1">
                   Hạng mục{' '}
-                  {parentId && !isAdmin && '(kế thừa từ việc cha)'}
+                  {parentId && !isManager && '(kế thừa từ việc cha)'}
                 </label>
-                {parentId && !isAdmin ? (
-                  <div className="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-700 min-h-[42px] flex items-center">
+                {parentId && !isManager ? (
+                  <div className="px-3 py-2 text-sm bg-nga-thien border border-nga-xam rounded-lg text-huyen-lam min-h-[42px] flex items-center">
                     {parentCatMeta?.category || 'Chưa phân hạng mục'}
                   </div>
                 ) : (
                   <select
                     value={categoryId}
                     onChange={(e) => setCategoryId(e.target.value)}
-                    className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg min-h-[42px]"
+                    className="w-full px-3 py-2 text-sm bg-white border border-nga-xam rounded-lg text-huyen-lam focus:outline-none focus:ring-2 focus:ring-lam-tri-tue min-h-[42px]"
                   >
                     <option value="">
                       {parentId && parentCatMeta?.category
@@ -359,13 +361,13 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
+                <label className="block text-xs font-medium text-huyen-lam mb-1">
                   Trạng thái ban đầu
                 </label>
                 <select
                   value={status}
                   onChange={(e) => setStatus(e.target.value as TaskStatus)}
-                  className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg min-h-[42px]"
+                  className="w-full px-3 py-2 text-sm bg-white border border-nga-xam rounded-lg text-huyen-lam focus:outline-none focus:ring-2 focus:ring-lam-tri-tue min-h-[42px]"
                 >
                   {ALL_STATUSES.filter((s) => s !== 'Hoàn thành').map((st) => (
                     <option key={st} value={st}>
@@ -376,13 +378,13 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
               </div>
             </div>
 
-            {isAdmin ? (
-              <div className="space-y-2 p-3 bg-slate-50 border border-slate-200 rounded-lg">
-                <div className="text-xs font-medium text-slate-700">
+            {isManager ? (
+              <div className="space-y-2 p-3 bg-nga-thien border border-nga-xam rounded-lg">
+                <div className="text-xs font-semibold text-huyen-lam">
                   Phân công theo tài khoản Firebase UID (quyết định quyền sửa)
                 </div>
                 {members.filter((m) => m.isActive).length === 0 ? (
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-ink-muted">
                     Chưa có thành viên hoạt động nào khác.
                   </p>
                 ) : (
@@ -392,12 +394,13 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
                       .map((m) => (
                         <label
                           key={m.uid}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs bg-white border border-slate-200 rounded-lg cursor-pointer"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs bg-white border border-nga-xam rounded-lg cursor-pointer hover:border-lam-tri-tue/50"
                         >
                           <input
                             type="checkbox"
                             checked={assigneeUids.includes(m.uid)}
                             onChange={() => toggleUid(m.uid)}
+                            className="accent-huyen-lam"
                           />
                           <span>
                             {m.displayName}
@@ -410,7 +413,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
                   </div>
                 )}
                 <div>
-                  <label className="block text-[11px] text-slate-500 mb-1">
+                  <label className="block text-[11px] text-ink-muted mb-1">
                     Nhãn tên hiển thị bổ sung (tùy chọn, không cấp quyền)
                   </label>
                   <input
@@ -418,14 +421,14 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
                     value={customAssigneeNote}
                     onChange={(e) => setCustomAssigneeNote(e.target.value)}
                     placeholder="VD: Nhóm"
-                    className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg"
+                    className="w-full px-2.5 py-1.5 text-xs bg-white border border-nga-xam rounded-lg focus:outline-none focus:ring-2 focus:ring-lam-tri-tue"
                   />
                 </div>
               </div>
             ) : (
-              <div className="text-xs text-slate-600 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+              <div className="text-xs text-ink-muted bg-nga-thien border border-nga-xam rounded-lg px-3 py-2">
                 Người phụ trách (gắn UID của bạn):{' '}
-                <strong className="text-[#13294B]">
+                <strong className="text-huyen-lam">
                   {currentUser.displayName}
                 </strong>
               </div>
@@ -433,7 +436,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
+                <label className="block text-xs font-medium text-huyen-lam mb-1">
                   Bước tiếp theo
                 </label>
                 <input
@@ -442,19 +445,19 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
                   value={nextStep}
                   onChange={(e) => setNextStep(e.target.value)}
                   placeholder="Ghi ngắn gọn bước kế tiếp..."
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg min-h-[42px]"
+                  className="w-full px-3 py-2 text-sm bg-white border border-nga-xam rounded-lg focus:outline-none focus:ring-2 focus:ring-lam-tri-tue min-h-[42px]"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
+                <label className="block text-xs font-medium text-huyen-lam mb-1">
                   Hạn xử lý
                 </label>
                 <input
                   type="date"
                   value={dueDate}
                   onChange={(e) => setDueDate(e.target.value)}
-                  className="w-full px-3 py-2 text-sm font-mono-tabular border border-slate-200 rounded-lg min-h-[42px]"
+                  className="w-full px-3 py-2 text-sm font-mono-tabular bg-white border border-nga-xam rounded-lg focus:outline-none focus:ring-2 focus:ring-lam-tri-tue min-h-[42px]"
                 />
               </div>
             </div>
@@ -463,18 +466,18 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 min-h-[44px]"
+                className="px-4 py-2 text-sm font-medium text-ink-muted hover:text-huyen-lam min-h-[44px]"
               >
                 Hủy
               </button>
               <button
                 type="submit"
                 disabled={submitting}
-                className="px-4 py-2 text-sm font-medium bg-[#13294B] text-white rounded-lg hover:bg-[#1E3A66] disabled:opacity-50 min-h-[44px]"
+                className="px-4 py-2 text-sm font-semibold bg-huyen-lam text-nga-thien rounded-lg hover:bg-lam-tri-tue transition-colors disabled:opacity-50 min-h-[44px]"
               >
                 {submitting
                   ? 'Đang lưu...'
-                  : !isAdmin || parentId
+                  : !isManager || parentId
                   ? 'Tạo việc con'
                   : 'Tạo công việc'}
               </button>

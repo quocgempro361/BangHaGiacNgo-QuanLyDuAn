@@ -14,10 +14,10 @@ import {
   ClipboardList,
   Download,
   FileJson,
-  FileSpreadsheet,
   FolderKanban,
   LayoutDashboard,
   LogOut,
+  Settings,
   UserCheck,
   Users,
   X,
@@ -74,6 +74,7 @@ import { MyTasksView } from './components/MyTasksView';
 import { MembersView } from './components/MembersView';
 import { CategoriesView } from './components/CategoriesView';
 import { ImportPreviewView } from './components/ImportPreviewView';
+import { AdminSettingsView } from './components/AdminSettingsView';
 import { TaskDetailDrawer } from './components/TaskDetailDrawer';
 import { NewTaskModal } from './components/NewTaskModal';
 
@@ -129,7 +130,6 @@ export default function App() {
   });
 
   const [route, setRoute] = useState<AppRoute>('overview');
-  const [adminTab, setAdminTab] = useState<'members' | 'categories' | 'import'>('members');
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [newTaskParentId, setNewTaskParentId] = useState<
     string | null | undefined
@@ -252,10 +252,15 @@ export default function App() {
     let unsubInvites: (() => void) | undefined;
     let unsubAuthSettings: (() => void) | undefined;
 
-    if (currentUser.role === 'admin') {
+    if (currentUser.role === 'admin' || currentUser.role === 'moderator') {
       unsubUsers = subscribeUsers(setMembers, (err) => {
         showToast('error', formatActionError(err));
       });
+    } else {
+      setMembers([currentUser]);
+    }
+
+    if (currentUser.role === 'admin') {
       unsubInvites = subscribeInvites(setInvites, (err) => {
         showToast('error', formatActionError(err));
       });
@@ -263,7 +268,6 @@ export default function App() {
         showToast('error', formatActionError(err));
       });
     } else {
-      setMembers([currentUser]);
       setInvites([]);
       setAuthSettings({ allowOpenGoogleLogin: false });
     }
@@ -412,7 +416,11 @@ export default function App() {
   };
 
   const handleArchiveTask = async (taskId: string) => {
-    if (!currentUser || currentUser.role !== 'admin') return;
+    if (
+      !currentUser ||
+      (currentUser.role !== 'admin' && currentUser.role !== 'moderator')
+    )
+      return;
     try {
       await archiveOrRestoreTaskInFirestore(taskId, true, currentUser);
       setSelectedTaskId(null);
@@ -423,7 +431,11 @@ export default function App() {
   };
 
   const handleRestoreTask = async (taskId: string) => {
-    if (!currentUser || currentUser.role !== 'admin') return;
+    if (
+      !currentUser ||
+      (currentUser.role !== 'admin' && currentUser.role !== 'moderator')
+    )
+      return;
     try {
       await archiveOrRestoreTaskInFirestore(taskId, false, currentUser);
       showToast('success', 'Đã khôi phục công việc');
@@ -448,7 +460,11 @@ export default function App() {
   };
 
   const handleSeedDefaultCategories = async () => {
-    if (!currentUser || currentUser.role !== 'admin') return;
+    if (
+      !currentUser ||
+      (currentUser.role !== 'admin' && currentUser.role !== 'moderator')
+    )
+      return;
     try {
       const count = await seedDefaultCategories(currentUser);
       showToast(
@@ -467,7 +483,11 @@ export default function App() {
     color: string;
     sortOrder: number;
   }) => {
-    if (!currentUser || currentUser.role !== 'admin') return;
+    if (
+      !currentUser ||
+      (currentUser.role !== 'admin' && currentUser.role !== 'moderator')
+    )
+      return;
     try {
       await createCategoryInFirestore(input, currentUser);
       showToast('success', `Đã thêm hạng mục "${input.name}"`);
@@ -480,7 +500,11 @@ export default function App() {
     categoryId: string,
     patch: Partial<Pick<CategoryItem, 'name' | 'color' | 'sortOrder' | 'isActive'>>
   ) => {
-    if (!currentUser || currentUser.role !== 'admin') return;
+    if (
+      !currentUser ||
+      (currentUser.role !== 'admin' && currentUser.role !== 'moderator')
+    )
+      return;
     try {
       await updateCategoryInFirestore(categoryId, patch, currentUser);
       showToast('success', 'Đã cập nhật hạng mục');
@@ -493,7 +517,11 @@ export default function App() {
     catA: CategoryItem,
     catB: CategoryItem
   ) => {
-    if (!currentUser || currentUser.role !== 'admin') return;
+    if (
+      !currentUser ||
+      (currentUser.role !== 'admin' && currentUser.role !== 'moderator')
+    )
+      return;
     try {
       await swapCategoryOrderInFirestore(catA, catB, currentUser);
       showToast('success', 'Đã cập nhật thứ tự hạng mục');
@@ -503,7 +531,11 @@ export default function App() {
   };
 
   const handleDeleteUnusedCategory = async (categoryId: string) => {
-    if (!currentUser || currentUser.role !== 'admin') return;
+    if (
+      !currentUser ||
+      (currentUser.role !== 'admin' && currentUser.role !== 'moderator')
+    )
+      return;
     try {
       await deleteUnusedCategoryInFirestore(categoryId, tasks);
       showToast('success', 'Đã xóa hạng mục chưa sử dụng');
@@ -652,6 +684,9 @@ export default function App() {
   }
 
   const isAdmin = currentUser.role === 'admin' && currentUser.isActive;
+  const canManage =
+    (currentUser.role === 'admin' || currentUser.role === 'moderator') &&
+    currentUser.isActive;
 
   const navItems: Array<{
     id: AppRoute;
@@ -677,6 +712,16 @@ export default function App() {
       shortLabel: 'Của tôi',
       icon: UserCheck,
     },
+    ...(canManage
+      ? [
+          {
+            id: 'categories' as AppRoute,
+            label: 'Quản lý hạng mục',
+            shortLabel: 'Hạng mục',
+            icon: FolderKanban,
+          },
+        ]
+      : []),
     {
       id: 'members',
       label: 'Thành viên',
@@ -688,30 +733,11 @@ export default function App() {
   const roleDisplay =
     currentUser.role === 'admin'
       ? 'Admin'
+      : currentUser.role === 'moderator'
+      ? 'Moderator'
       : currentUser.role === 'member'
       ? 'Member'
       : 'Viewer';
-
-  const categoriesPanel = isAdmin ? (
-    <CategoriesView
-      categories={categories}
-      tasks={tasks}
-      currentUser={currentUser}
-      onSeedDefaults={handleSeedDefaultCategories}
-      onCreateCategory={handleCreateCategory}
-      onUpdateCategory={handleUpdateCategory}
-      onSwapOrder={handleSwapCategoryOrder}
-      onDeleteUnusedCategory={handleDeleteUnusedCategory}
-      onSelectTask={(id) => setSelectedTaskId(id)}
-      onFilterTasksByCategory={(categoryId) => {
-        setTasksFilterPreset({
-          categoryId,
-          key: Date.now(),
-        });
-        setRoute('tasks');
-      }}
-    />
-  ) : null;
 
   const handleExecuteOfficialImport = async (
     items: OfficialImportPlanItem[],
@@ -765,98 +791,88 @@ export default function App() {
       existingTasks={tasks}
       existingCategories={categories}
       currentUser={currentUser}
-      onNavigateToCategories={() => setAdminTab('categories')}
+      onNavigateToCategories={() => setRoute('categories')}
       onExecuteImport={handleExecuteOfficialImport}
       onVerifyLiveFirestore={handleVerifyOfficialFirestore}
     />
   ) : null;
 
+  const activeRouteLabel =
+    route === 'admin-settings'
+      ? 'Cài đặt quản trị'
+      : route === 'categories'
+      ? 'Quản lý hạng mục'
+      : navItems.find((n) => n.id === route)?.label ?? 'Tổng quan';
+
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row bg-[#F7F8FA] text-[#0F172A] overflow-x-hidden">
+    <div className="min-h-screen flex flex-col lg:flex-row bg-nga-thien text-huyen-lam overflow-x-hidden">
       {/* Desktop Sidebar (240px) */}
-      <aside className="hidden lg:flex lg:flex-col lg:w-60 lg:fixed lg:inset-y-0 bg-[#13294B] text-white border-r border-[#0F203C]">
-        <div className="h-14 px-4 flex items-center gap-2.5 border-b border-white/10 shrink-0">
-          <TbhgnLogo size={30} className="shrink-0" />
-          <span className="text-sm font-bold tracking-tight whitespace-nowrap truncate">
-            TBHGN
-          </span>
+      <aside className="hidden lg:flex lg:flex-col lg:w-60 lg:fixed lg:inset-y-0 bg-huyen-lam text-nga-thien border-r border-huyen-lam-deep">
+        <div className="h-14 px-4 flex items-center border-b border-white/10 shrink-0">
+          <TbhgnLogo size={32} variant="dark" showWordmark />
         </div>
 
         <nav className="flex-1 p-3 space-y-1" aria-label="Điều hướng chính">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const active =
-              route === item.id &&
-              !(item.id === 'members' && adminTab !== 'members');
+            const active = route === item.id;
             return (
               <button
                 key={item.id}
                 type="button"
-                onClick={() => {
-                  setRoute(item.id);
-                  if (item.id === 'members') setAdminTab('members');
-                }}
+                onClick={() => setRoute(item.id)}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
                   active
-                    ? 'bg-white/15 text-[#F5D77F]'
-                    : 'text-slate-200 hover:bg-white/10 hover:text-white'
+                    ? 'bg-white/12 text-kim-quang ring-1 ring-minh-kim/35'
+                    : 'text-slate-200/90 hover:bg-lam-tri-tue/75 hover:text-white'
                 }`}
               >
-                <Icon className="w-4 h-4 shrink-0" />
+                <Icon
+                  className={`w-[18px] h-[18px] shrink-0 transition-colors ${
+                    active ? 'text-kim-quang' : 'text-slate-300'
+                  }`}
+                />
                 <span>{item.label}</span>
               </button>
             );
           })}
 
           {isAdmin && (
-            <>
+            <div className="pt-2 mt-2 border-t border-white/10 space-y-1">
               <button
                 type="button"
-                onClick={() => {
-                  setRoute('members');
-                  setAdminTab('categories');
-                }}
+                onClick={() => setRoute('admin-settings')}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
-                  route === 'members' && adminTab === 'categories'
-                    ? 'bg-white/15 text-[#F5D77F]'
-                    : 'text-slate-200 hover:bg-white/10 hover:text-white'
+                  route === 'admin-settings'
+                    ? 'bg-white/12 text-kim-quang ring-1 ring-minh-kim/35'
+                    : 'text-slate-200/90 hover:bg-lam-tri-tue/75 hover:text-white'
                 }`}
               >
-                <FolderKanban className="w-4 h-4 shrink-0" />
-                <span>Quản lý hạng mục</span>
+                <Settings
+                  className={`w-[18px] h-[18px] shrink-0 transition-colors ${
+                    route === 'admin-settings' ? 'text-kim-quang' : 'text-slate-300'
+                  }`}
+                />
+                <span>Cài đặt quản trị</span>
               </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setRoute('members');
-                  setAdminTab('import');
-                }}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
-                  route === 'members' && adminTab === 'import'
-                    ? 'bg-white/15 text-[#F5D77F]'
-                    : 'text-slate-200 hover:bg-white/10 hover:text-white'
-                }`}
-              >
-                <FileSpreadsheet className="w-4 h-4 shrink-0" />
-                <span>Nhập dữ liệu dự án</span>
-              </button>
-            </>
+            </div>
           )}
         </nav>
 
         {/* Signed-in Google Profile, Export & Logout */}
         <div className="p-3 border-t border-white/10 space-y-2.5 text-xs">
-          <div className="px-2.5 py-2 rounded-lg bg-[#0E203B] border border-white/10 space-y-0.5">
-            <div className="font-semibold text-white truncate">
+          <div className="px-2.5 py-2 rounded-lg bg-huyen-lam-deep border border-lam-tri-tue/60 space-y-0.5">
+            <div className="font-semibold text-nga-thien truncate">
               {currentUser.displayName}
             </div>
             <div className="text-[11px] text-slate-300 truncate">
               {currentUser.email}
             </div>
-            <div className="text-[11px] text-[#F5D77F]">
+            <div className="text-[11px] text-kim-quang font-medium">
               {roleDisplay}
-              {currentUser.canApprove && currentUser.role !== 'admin'
+              {currentUser.canApprove &&
+              currentUser.role !== 'admin' &&
+              currentUser.role !== 'moderator'
                 ? ' · Được duyệt'
                 : ''}
             </div>
@@ -866,18 +882,18 @@ export default function App() {
             <button
               type="button"
               onClick={handleExportCSV}
-              className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-slate-100 transition-colors"
+              className="flex-1 inline-flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg bg-white/10 hover:bg-lam-tri-tue text-nga-thien transition-colors"
             >
-              <Download className="w-3.5 h-3.5" />
+              <Download className="w-3.5 h-3.5 shrink-0" />
               <span>CSV</span>
             </button>
             {isAdmin && (
               <button
                 type="button"
                 onClick={handleExportJSON}
-                className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-slate-100 transition-colors"
+                className="flex-1 inline-flex items-center justify-center gap-1.5 px-2 py-2 rounded-lg bg-white/10 hover:bg-lam-tri-tue text-nga-thien transition-colors"
               >
-                <FileJson className="w-3.5 h-3.5" />
+                <FileJson className="w-3.5 h-3.5 shrink-0" />
                 <span>JSON</span>
               </button>
             )}
@@ -886,9 +902,9 @@ export default function App() {
               onClick={handleSignOut}
               title="Đăng xuất"
               aria-label="Đăng xuất"
-              className="px-2.5 py-2 rounded-lg bg-white/10 hover:bg-red-500/30 text-slate-100 transition-colors"
+              className="px-2.5 py-2 rounded-lg bg-white/10 hover:bg-chu-sa text-nga-thien transition-colors"
             >
-              <LogOut className="w-3.5 h-3.5" />
+              <LogOut className="w-3.5 h-3.5 shrink-0" />
             </button>
           </div>
         </div>
@@ -896,39 +912,56 @@ export default function App() {
 
       {/* Main Column */}
       <div className="flex-1 flex flex-col lg:pl-60 min-w-0">
-        {/* Compact Top Bar (52px) */}
-        <header className="sticky top-0 z-30 h-[52px] bg-white/95 backdrop-blur-sm border-b border-slate-200 px-3 sm:px-6 flex items-center justify-between gap-2">
+        {/* Compact Top Bar (52px) — Huyền Lam & Minh Kim */}
+        <header className="sticky top-0 z-30 h-[52px] bg-huyen-lam text-[#E6EAF2] border-b border-minh-kim/35 px-3 sm:px-6 flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 lg:hidden min-w-0">
-            <TbhgnLogo size={28} className="shrink-0" />
-            <span className="text-sm font-bold text-[#13294B] whitespace-nowrap">
+            <TbhgnLogo size={28} variant="dark" showWordmark />
+          </div>
+
+          <div className="hidden lg:flex items-center gap-2.5 text-xs whitespace-nowrap min-w-0">
+            <span className="text-sm font-bold text-kim-quang tracking-[0.02em]">
               TBHGN
             </span>
-          </div>
-
-          <div className="hidden lg:flex items-center gap-2 text-xs text-slate-500 whitespace-nowrap">
-            <span className="font-semibold text-[#13294B]">TBHGN</span>
-            <span aria-hidden="true">/</span>
-            <span>
-              {route === 'members' && adminTab === 'categories'
-                ? 'Quản lý hạng mục'
-                : route === 'members' && adminTab === 'import'
-                ? 'Nhập dữ liệu dự án'
-                : navItems.find((n) => n.id === route)?.label}
+            <span aria-hidden="true" className="text-minh-kim/70 font-medium">
+              /
+            </span>
+            <span className="text-[13px] font-medium text-[#E6EAF2] truncate">
+              {activeRouteLabel}
             </span>
           </div>
 
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            <span className="lg:hidden text-xs font-medium text-slate-700 max-w-[110px] truncate">
+          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+            <span
+              className="text-xs font-medium text-[#E6EAF2] max-w-[84px] sm:max-w-[140px] lg:max-w-[180px] truncate"
+              title={currentUser.displayName}
+            >
               {currentUser.displayName}
             </span>
+
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => setRoute('admin-settings')}
+                aria-label="Cài đặt quản trị"
+                title="Cài đặt quản trị"
+                className={`lg:hidden inline-flex items-center justify-center p-2 text-xs font-medium border rounded-lg min-h-[40px] min-w-[40px] transition-colors focus-visible:outline-2 focus-visible:outline-kim-quang focus-visible:outline-offset-2 ${
+                  route === 'admin-settings'
+                    ? 'bg-lam-tri-tue text-kim-quang border-minh-kim/65'
+                    : 'bg-transparent text-[#E6EAF2] border-white/15 hover:bg-lam-tri-tue hover:text-kim-quang hover:border-minh-kim/40'
+                }`}
+              >
+                <Settings className="w-4 h-4 shrink-0" />
+              </button>
+            )}
 
             <button
               type="button"
               onClick={handleExportCSV}
               aria-label="Xuất dữ liệu sao lưu CSV"
-              className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-[#13294B] bg-slate-100 hover:bg-slate-200 rounded-lg whitespace-nowrap shrink-0 min-h-[40px] min-w-[40px]"
+              title="Xuất CSV"
+              className="inline-flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-xs font-medium text-kim-quang bg-white/[0.04] border border-minh-kim/45 hover:bg-lam-tri-tue hover:border-kim-quang/70 rounded-lg whitespace-nowrap shrink-0 min-h-[40px] min-w-[40px] transition-colors focus-visible:outline-2 focus-visible:outline-kim-quang focus-visible:outline-offset-2"
             >
-              <Download className="w-3.5 h-3.5" />
+              <Download className="w-3.5 h-3.5 shrink-0 text-kim-quang" />
               <span className="hidden sm:inline">Xuất CSV</span>
             </button>
 
@@ -936,9 +969,10 @@ export default function App() {
               type="button"
               onClick={handleSignOut}
               aria-label="Đăng xuất"
-              className="lg:hidden inline-flex items-center justify-center px-2.5 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg min-h-[40px] min-w-[40px]"
+              title="Đăng xuất"
+              className="lg:hidden inline-flex items-center justify-center p-2 text-xs font-medium text-[#E6EAF2]/85 bg-transparent border border-white/15 hover:bg-lam-tri-tue hover:text-white hover:border-white/30 rounded-lg min-h-[40px] min-w-[40px] transition-colors focus-visible:outline-2 focus-visible:outline-kim-quang focus-visible:outline-offset-2"
             >
-              <LogOut className="w-3.5 h-3.5" />
+              <LogOut className="w-4 h-4 shrink-0" />
             </button>
           </div>
         </header>
@@ -987,23 +1021,54 @@ export default function App() {
             />
           )}
 
+          {route === 'categories' && (
+            <CategoriesView
+              categories={categories}
+              tasks={tasks}
+              currentUser={currentUser}
+              onSeedDefaults={handleSeedDefaultCategories}
+              onCreateCategory={handleCreateCategory}
+              onUpdateCategory={handleUpdateCategory}
+              onSwapOrder={handleSwapCategoryOrder}
+              onDeleteUnusedCategory={handleDeleteUnusedCategory}
+              onSelectTask={(id) => setSelectedTaskId(id)}
+              onFilterTasksByCategory={(categoryId) => {
+                setTasksFilterPreset({
+                  categoryId,
+                  key: Date.now(),
+                });
+                setRoute('tasks');
+              }}
+            />
+          )}
+
           {route === 'members' && (
             <MembersView
               members={members}
               invites={invites}
               tasks={tasks}
               currentUser={currentUser}
-              authSettings={authSettings}
-              adminTab={adminTab}
-              onChangeAdminTab={setAdminTab}
-              categoriesPanel={categoriesPanel}
-              importPanel={importPanel}
-              onToggleOpenGoogleLogin={handleToggleOpenGoogleLogin}
               onAssignTasksToMember={handleAssignTasksToMember}
               onAddInvite={handleAddInvite}
               onUpdateMember={handleUpdateMember}
               onUpdateInvite={handleUpdateInvite}
               onDeleteInvite={handleDeleteInvite}
+            />
+          )}
+
+          {route === 'admin-settings' && (
+            <AdminSettingsView
+              currentUser={currentUser}
+              authSettings={authSettings}
+              members={members}
+              categoriesCount={categories.length}
+              tasksCount={tasks.filter((t) => !t.archivedAt).length}
+              onToggleOpenGoogleLogin={handleToggleOpenGoogleLogin}
+              onExportCSV={handleExportCSV}
+              onExportJSON={handleExportJSON}
+              onNavigateToCategories={() => setRoute('categories')}
+              onNavigateToMembers={() => setRoute('members')}
+              importPanel={importPanel}
             />
           )}
         </main>
@@ -1012,7 +1077,9 @@ export default function App() {
       {/* Mobile Bottom Navigation Bar */}
       <nav
         aria-label="Điều hướng di động"
-        className="lg:hidden fixed bottom-0 left-0 right-0 z-30 min-h-[56px] pb-[env(safe-area-inset-bottom)] bg-white/95 backdrop-blur-sm border-t border-slate-200 grid grid-cols-4"
+        className={`lg:hidden fixed bottom-0 left-0 right-0 z-30 min-h-[56px] pb-[env(safe-area-inset-bottom)] bg-white/95 backdrop-blur-sm border-t border-nga-xam grid ${
+          canManage ? 'grid-cols-5' : 'grid-cols-4'
+        }`}
       >
         {navItems.map((item) => {
           const Icon = item.icon;
@@ -1022,13 +1089,21 @@ export default function App() {
               key={item.id}
               type="button"
               onClick={() => setRoute(item.id)}
-              className={`min-h-[54px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition-colors ${
-                active ? 'text-[#13294B]' : 'text-slate-500'
+              className={`relative min-h-[54px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition-colors ${
+                active
+                  ? 'text-huyen-lam font-semibold'
+                  : 'text-ink-muted hover:text-huyen-lam'
               }`}
             >
+              {active && (
+                <span
+                  aria-hidden="true"
+                  className="absolute top-0 inset-x-4 h-0.5 rounded-full bg-minh-kim"
+                />
+              )}
               <Icon
-                className={`w-5 h-5 ${
-                  active ? 'text-[#13294B]' : 'text-slate-400'
+                className={`w-[18px] h-[18px] shrink-0 ${
+                  active ? 'text-huyen-lam' : 'text-ink-muted'
                 }`}
               />
               <span className="truncate max-w-full px-1">
@@ -1073,14 +1148,14 @@ export default function App() {
           role={toast.type === 'error' ? 'alert' : 'status'}
           className={`fixed bottom-[4.5rem] lg:bottom-5 left-3 right-3 sm:left-auto sm:right-5 z-50 sm:max-w-md px-3.5 py-2.5 rounded-xl border shadow-lg flex items-center gap-2.5 text-xs font-medium ${
             toast.type === 'success'
-              ? 'bg-[#13294B] text-white border-[#0E203B]'
+              ? 'bg-huyen-lam text-nga-thien border-lam-tri-tue'
               : 'bg-red-50 text-red-900 border-red-200'
           }`}
         >
           {toast.type === 'error' ? (
             <AlertTriangle className="w-4 h-4 shrink-0 text-red-700" />
           ) : (
-            <CheckCircle2 className="w-4 h-4 shrink-0" />
+            <CheckCircle2 className="w-4 h-4 shrink-0 text-kim-quang" />
           )}
           <span className="flex-1 break-words">{toast.text}</span>
           <button

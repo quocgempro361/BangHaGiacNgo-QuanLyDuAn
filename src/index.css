@@ -1,21 +1,68 @@
 @import "tailwindcss";
 
+@theme {
+  --color-huyen-lam: #14243f;
+  --color-huyen-lam-deep: #0d192e;
+  --color-lam-tri-tue: #274467;
+  --color-minh-kim: #c9a14b;
+  --color-minh-kim-ink: #78530e;
+  --color-minh-kim-soft: #fbf6e8;
+  --color-minh-kim-border: #dfc787;
+  --color-kim-quang: #f1d58b;
+  --color-chu-sa: #913f3d;
+  --color-chu-sa-soft: #f8efef;
+  --color-chu-sa-border: #d9b6b5;
+  --color-nga-thien: #faf8f3;
+  --color-nga-xam: #e6e2d8;
+  --color-surface-muted: #f3efe6;
+  --color-ink-muted: #5a6270;
+}
+
 @layer base {
   :root {
-    --tbhgn-navy: #13294b;
-    --tbhgn-navy-soft: #1e3a66;
-    --tbhgn-gold: #b8860b;
-    --tbhgn-gold-soft: #f5edd6;
+    --tbhgn-huyen-lam: #14243f;
+    --tbhgn-huyen-lam-deep: #0d192e;
+    --tbhgn-lam-tri-tue: #274467;
+    --tbhgn-minh-kim: #c9a14b;
+    --tbhgn-minh-kim-ink: #78530e;
+    --tbhgn-minh-kim-soft: #fbf6e8;
+    --tbhgn-minh-kim-border: #dfc787;
+    --tbhgn-kim-quang: #f1d58b;
+    --tbhgn-chu-sa: #913f3d;
+    --tbhgn-chu-sa-soft: #f8efef;
+    --tbhgn-nga-thien: #faf8f3;
+    --tbhgn-nga-xam: #e6e2d8;
+    --tbhgn-surface: #ffffff;
+    --tbhgn-surface-muted: #f3efe6;
+    --tbhgn-ink-muted: #5a6270;
+  }
+
+  html {
+    background-color: var(--tbhgn-nga-thien);
+    color: var(--tbhgn-huyen-lam);
   }
 
   body {
     font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    background-color: var(--tbhgn-nga-thien);
+    color: var(--tbhgn-huyen-lam);
     overflow-x: hidden;
   }
 
   .font-mono-tabular {
     font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
     font-variant-numeric: tabular-nums;
+  }
+
+  /* Unified Lucide icon stroke weight across all screens */
+  svg.lucide {
+    stroke-width: 1.75;
+  }
+
+  /* Accessible keyboard focus indicator */
+  :where(button, a, input, select, textarea):focus-visible {
+    outline: 2px solid var(--tbhgn-lam-tri-tue);
+    outline-offset: 2px;
   }
 }
 

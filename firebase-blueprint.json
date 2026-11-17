@@ -9,7 +9,7 @@
         "email": { "type": "string", "format": "email", "maxLength": 254 },
         "displayName": { "type": "string", "minLength": 1, "maxLength": 120 },
         "sheetAlias": { "type": "string", "maxLength": 80 },
-        "role": { "type": "string", "enum": ["admin", "member", "viewer"] },
+        "role": { "type": "string", "enum": ["admin", "moderator", "member", "viewer"] },
         "canApprove": { "type": "boolean" },
         "isActive": { "type": "boolean" },
         "createdAt": { "type": "string", "format": "date-time" },
@@ -25,7 +25,7 @@
         "email": { "type": "string", "format": "email", "maxLength": 254 },
         "displayName": { "type": "string", "minLength": 1, "maxLength": 120 },
         "sheetAlias": { "type": "string", "maxLength": 80 },
-        "role": { "type": "string", "enum": ["admin", "member", "viewer"] },
+        "role": { "type": "string", "enum": ["admin", "moderator", "member", "viewer"] },
         "canApprove": { "type": "boolean" },
         "isActive": { "type": "boolean" },
         "createdBy": { "type": "string", "maxLength": 128 },
@@ -36,7 +36,7 @@
     },
     "Category": {
       "title": "Category",
-      "description": "Project task category managed by Admin with stable ID.",
+      "description": "Project task category managed by Admin or Moderator with stable ID.",
       "type": "object",
       "properties": {
         "name": { "type": "string", "minLength": 1, "maxLength": 100 },
@@ -138,7 +138,7 @@
     },
     "/categories/{categoryId}": {
       "schema": { "$ref": "#/entities/Category" },
-      "description": "Admin-managed task categories referenced by tasks via categoryId"
+      "description": "Admin and Moderator managed task categories referenced by tasks via categoryId"
     },
     "/tasks/{taskId}": {
       "schema": { "$ref": "#/entities/TaskItem" },

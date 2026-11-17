@@ -37,12 +37,12 @@ interface CategoriesViewProps {
 }
 
 const COLOR_SWATCHES = [
-  '#13294B',
+  '#14243F',
+  '#274467',
+  '#C9A14B',
+  '#913F3D',
   '#1E5631',
-  '#8A5A00',
-  '#103A5C',
-  '#6B111C',
-  '#475569',
+  '#5A6270',
 ];
 
 export const CategoriesView: React.FC<CategoriesViewProps> = ({
@@ -57,14 +57,16 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({
   onSelectTask,
   onFilterTasksByCategory,
 }) => {
-  const isAdmin = currentUser.role === 'admin' && currentUser.isActive;
+  const canManageCategories =
+    (currentUser.role === 'admin' || currentUser.role === 'moderator') &&
+    currentUser.isActive;
   const [showAddForm, setShowAddForm] = useState(false);
   const [newName, setNewName] = useState('');
-  const [newColor, setNewColor] = useState('#13294B');
+  const [newColor, setNewColor] = useState('#14243F');
   const [newOrder, setNewOrder] = useState<number>(categories.length + 1);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
-  const [editColor, setEditColor] = useState('#13294B');
+  const [editColor, setEditColor] = useState('#14243F');
   const [expandedCatId, setExpandedCatId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -72,10 +74,10 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({
     (a, b) => a.sortOrder - b.sortOrder
   );
 
-  if (!isAdmin) {
+  if (!canManageCategories) {
     return (
-      <div className="bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-xs sm:text-sm text-slate-700">
-        Chỉ tài khoản có vai trò <strong>Admin</strong> mới được quản lý hạng mục công việc.
+      <div className="bg-surface-muted border border-nga-xam rounded-xl px-4 py-3 text-xs sm:text-sm text-huyen-lam/85">
+        Chỉ tài khoản <strong>Admin</strong> hoặc <strong>Moderator</strong> mới được quản lý hạng mục công việc.
       </div>
     );
   }
@@ -93,7 +95,7 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({
           : sortedCategories.length + 1,
       });
       setNewName('');
-      setNewColor('#13294B');
+      setNewColor('#14243F');
       setNewOrder(sortedCategories.length + 2);
       setShowAddForm(false);
     } finally {
@@ -125,10 +127,10 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h2 className="text-base sm:text-lg font-bold text-[#13294B]">
+          <h2 className="text-base sm:text-lg font-bold text-huyen-lam">
             Quản lý hạng mục công việc
           </h2>
-          <p className="text-xs text-slate-600 mt-0.5">
+          <p className="text-xs text-ink-muted mt-0.5">
             Công việc tham chiếu bằng ID ổn định (<code className="font-mono-tabular">categoryId</code>). Không xóa vĩnh viễn hạng mục đã được sử dụng.
           </p>
         </div>
@@ -146,9 +148,9 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({
                   setBusy(false);
                 }
               }}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-[#13294B] text-[#13294B] text-xs font-medium hover:bg-slate-50 min-h-[40px]"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-huyen-lam text-huyen-lam text-xs font-medium hover:bg-nga-thien transition-colors min-h-[40px]"
             >
-              <FolderPlus className="w-4 h-4" />
+              <FolderPlus className="w-4 h-4 shrink-0" />
               <span>Khởi tạo 3 hạng mục TBHGN</span>
             </button>
           )}
@@ -158,9 +160,9 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({
               setNewOrder(sortedCategories.length + 1);
               setShowAddForm((v) => !v);
             }}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#13294B] text-white text-xs font-medium hover:bg-[#1E3A66] min-h-[40px]"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-huyen-lam text-white text-xs font-medium hover:bg-lam-tri-tue transition-colors min-h-[40px]"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4 h-4 shrink-0" />
             <span>Thêm hạng mục</span>
           </button>
         </div>
@@ -169,14 +171,14 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({
       {showAddForm && (
         <form
           onSubmit={handleCreate}
-          className="bg-white border border-slate-200 rounded-xl p-4 space-y-3"
+          className="bg-white border border-nga-xam rounded-xl p-4 space-y-3"
         >
-          <div className="text-sm font-semibold text-[#13294B]">
+          <div className="text-sm font-semibold text-huyen-lam">
             Thêm hạng mục mới
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
             <div className="sm:col-span-5">
-              <label className="block text-xs font-medium text-slate-700 mb-1">
+              <label className="block text-xs font-medium text-huyen-lam/85 mb-1">
                 Tên hạng mục
               </label>
               <input
@@ -185,12 +187,12 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 placeholder="VD: Biên tập & chế bản"
-                className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#13294B]"
+                className="w-full px-3 py-2 text-sm bg-white border border-nga-xam rounded-lg focus:outline-none focus:ring-2 focus:ring-lam-tri-tue min-h-[42px]"
               />
             </div>
 
             <div className="sm:col-span-5">
-              <label className="block text-xs font-medium text-slate-700 mb-1">
+              <label className="block text-xs font-medium text-huyen-lam/85 mb-1">
                 Màu nhận diện
               </label>
               <div className="flex items-center gap-2">
@@ -202,9 +204,9 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({
                       onClick={() => setNewColor(hex)}
                       aria-label={`Chọn màu ${hex}`}
                       style={{ backgroundColor: hex }}
-                      className={`w-6 h-6 rounded-full border-2 ${
+                      className={`w-6 h-6 rounded-full border-2 transition-transform ${
                         newColor.toLowerCase() === hex.toLowerCase()
-                          ? 'border-slate-900 scale-110'
+                          ? 'border-huyen-lam scale-110'
                           : 'border-white shadow-sm'
                       }`}
                     />
@@ -214,13 +216,13 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({
                   type="color"
                   value={newColor}
                   onChange={(e) => setNewColor(e.target.value)}
-                  className="w-8 h-8 rounded border border-slate-200 cursor-pointer"
+                  className="w-8 h-8 rounded border border-nga-xam cursor-pointer"
                 />
               </div>
             </div>
 
             <div className="sm:col-span-2">
-              <label className="block text-xs font-medium text-slate-700 mb-1">
+              <label className="block text-xs font-medium text-huyen-lam/85 mb-1">
                 Thứ tự
               </label>
               <input
@@ -228,7 +230,7 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({
                 min={1}
                 value={newOrder}
                 onChange={(e) => setNewOrder(Number(e.target.value))}
-                className="w-full px-3 py-2 text-sm font-mono-tabular border border-slate-200 rounded-lg"
+                className="w-full px-3 py-2 text-sm font-mono-tabular bg-white border border-nga-xam rounded-lg focus:outline-none focus:ring-2 focus:ring-lam-tri-tue min-h-[42px]"
               />
             </div>
           </div>
@@ -237,14 +239,14 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({
             <button
               type="button"
               onClick={() => setShowAddForm(false)}
-              className="px-3.5 py-2 text-xs font-medium text-slate-600 hover:text-slate-900"
+              className="px-3.5 py-2 text-xs font-medium text-ink-muted hover:text-huyen-lam min-h-[40px]"
             >
               Hủy
             </button>
             <button
               type="submit"
               disabled={busy}
-              className="px-4 py-2 text-xs font-medium bg-[#13294B] text-white rounded-lg hover:bg-[#1E3A66] disabled:opacity-50"
+              className="px-4 py-2 text-xs font-medium bg-huyen-lam text-white rounded-lg hover:bg-lam-tri-tue disabled:opacity-50 transition-colors min-h-[40px]"
             >
               {busy ? 'Đang lưu...' : 'Tạo hạng mục'}
             </button>
@@ -253,8 +255,8 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({
       )}
 
       {sortedCategories.length === 0 ? (
-        <div className="bg-white border border-slate-200 rounded-xl px-4 py-8 text-center space-y-3">
-          <p className="text-sm text-slate-600">
+        <div className="bg-white border border-nga-xam rounded-xl px-4 py-8 text-center space-y-3">
+          <p className="text-sm text-ink-muted">
             Chưa có hạng mục nào trong collection <code className="font-mono-tabular">categories</code> trên Firestore.
           </p>
           <button
@@ -268,14 +270,14 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({
                 setBusy(false);
               }
             }}
-            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-medium bg-[#13294B] text-white rounded-lg hover:bg-[#1E3A66]"
+            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-medium bg-huyen-lam text-white rounded-lg hover:bg-lam-tri-tue transition-colors min-h-[40px]"
           >
-            <FolderPlus className="w-4 h-4" />
+            <FolderPlus className="w-4 h-4 shrink-0" />
             <span>Khởi tạo 3 hạng mục mặc định TBHGN</span>
           </button>
         </div>
       ) : (
-        <div className="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100 overflow-hidden">
+        <div className="bg-white border border-nga-xam rounded-xl divide-y divide-nga-xam/60 overflow-hidden">
           {sortedCategories.map((cat, idx) => {
             const catTasks = tasks.filter(
               (t) => t.categoryId === cat.id && !isB1TestTask(t)
@@ -287,7 +289,7 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({
             return (
               <div
                 key={cat.id}
-                className={`p-4 space-y-2.5 ${!cat.isActive ? 'bg-slate-50 opacity-80' : ''}`}
+                className={`p-4 space-y-2.5 ${!cat.isActive ? 'bg-nga-thien opacity-80' : ''}`}
               >
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="min-w-0 flex-1">
@@ -297,27 +299,27 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({
                           type="text"
                           value={editName}
                           onChange={(e) => setEditName(e.target.value)}
-                          className="px-2.5 py-1.5 text-sm border border-slate-300 rounded-lg min-w-[180px]"
+                          className="px-2.5 py-1.5 text-sm bg-white border border-nga-xam rounded-lg min-w-[180px] focus:outline-none focus:ring-2 focus:ring-lam-tri-tue"
                         />
                         <input
                           type="color"
                           value={editColor}
                           onChange={(e) => setEditColor(e.target.value)}
-                          className="w-8 h-8 rounded border border-slate-200 cursor-pointer"
+                          className="w-8 h-8 rounded border border-nga-xam cursor-pointer"
                         />
                         <button
                           type="button"
                           disabled={busy}
                           onClick={() => saveEdit(cat.id)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium bg-[#13294B] text-white rounded-lg"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium bg-huyen-lam hover:bg-lam-tri-tue text-white rounded-lg"
                         >
-                          <Check className="w-3.5 h-3.5" />
+                          <Check className="w-3.5 h-3.5 shrink-0" />
                           <span>Lưu</span>
                         </button>
                         <button
                           type="button"
                           onClick={() => setEditingId(null)}
-                          className="p-1.5 text-slate-500 hover:text-slate-900"
+                          className="p-1.5 text-ink-muted hover:text-huyen-lam"
                           aria-label="Hủy sửa"
                         >
                           <X className="w-4 h-4" />
@@ -329,10 +331,10 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({
                           className="w-3 h-3 rounded-full shrink-0"
                           style={{ backgroundColor: cat.color }}
                         />
-                        <span className="text-sm font-semibold text-slate-900">
+                        <span className="text-sm font-semibold text-huyen-lam">
                           {cat.name}
                         </span>
-                        <span className="text-[11px] font-mono-tabular px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
+                        <span className="text-[11px] font-mono-tabular px-1.5 py-0.5 rounded bg-surface-muted text-ink-muted">
                           {cat.id}
                         </span>
                         {!cat.isActive && (
@@ -343,19 +345,19 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({
                       </div>
                     )}
 
-                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-muted">
                       <span>Thứ tự: #{cat.sortOrder}</span>
                       <button
                         type="button"
                         onClick={() =>
                           setExpandedCatId(isExpanded ? null : cat.id)
                         }
-                        className="inline-flex items-center gap-1 text-[#13294B] hover:underline font-medium"
+                        className="inline-flex items-center gap-1 text-huyen-lam hover:text-lam-tri-tue hover:underline font-medium"
                       >
                         {isExpanded ? (
-                          <ChevronDown className="w-3.5 h-3.5" />
+                          <ChevronDown className="w-3.5 h-3.5 shrink-0" />
                         ) : (
-                          <ChevronRight className="w-3.5 h-3.5" />
+                          <ChevronRight className="w-3.5 h-3.5 shrink-0" />
                         )}
                         <span>{activeCatTasks.length} công việc đang mở</span>
                       </button>
@@ -363,7 +365,7 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({
                         <button
                           type="button"
                           onClick={() => onFilterTasksByCategory(cat.id)}
-                          className="text-xs text-slate-600 hover:text-[#13294B] underline"
+                          className="text-xs text-ink-muted hover:text-huyen-lam underline"
                         >
                           Mở trong Công việc
                         </button>
@@ -377,7 +379,7 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({
                       disabled={idx === 0 || busy}
                       onClick={() => onSwapOrder(cat, sortedCategories[idx - 1])}
                       aria-label={`Đưa ${cat.name} lên`}
-                      className="p-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-35"
+                      className="p-2 rounded-lg border border-nga-xam text-ink-muted hover:bg-nga-thien hover:text-huyen-lam disabled:opacity-35 transition-colors"
                     >
                       <ArrowUp className="w-3.5 h-3.5" />
                     </button>
@@ -386,16 +388,16 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({
                       disabled={idx === sortedCategories.length - 1 || busy}
                       onClick={() => onSwapOrder(cat, sortedCategories[idx + 1])}
                       aria-label={`Đưa ${cat.name} xuống`}
-                      className="p-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 disabled:opacity-35"
+                      className="p-2 rounded-lg border border-nga-xam text-ink-muted hover:bg-nga-thien hover:text-huyen-lam disabled:opacity-35 transition-colors"
                     >
                       <ArrowDown className="w-3.5 h-3.5" />
                     </button>
                     <button
                       type="button"
                       onClick={() => startEdit(cat)}
-                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 min-h-[36px]"
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg border border-nga-xam text-huyen-lam/85 hover:bg-nga-thien min-h-[36px] transition-colors"
                     >
-                      <Edit2 className="w-3.5 h-3.5" />
+                      <Edit2 className="w-3.5 h-3.5 shrink-0" />
                       <span>Sửa</span>
                     </button>
                     <button
@@ -404,13 +406,13 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({
                       onClick={() =>
                         onUpdateCategory(cat.id, { isActive: !cat.isActive })
                       }
-                      className={`inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg border min-h-[36px] ${
+                      className={`inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg border min-h-[36px] transition-colors ${
                         cat.isActive
-                          ? 'border-slate-200 text-slate-700 hover:bg-amber-50 hover:text-amber-800'
+                          ? 'border-nga-xam text-huyen-lam/85 hover:bg-minh-kim-soft hover:text-minh-kim-ink hover:border-minh-kim-border'
                           : 'border-emerald-200 bg-emerald-50 text-emerald-800'
                       }`}
                     >
-                      <Power className="w-3.5 h-3.5" />
+                      <Power className="w-3.5 h-3.5 shrink-0" />
                       <span>{cat.isActive ? 'Ngừng dùng' : 'Kích hoạt'}</span>
                     </button>
                     <button
@@ -422,18 +424,18 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({
                           ? `Không thể xóa vì có ${catTasks.length} công việc tham chiếu`
                           : 'Xóa hạng mục chưa từng sử dụng'
                       }
-                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-35 min-h-[36px]"
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg border border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-35 min-h-[36px] transition-colors"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
+                      <Trash2 className="w-3.5 h-3.5 shrink-0" />
                       <span>Xóa</span>
                     </button>
                   </div>
                 </div>
 
                 {isExpanded && (
-                  <div className="pt-2 pl-4 border-t border-slate-100 space-y-1.5">
+                  <div className="pt-2 pl-4 border-t border-nga-xam/60 space-y-1.5">
                     {catTasks.length === 0 ? (
-                      <p className="text-xs text-slate-500">
+                      <p className="text-xs text-ink-muted">
                         Chưa có công việc nào thuộc hạng mục này.
                       </p>
                     ) : (
@@ -442,13 +444,13 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({
                           key={t.id}
                           type="button"
                           onClick={() => onSelectTask(t.id)}
-                          className="w-full text-left px-3 py-2 rounded-lg bg-slate-50 hover:bg-slate-100 flex items-center justify-between gap-2 text-xs"
+                          className="w-full text-left px-3 py-2 rounded-lg bg-nga-thien hover:bg-surface-muted flex items-center justify-between gap-2 text-xs transition-colors"
                         >
                           <div className="min-w-0 truncate">
-                            <span className="font-mono-tabular font-semibold text-[#13294B] mr-2">
+                            <span className="font-mono-tabular font-semibold text-huyen-lam mr-2">
                               {t.displayCode}
                             </span>
-                            <span className="text-slate-800">{t.title}</span>
+                            <span className="text-huyen-lam/90">{t.title}</span>
                           </div>
                           <StatusBadge status={t.status} compact />
                         </button>

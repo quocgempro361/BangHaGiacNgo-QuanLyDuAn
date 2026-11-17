@@ -72,6 +72,18 @@ service cloud.firestore {
       return isVerifiedUser() && exists(uPath) && p.isActive == true && p.role == 'admin';
     }
 
+    function isModerator() {
+      let uPath = userDocPath(request.auth.uid);
+      let p = get(uPath).data;
+      return isVerifiedUser() && exists(uPath) && p.isActive == true && p.role == 'moderator';
+    }
+
+    function isTaskManager() {
+      let uPath = userDocPath(request.auth.uid);
+      let p = get(uPath).data;
+      return isVerifiedUser() && exists(uPath) && p.isActive == true && (p.role == 'admin' || p.role == 'moderator');
+    }
+
     function isMemberRole() {
       let uPath = userDocPath(request.auth.uid);
       let p = get(uPath).data;
@@ -93,7 +105,7 @@ service cloud.firestore {
     function isApprover() {
       let uPath = userDocPath(request.auth.uid);
       let p = get(uPath).data;
-      return isVerifiedUser() && exists(uPath) && p.isActive == true && (p.role == 'admin' || p.canApprove == true);
+      return isVerifiedUser() && exists(uPath) && p.isActive == true && (p.role == 'admin' || p.role == 'moderator' || p.canApprove == true);
     }
 
     // Permissions MUST bind strictly to Firebase UID (never text display names)
@@ -102,7 +114,7 @@ service cloud.firestore {
     }
 
     function isScopedApproverForProfile(profile, taskData) {
-      return (profile.role == 'admin' || profile.canApprove == true) && (
+      return (profile.role == 'admin' || profile.role == 'moderator' || profile.canApprove == true) && (
         isAssignedToTask(taskData)
         || ('approverUids' in taskData && request.auth.uid in taskData.approverUids)
       );
@@ -147,7 +159,7 @@ service cloud.firestore {
         && data.email is string && data.email.size() >= 3 && data.email.size() <= 254
         && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120
         && data.sheetAlias is string && data.sheetAlias.size() <= 80
-        && data.role in ['admin', 'member', 'viewer']
+        && data.role in ['admin', 'moderator', 'member', 'viewer']
         && data.canApprove is bool
         && data.isActive is bool
         && data.createdAt is timestamp
@@ -160,7 +172,7 @@ service cloud.firestore {
         && data.email is string && data.email == emailId && isValidEmailId(data.email)
         && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120
         && data.sheetAlias is string && data.sheetAlias.size() <= 80
-        && data.role in ['admin', 'member', 'viewer']
+        && data.role in ['admin', 'moderator', 'member', 'viewer']
         && data.canApprove is bool
         && data.isActive is bool
         && data.createdBy is string && data.createdBy.size() >= 1 && data.createdBy.size() <= 128
@@ -297,32 +309,32 @@ service cloud.firestore {
       let data = request.resource.data;
       let uPath = userDocPath(request.auth.uid);
       let profile = get(uPath).data;
-      let isAdminUser = profile.role == 'admin';
+      let isManagerUser = profile.role == 'admin' || profile.role == 'moderator';
       let isMemberUser = profile.role == 'member';
       return isVerifiedUser()
         && isValidId(taskId)
         && exists(uPath)
         && profile.isActive == true
-        && (isAdminUser || isMemberUser)
+        && (isManagerUser || isMemberUser)
         && isValidTask(data, taskId)
         && data.version == 1
         && data.updatedAt == request.time
         && data.updatedByUid == request.auth.uid
         && data.archivedAt == null
         && (
-          (isAdminUser && data.parentId == null)
+          (isManagerUser && data.parentId == null)
           || (
             data.parentId != null
             && data.parentId != taskId
             && (
-              isAdminUser
+              isManagerUser
               || (
                 isMemberUser
                 && data.status != 'Hoàn thành'
                 && data.assigneeUids == [request.auth.uid]
               )
             )
-            && canCreateSubtaskUnder(data.parentId, isAdminUser, isMemberUser)
+            && canCreateSubtaskUnder(data.parentId, isManagerUser, isMemberUser)
           )
         );
     }
@@ -341,14 +353,14 @@ service cloud.firestore {
       let prev = resource.data;
       let uPath = userDocPath(request.auth.uid);
       let profile = get(uPath).data;
-      let isAdminUser = profile.role == 'admin';
+      let isManagerUser = profile.role == 'admin' || profile.role == 'moderator';
       let isMemberUser = profile.role == 'member';
       let scopedApprover = isScopedApproverForProfile(profile, prev);
       return isVerifiedUser()
         && isValidId(taskId)
         && exists(uPath)
         && profile.isActive == true
-        && (isAdminUser || isMemberUser)
+        && (isManagerUser || isMemberUser)
         && isValidTask(data, taskId)
         && data.id == prev.id
         && data.version == prev.version + 1
@@ -356,7 +368,7 @@ service cloud.firestore {
         && data.updatedByUid == request.auth.uid
         && (
           (
-            isAdminUser
+            isManagerUser
             && (
               data.parentId == prev.parentId
               || data.parentId == null
@@ -423,11 +435,11 @@ service cloud.firestore {
     }
 
     // ---------------------------------------------------------
-    // Collection: /users/{uid} (PII Isolated: get owner/admin; list admin only)
+    // Collection: /users/{uid} (PII Isolated: get owner/manager; list manager; write admin only)
     // ---------------------------------------------------------
     match /users/{uid} {
-      allow get: if isVerifiedUser() && isValidId(uid) && (request.auth.uid == uid || isAdmin());
-      allow list: if isAdmin();
+      allow get: if isVerifiedUser() && isValidId(uid) && (request.auth.uid == uid || isTaskManager());
+      allow list: if isTaskManager();
 
       allow create: if canCreateOwnUserProfile(uid);
 
@@ -490,7 +502,7 @@ service cloud.firestore {
       allow get: if isActiveMember() && isValidId(categoryId);
       allow list: if isActiveMember();
 
-      allow create: if isAdmin()
+      allow create: if isTaskManager()
         && isValidId(categoryId)
         && isValidCategory(incoming())
         && incoming().createdBy == request.auth.uid
@@ -498,7 +510,7 @@ service cloud.firestore {
         && incoming().createdAt == request.time
         && incoming().updatedAt == request.time;
 
-      allow update: if isAdmin()
+      allow update: if isTaskManager()
         && isValidId(categoryId)
         && isValidCategory(incoming())
         && incoming().createdBy == existing().createdBy
@@ -507,7 +519,7 @@ service cloud.firestore {
         && incoming().updatedAt == request.time
         && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'color', 'sortOrder', 'isActive', 'updatedAt', 'updatedBy']);
 
-      allow delete: if isAdmin() && isValidId(categoryId);
+      allow delete: if isTaskManager() && isValidId(categoryId);
     }
 
     // ---------------------------------------------------------
@@ -518,7 +530,7 @@ service cloud.firestore {
       allow list: if isActiveMember();
 
       // Create:
-      // - Admin can create parent (parentId == null) or 2nd-level child task
+      // - Admin & Moderator can create parent (parentId == null) or 2nd-level child task
       // - Member can create ONLY a 2nd-level child task under an assigned parent (never 3rd-level, never Hoàn thành)
       allow create: if canCreateTask(taskId);
 

@@ -6,6 +6,7 @@ export interface ExpectedAccountSpec {
   originalName: string;
   displayName: string;
   sheetAlias: string;
+  legacyAliases?: string[];
   isTemporary: boolean;
   note: string;
 }
@@ -51,11 +52,12 @@ export const EXPECTED_TBHGN_ACCOUNTS: ExpectedAccountSpec[] = [
   },
   {
     email: 'filmfata01@gmail.com',
-    originalName: 'Sư Minh Hạnh',
+    originalName: 'Sư Phụ',
     displayName: 'Sư Phụ',
-    sheetAlias: 'Sư Minh Hạnh',
+    sheetAlias: 'Sư Phụ',
+    legacyAliases: ['Sư Minh Hạnh'],
     isTemporary: true,
-    note: 'Sư Minh Hạnh (tên gọi: Sư Phụ) · Gmail dự kiến tạm thời, không cấp Admin/quyền duyệt',
+    note: 'Gmail dự kiến tạm thời · chỉ Member, không cấp Admin/quyền duyệt',
   },
   {
     email: 'filmfata05@gmail.com',
@@ -102,19 +104,37 @@ export function formatStandardMemberLabel(spec: ExpectedAccountSpec): string {
     : spec.displayName;
 }
 
+export function getExpectedAccountAliases(
+  spec: Pick<ExpectedAccountSpec, 'originalName' | 'displayName' | 'legacyAliases'>
+): string[] {
+  return [
+    spec.originalName,
+    spec.displayName,
+    ...(spec.legacyAliases ?? []),
+  ].filter(Boolean);
+}
+
+export function doesTaskMatchExpectedAccount(
+  task: Pick<TaskItem, 'assignees'>,
+  spec: Pick<ExpectedAccountSpec, 'originalName' | 'displayName' | 'legacyAliases'>
+): boolean {
+  const aliases = getExpectedAccountAliases(spec).map(normalizeTextKey);
+  return task.assignees.some((a) => aliases.includes(normalizeTextKey(a)));
+}
+
 /**
  * Matches a signed-in member profile to one of the 6 standardized project people.
- * - Requires exact sheetAlias == spec.originalName (Admin-confirmed pairing)
- * - Or expectedEmail when sheetAlias is unset (never matches Admin email by displayName similarity)
+ * - Requires exact confirmed sheetAlias matching spec.originalName or legacyAliases (never auto-matches Admin by displayName similarity)
+ * - Or expectedEmail when sheetAlias is unset
  */
 export function doesMemberMatchProjectPerson(
   member: Pick<ProjectMember, 'email' | 'sheetAlias'>,
-  spec: Pick<ExpectedAccountSpec, 'email' | 'originalName'>
+  spec: Pick<ExpectedAccountSpec, 'email' | 'originalName' | 'legacyAliases'>
 ): boolean {
-  const sa = normalizeTextKey(member.sheetAlias);
-  const orig = normalizeTextKey(spec.originalName);
-  if (sa) {
-    return sa === orig;
+  const saTrim = (member.sheetAlias ?? '').trim();
+  if (saTrim) {
+    if (saTrim === spec.originalName) return true;
+    return (spec.legacyAliases ?? []).some((la) => la === saTrim);
   }
   return normalizeTextKey(member.email) === normalizeTextKey(spec.email);
 }
@@ -217,11 +237,9 @@ export function buildMemberMappingPreview(
         ? 'invited_pending'
         : 'not_invited';
 
-      // Match tasks by exact originalName stored on the 20 tasks (e.g. "Khả Tuệ", "Sư Minh Hạnh")
+      // Match tasks by exact originalName or legacyAliases stored on tasks (e.g. "Khả Tuệ", "Sư Phụ" / "Sư Minh Hạnh")
       const matchingTasks = scopeTasks.filter((t) =>
-        t.assignees.some(
-          (a) => normalizeTextKey(a) === normalizeTextKey(account.originalName)
-        )
+        doesTaskMatchExpectedAccount(t, account)
       );
 
       const linkedTasks = matchedMember
@@ -291,9 +309,11 @@ export function buildMemberMappingPreview(
   const aliasRows: TaskAliasPreviewRow[] = Array.from(aliasMap.values()).map(
     ({ displayAlias, tasks: aliasTasks }) => {
       const expectedAccount =
-        expectedAccounts.find(
-          (acc) =>
-            normalizeTextKey(acc.originalName) === normalizeTextKey(displayAlias)
+        expectedAccounts.find((acc) =>
+          getExpectedAccountAliases(acc).some(
+            (aliasCandidate) =>
+              normalizeTextKey(aliasCandidate) === normalizeTextKey(displayAlias)
+          )
         ) ?? null;
 
       // Match signed-in members strictly via doesMemberMatchProjectPerson when this is one of the 6 people,

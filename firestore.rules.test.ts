@@ -32,6 +32,7 @@ import {
   exportTasksToCSV,
   getEffectiveCategory,
   isB1TestTask,
+  isTaskManagerRole,
 } from './src/utils/taskHelpers';
 import { buildCreateTaskPayloads, DEFAULT_TBHGN_CATEGORIES } from './src/services/firestoreService';
 import {
@@ -47,7 +48,9 @@ import {
   COLLECTIVE_GROUP_LABEL,
   computeUpdatedAssigneeNamesOnUidToggle,
   doesMemberMatchProjectPerson,
+  doesTaskMatchExpectedAccount,
   EXPECTED_TBHGN_ACCOUNTS,
+  formatStandardMemberLabel,
   getSafeInviteDefaults,
   isTemporaryAccountEmail,
 } from './src/utils/memberMapping';
@@ -64,6 +67,22 @@ const drawerText = fs.readFileSync(
   path.join(rootDir, 'src/components/TaskDetailDrawer.tsx'),
   'utf8'
 );
+const membersViewText = fs.readFileSync(
+  path.join(rootDir, 'src/components/MembersView.tsx'),
+  'utf8'
+);
+const adminSettingsViewText = fs.readFileSync(
+  path.join(rootDir, 'src/components/AdminSettingsView.tsx'),
+  'utf8'
+);
+const categoriesViewText = fs.readFileSync(
+  path.join(rootDir, 'src/components/CategoriesView.tsx'),
+  'utf8'
+);
+const memberMappingText = fs.readFileSync(
+  path.join(rootDir, 'src/utils/memberMapping.ts'),
+  'utf8'
+);
 const serverText = fs.readFileSync(path.join(rootDir, 'server.ts'), 'utf8');
 const importPreviewText = fs.readFileSync(
   path.join(rootDir, 'src/components/ImportPreviewView.tsx'),
@@ -73,15 +92,89 @@ const serviceText = fs.readFileSync(
   path.join(rootDir, 'src/services/firestoreService.ts'),
   'utf8'
 );
-const officialJsonRaw = JSON.parse(
-  fs.readFileSync(
-    path.join(
-      rootDir,
-      'server_data/TBHGN_du_lieu_20_cong_viec_da_khoi_phuc_URL_38662941.json'
-    ),
-    'utf8'
-  )
+
+function createSyntheticOfficialDataset() {
+  const mkLink = (idx: number) => [
+    {
+      id: `lnk_res_${idx}`,
+      label: `Tai lieu ${idx}`,
+      url: `https://example.com/doc-${idx}`,
+      type: 'google_drive_link' as const,
+      needsUrlExtraction: false,
+    },
+  ];
+  // 9 parents + 11 children = 20 tasks; 3 (0/2), 4 (0/5), 5 (0/4);
+  // 7 Đang làm, 2 Chờ duyệt, 10 Tạm dừng, 1 null (4.5); 13 result URLs;
+  // 6 missing_assignee + 1 missing_status = 7 flagged tasks; Nhóm on 1 & 5.
+  const tasks = [
+    { id: 'tbhgn_1', displayCode: '1', parentId: null, sortOrder: 1, title: 'Nhom viec 1', category: 'Đề cương', assignees: ['Quốc', 'Nhóm'], status: 'Đang làm', resultLinks: mkLink(1), reviewFlags: [] },
+    { id: 'tbhgn_2', displayCode: '2', parentId: null, sortOrder: 2, title: 'Nhom viec 2', category: 'Nền tảng & quy chuẩn', assignees: ['Khả Tuệ'], status: 'Đang làm', resultLinks: mkLink(2), reviewFlags: [] },
+    { id: 'tbhgn_3', displayCode: '3', parentId: null, sortOrder: 3, title: 'Nhom viec 3', category: 'Nền tảng & quy chuẩn', assignees: ['Khánh'], status: 'Đang làm', resultLinks: mkLink(3), reviewFlags: [] },
+    { id: 'tbhgn_3_1', displayCode: '3.1', parentId: 'tbhgn_3', sortOrder: 4, title: 'Viec con 3.1', category: null, assignees: ['Quốc'], status: 'Đang làm', resultLinks: mkLink(4), reviewFlags: [] },
+    { id: 'tbhgn_3_2', displayCode: '3.2', parentId: 'tbhgn_3', sortOrder: 5, title: 'Viec con 3.2', category: null, assignees: ['Sư Minh Hạnh'], status: 'Chờ duyệt', resultLinks: mkLink(5), reviewFlags: [] },
+    { id: 'tbhgn_4', displayCode: '4', parentId: null, sortOrder: 6, title: 'Nhom viec 4', category: 'Truy nguồn & nghiên cứu', assignees: ['Sư Pháp Tín'], status: 'Đang làm', resultLinks: mkLink(6), reviewFlags: [] },
+    { id: 'tbhgn_4_1', displayCode: '4.1', parentId: 'tbhgn_4', sortOrder: 7, title: 'Viec con 4.1', category: null, assignees: ['Quốc'], status: 'Đang làm', resultLinks: mkLink(7), reviewFlags: [] },
+    { id: 'tbhgn_4_2', displayCode: '4.2', parentId: 'tbhgn_4', sortOrder: 8, title: 'Viec con 4.2', category: null, assignees: ['Khánh'], status: 'Chờ duyệt', resultLinks: mkLink(8), reviewFlags: [] },
+    { id: 'tbhgn_4_3', displayCode: '4.3', parentId: 'tbhgn_4', sortOrder: 9, title: 'Viec con 4.3', category: null, assignees: ['Mỵ'], status: 'Tạm dừng', resultLinks: mkLink(9), reviewFlags: [] },
+    { id: 'tbhgn_4_4', displayCode: '4.4', parentId: 'tbhgn_4', sortOrder: 10, title: 'Viec con 4.4', category: null, assignees: [], status: 'Tạm dừng', resultLinks: mkLink(10), reviewFlags: ['missing_assignee'] },
+    { id: 'tbhgn_4_5', displayCode: '4.5', parentId: 'tbhgn_4', sortOrder: 11, title: 'Viec con 4.5', category: null, assignees: ['Mỵ'], status: null, resultLinks: mkLink(11), reviewFlags: ['missing_status'] },
+    { id: 'tbhgn_5', displayCode: '5', parentId: null, sortOrder: 12, title: 'Nhom viec 5', category: 'Truy nguồn & nghiên cứu', assignees: ['Khánh', 'Nhóm'], status: 'Đang làm', notes: 'Trạng thái gốc: Đang chỉnh sửa', resultLinks: mkLink(12), reviewFlags: [] },
+    { id: 'tbhgn_5_1', displayCode: '5.1', parentId: 'tbhgn_5', sortOrder: 13, title: 'Viec con 5.1', category: null, assignees: [], status: 'Tạm dừng', resultLinks: mkLink(13), reviewFlags: ['missing_assignee'] },
+    { id: 'tbhgn_5_2', displayCode: '5.2', parentId: 'tbhgn_5', sortOrder: 14, title: 'Viec con 5.2', category: null, assignees: ['Quốc'], status: 'Tạm dừng', resultLinks: [], reviewFlags: [] },
+    { id: 'tbhgn_5_3', displayCode: '5.3', parentId: 'tbhgn_5', sortOrder: 15, title: 'Viec con 5.3', category: null, assignees: [], status: 'Tạm dừng', resultLinks: [], reviewFlags: ['missing_assignee'] },
+    { id: 'tbhgn_5_4', displayCode: '5.4', parentId: 'tbhgn_5', sortOrder: 16, title: 'Viec con 5.4', category: null, assignees: [], status: 'Tạm dừng', resultLinks: [], reviewFlags: ['missing_assignee'] },
+    { id: 'tbhgn_6', displayCode: '6', parentId: null, sortOrder: 17, title: 'Nhom viec 6', category: 'Đề cương', assignees: ['Quốc'], status: 'Tạm dừng', resultLinks: [], reviewFlags: [] },
+    { id: 'tbhgn_7', displayCode: '7', parentId: null, sortOrder: 18, title: 'Nhom viec 7', category: 'Nền tảng & quy chuẩn', assignees: ['Mỵ'], status: 'Tạm dừng', resultLinks: [], reviewFlags: [] },
+    { id: 'tbhgn_8', displayCode: '8', parentId: null, sortOrder: 19, title: 'Nhom viec 8', category: 'Đề cương', assignees: [], status: 'Tạm dừng', resultLinks: [], reviewFlags: ['missing_assignee'] },
+    { id: 'tbhgn_9', displayCode: '9', parentId: null, sortOrder: 20, title: 'Nhom viec 9', category: 'Đề cương', assignees: [], status: 'Tạm dừng', resultLinks: [], reviewFlags: ['missing_assignee'] },
+  ].map((t) => ({
+    assigneeUids: [],
+    nextStep: null,
+    dueDate: null,
+    notes: null,
+    referenceLinks: [],
+    version: 1,
+    updatedAt: null,
+    updatedBy: null,
+    archivedAt: null,
+    archivedBy: null,
+    lastCheckedAt: '2026-01-01',
+    migrationSourceRow: t.sortOrder,
+    ...t,
+  }));
+
+  return {
+    dataset: 'tbhgn_synthetic_test_fixture',
+    schemaVersion: '1.0',
+    source: {
+      kind: 'synthetic_test_fixture',
+      fileName: 'synthetic_20_tasks.json',
+      spreadsheetUrl: '',
+      tab: 'Test',
+      rows: '1-20',
+      linkColumn: 'resultLinks',
+    },
+    qualityNotes: [],
+    counts: {
+      tasks: 20,
+      parents: 9,
+      children: 11,
+      tasksWithRecoveredRealUrls: 13,
+      missingAssignee: 6,
+      missingStatus: 1,
+      missingHyperlinkUrl: 0,
+    },
+    tasks,
+  };
+}
+
+const officialJsonPath = path.join(
+  rootDir,
+  'server_data/TBHGN_du_lieu_20_cong_viec_da_khoi_phuc_URL_38662941.json'
 );
+const officialJsonRaw = fs.existsSync(officialJsonPath)
+  ? JSON.parse(fs.readFileSync(officialJsonPath, 'utf8'))
+  : createSyntheticOfficialDataset();
 
 const adminUser: ProjectMember = {
   uid: 'uid_admin',
@@ -91,6 +184,17 @@ const adminUser: ProjectMember = {
   canApprove: true,
   isActive: true,
   sheetAlias: 'Khánh',
+  createdAt: '2026-01-01T00:00:00.000Z',
+};
+
+const moderatorUser: ProjectMember = {
+  uid: 'uid_moderator',
+  displayName: 'Điều phối (Mod)',
+  email: 'mod@example.com',
+  role: 'moderator',
+  canApprove: true,
+  isActive: true,
+  sheetAlias: '',
   createdAt: '2026-01-01T00:00:00.000Z',
 };
 
@@ -241,14 +345,14 @@ function evaluateSimulatedSubtaskCreate(
     return { allowed: false, reason: 'invalid_initial_version_or_archive' };
   }
   if (taskPayload.parentId === null) {
-    return actor.role === 'admin'
+    return actor.role === 'admin' || actor.role === 'moderator'
       ? { allowed: true }
       : { allowed: false, reason: 'member_cannot_create_parent_task' };
   }
   if (!parentTask || parentTask.parentId !== null || parentTask.archivedAt !== null) {
     return { allowed: false, reason: 'invalid_parent_task' };
   }
-  if (actor.role === 'admin') return { allowed: true };
+  if (actor.role === 'admin' || actor.role === 'moderator') return { allowed: true };
   if (actor.role !== 'member') return { allowed: false, reason: 'not_member' };
   if (!parentTask.assigneeUids.includes(actor.uid)) {
     return { allowed: false, reason: 'member_uid_not_assigned_on_parent' };
@@ -334,6 +438,13 @@ test('Firestore Rules use single-fetch let bindings, exists/get first for existi
   assert.match(rulesText, /allow create, update: if isAdmin\(\)\s*&& docId == 'auth'\s*&& isValidAuthSettings\(incoming\(\)\);/);
   assert.match(rulesText, /!hasInvite\s*&& isOpenGoogleLoginEnabled\(\)\s*&& data\.role == 'viewer'\s*&& data\.canApprove == false\s*&& data\.sheetAlias == ''/);
   assert.match(rulesText, /hasInvite\s*&& matchesActiveInvite\(data, iPath\)/);
+
+  // Moderator rules invariants: can manage categories and all tasks, cannot mutate users/invites/settings
+  assert.match(rulesText, /function isTaskManager\(\)/);
+  assert.match(rulesText, /data\.role in \['admin', 'moderator', 'member', 'viewer'\]/);
+  assert.match(rulesText, /match \/categories\/\{categoryId\}[\s\S]*allow create: if isTaskManager\(\)/);
+  assert.match(rulesText, /match \/users\/\{uid\}[\s\S]*allow update: if isAdmin\(\)/);
+  assert.match(rulesText, /match \/invites\/\{emailId\}[\s\S]*allow create: if isAdmin\(\)/);
 });
 
 test('Firestore Emulator: atomic task + activityLog create, update, comment, and RBAC boundaries', async (t) => {
@@ -355,7 +466,7 @@ test('Firestore Emulator: atomic task + activityLog create, update, comment, and
   try {
     await testEnv.withSecurityRulesDisabled(async (ctx) => {
       const edb = ctx.firestore();
-      for (const u of [adminUser, memberUser, scopedApproverMember, viewerUser]) {
+      for (const u of [adminUser, moderatorUser, memberUser, scopedApproverMember, viewerUser]) {
         await setDoc(doc(edb, 'users', u.uid), {
           uid: u.uid,
           email: u.email,
@@ -979,6 +1090,114 @@ test('Firestore Emulator: atomic task + activityLog create, update, comment, and
       })
     );
     await assertSucceeds(getDoc(doc(strangerDb, 'tasks', 'tbhgn_5')));
+
+    // Case 9: Moderator Emulator tests — manages categories and all tasks, blocked from Admin-only collections
+    const modDb = testEnv
+      .authenticatedContext(moderatorUser.uid, {
+        email: moderatorUser.email,
+        email_verified: true,
+      })
+      .firestore();
+
+    // Moderator creates & updates a category
+    await assertSucceeds(
+      setDoc(doc(modDb, 'categories', 'cat_mod_emu'), {
+        name: 'Biên tập Moderator',
+        color: '#274467',
+        sortOrder: 4,
+        isActive: true,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        createdBy: moderatorUser.uid,
+        updatedBy: moderatorUser.uid,
+      })
+    );
+    await assertSucceeds(
+      updateDoc(doc(modDb, 'categories', 'cat_mod_emu'), {
+        name: 'Biên tập & Chế bản',
+        updatedAt: serverTimestamp(),
+        updatedBy: moderatorUser.uid,
+      })
+    );
+
+    // Moderator creates parent task, edits another task, and approves Hoàn thành
+    const modParent = buildCreateTaskPayloads(
+      {
+        displayCode: '10',
+        title: 'Nhóm việc mới do Moderator tạo',
+        parentId: null,
+        categoryId: 'cat_mod_emu',
+        category: 'Biên tập & Chế bản',
+        assignees: ['Quốc'],
+        assigneeUids: [memberUser.uid],
+        status: 'Đang làm',
+        nextStep: null,
+        dueDate: null,
+        sortOrder: 21,
+      },
+      moderatorUser,
+      { taskId: 'mod_created_parent', logId: 'log_mod_parent', isTestRecord: false }
+    );
+    const modBatch = writeBatch(modDb);
+    modBatch.set(doc(modDb, 'tasks', modParent.taskId), modParent.taskPayload);
+    modBatch.set(
+      doc(modDb, 'tasks', modParent.taskId, 'activityLogs', modParent.logId),
+      modParent.logPayload
+    );
+    await assertSucceeds(modBatch.commit());
+
+    await assertSucceeds(
+      runTransaction(modDb, async (tx) => {
+        tx.update(doc(modDb, 'tasks', 'mod_created_parent'), {
+          status: 'Hoàn thành',
+          version: 2,
+          updatedAt: serverTimestamp(),
+          updatedBy: moderatorUser.displayName,
+          updatedByUid: moderatorUser.uid,
+        });
+        tx.set(
+          doc(modDb, 'tasks', 'mod_created_parent', 'activityLogs', 'log_mod_approve'),
+          {
+            id: 'log_mod_approve',
+            taskId: 'mod_created_parent',
+            actorUid: moderatorUser.uid,
+            actorName: moderatorUser.displayName,
+            action: 'approve',
+            summary: 'Phê duyệt Hoàn thành',
+            createdAt: serverTimestamp(),
+          }
+        );
+      })
+    );
+
+    // Moderator can list /users (for task assignment) but CANNOT modify /users, /invites, or /settings/auth
+    await assertSucceeds(getDocs(collection(modDb, 'users')));
+    await assertFails(
+      updateDoc(doc(modDb, 'users', memberUser.uid), {
+        role: 'admin',
+        updatedAt: serverTimestamp(),
+      })
+    );
+    await assertFails(
+      setDoc(doc(modDb, 'invites', 'mod_illegal@gmail.com'), {
+        email: 'mod_illegal@gmail.com',
+        displayName: 'Illegal',
+        sheetAlias: '',
+        role: 'member',
+        canApprove: false,
+        isActive: true,
+        createdBy: moderatorUser.uid,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      })
+    );
+    await assertFails(
+      setDoc(doc(modDb, 'settings', 'auth'), {
+        allowOpenGoogleLogin: true,
+        updatedAt: serverTimestamp(),
+        updatedBy: moderatorUser.uid,
+      })
+    );
   } finally {
     await testEnv.cleanup();
   }
@@ -1324,17 +1543,28 @@ test('Stage B2.3 member mapping preview, temporary account guardrails, and safe 
     false
   );
 
-  // Admin account with similar displayName/sheetAlias ("Sư phụ") MUST NEVER auto-match "Sư Minh Hạnh"
+  // Admin account with similar displayName/sheetAlias ("Sư phụ" lowercase p) MUST NEVER auto-match "Sư Phụ"
   const adminLookalike: ProjectMember = {
     ...adminUser,
     displayName: 'Sư phụ',
     sheetAlias: 'Sư phụ',
   };
-  const suMinhHanhSpec = EXPECTED_TBHGN_ACCOUNTS.find(
-    (a) => a.originalName === 'Sư Minh Hạnh'
+  const suPhuSpec = EXPECTED_TBHGN_ACCOUNTS.find(
+    (a) => a.email === 'filmfata01@gmail.com'
   )!;
+  assert.equal(suPhuSpec.originalName, 'Sư Phụ');
+  assert.equal(suPhuSpec.displayName, 'Sư Phụ');
+  assert.equal(formatStandardMemberLabel(suPhuSpec), 'Sư Phụ');
   assert.equal(
-    doesMemberMatchProjectPerson(adminLookalike, suMinhHanhSpec),
+    doesTaskMatchExpectedAccount({ assignees: ['Sư Minh Hạnh'] }, suPhuSpec),
+    true
+  );
+  assert.equal(
+    doesTaskMatchExpectedAccount({ assignees: ['Sư Phụ'] }, suPhuSpec),
+    true
+  );
+  assert.equal(
+    doesMemberMatchProjectPerson(adminLookalike, suPhuSpec),
     false
   );
   const lookalikePreview = buildMemberMappingPreview(
@@ -1343,11 +1573,11 @@ test('Stage B2.3 member mapping preview, temporary account guardrails, and safe 
     [],
     officialTasks
   );
-  const suMinhHanhRow = lookalikePreview.accountRows.find(
-    (r) => r.account.originalName === 'Sư Minh Hạnh'
+  const suPhuLookalikeRow = lookalikePreview.accountRows.find(
+    (r) => r.account.email === 'filmfata01@gmail.com'
   )!;
-  assert.equal(suMinhHanhRow.matchedMember, null);
-  assert.equal(suMinhHanhRow.signInStatus, 'not_invited');
+  assert.equal(suPhuLookalikeRow.matchedMember, null);
+  assert.equal(suPhuLookalikeRow.signInStatus, 'not_invited');
 
   // Admin pairing a signed-in user to "Khả Tuệ" (Tuấn) works without changing task originalName
   const pairedTuan: ProjectMember = {
@@ -1608,4 +1838,58 @@ test('Case 8: Pre-release safety audit, explicit two-step assignment, and draft 
   assert.equal(myTasksText.includes('statusLockedForNonApprover'), true);
   assert.equal(drawerText.includes('statusLockedByCompletion'), true);
 });
+
+test('Case 9: Sư Phụ label simplification, AdminSettingsView separation from MembersView, and Moderator RBAC', () => {
+  // 1. "Sư Minh Hạnh (Sư Phụ)" removed from memberMapping display
+  assert.equal(memberMappingText.includes('Sư Minh Hạnh (Sư Phụ)'), false);
+
+  // 2. Admin settings & import separated out of MembersView into AdminSettingsView
+  assert.equal(membersViewText.includes('allowOpenGoogleLogin'), false);
+  assert.equal(membersViewText.includes('categoriesPanel'), false);
+  assert.equal(membersViewText.includes('importPanel'), false);
+  assert.equal(adminSettingsViewText.includes('Cài đặt quản trị'), true);
+  assert.equal(adminSettingsViewText.includes('allowOpenGoogleLogin'), true);
+  assert.equal(appText.includes("route === 'admin-settings'"), true);
+  assert.equal(appText.includes("route === 'categories'"), true);
+  assert.equal(categoriesViewText.includes("currentUser.role === 'moderator'"), true);
+
+  // 3. Moderator permissions in helpers
+  const parentT1 = sampleTasks[0];
+  const unassignedT2 = sampleTasks[1];
+  assert.equal(isTaskManagerRole(moderatorUser), true);
+  assert.equal(isTaskManagerRole(memberUser), false);
+  assert.equal(canUserEditTask(moderatorUser, unassignedT2), true);
+  assert.equal(canUserCreateSubtask(moderatorUser), true);
+  assert.equal(canUserCreateSubtaskInParent(moderatorUser, parentT1), true);
+  assert.equal(canUserCreateSubtaskInParent(moderatorUser, unassignedT2), true);
+  assert.equal(canUserApproveTask(moderatorUser, unassignedT2), true);
+
+  const modParent = buildCreateTaskPayloads(
+    {
+      displayCode: '10',
+      title: 'Đầu việc cha của Moderator',
+      parentId: null,
+      categoryId: 'cat_outline',
+      category: 'Đề cương',
+      assignees: ['Quốc'],
+      assigneeUids: [memberUser.uid],
+      status: 'Đang làm',
+      nextStep: null,
+      dueDate: null,
+      sortOrder: 21,
+    },
+    moderatorUser,
+    { taskId: 'task_mod_parent', isTestRecord: false }
+  );
+  assert.deepEqual(
+    evaluateSimulatedSubtaskCreate(
+      moderatorUser,
+      null,
+      modParent.taskPayload,
+      modParent.logPayload
+    ),
+    { allowed: true }
+  );
+});
+
 
