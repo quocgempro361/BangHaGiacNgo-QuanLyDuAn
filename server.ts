@@ -132,6 +132,8 @@ async function verifyFirebaseIdToken(
 
 async function createServer() {
   const app = express();
+  app.disable('x-powered-by');
+  app.set('trust proxy', 1);
   app.use(express.json());
 
   app.get('/api/health', (_req, res) => {
@@ -270,16 +272,36 @@ async function createServer() {
     }
   });
 
-  // Block direct HTTP access to server-only data and rules/config files in both dev and production
+  // Ensure unmatched /api/* endpoints return JSON 404 instead of falling through to SPA HTML
+  app.use('/api', (_req, res) => {
+    res.status(404).json({ error: 'API endpoint không tồn tại.' });
+  });
+
+  // Block direct HTTP access to server-only data, env, deploy templates, and rules/config files
+  app.use((req, res, next) => {
+    const reqPath = req.path.toLowerCase();
+    if (reqPath === '/.env' || reqPath.startsWith('/.env.')) {
+      res.status(403).json({ error: 'Truy cập bị từ chối.' });
+      return;
+    }
+    next();
+  });
+
   app.use(
     [
       '/server_data',
+      '/dist-server',
+      '/deploy',
       '/firestore.rules',
       '/firestore.rules.backup',
       '/firestore.rules.test.ts',
       '/firebase-blueprint.json',
+      '/firebase-applet-config.json',
       '/security_spec.md',
       '/server.ts',
+      '/package.json',
+      '/tsconfig.json',
+      '/tsconfig.server.json',
     ],
     (_req, res) => {
       res.status(403).json({ error: 'Truy cập bị từ chối.' });
@@ -288,9 +310,33 @@ async function createServer() {
 
   if (process.env.NODE_ENV === 'production') {
     const distDir = path.resolve(process.cwd(), 'dist');
-    app.use(express.static(distDir));
-    app.get('*splat', (_req, res) => {
-      res.sendFile(path.join(distDir, 'index.html'));
+    const indexHtmlPath = path.join(distDir, 'index.html');
+    if (!fs.existsSync(indexHtmlPath)) {
+      throw new Error(
+        'Không tìm thấy dist/index.html. Hãy chạy "npm run build" trước khi khởi động production.'
+      );
+    }
+
+    app.use(
+      express.static(distDir, {
+        index: 'index.html',
+        maxAge: '7d',
+        setHeaders: (res, filePath) => {
+          if (filePath.endsWith('index.html')) {
+            res.setHeader('Cache-Control', 'no-cache');
+          }
+        },
+      })
+    );
+
+    // Express 4 & 5 compatible SPA fallback for client-side route refreshes
+    app.use((req, res, next) => {
+      if (req.method !== 'GET' && req.method !== 'HEAD') {
+        next();
+        return;
+      }
+      res.setHeader('Cache-Control', 'no-cache');
+      res.sendFile(indexHtmlPath);
     });
   } else {
     const { createServer: createViteServer } = await import('vite');
@@ -302,8 +348,11 @@ async function createServer() {
   }
 
   const port = Number(process.env.PORT || 3000);
-  app.listen(port, '0.0.0.0', () => {
-    console.log(`TBHGN server running on http://0.0.0.0:${port}`);
+  const host = process.env.HOST || '0.0.0.0';
+  app.listen(port, host, () => {
+    console.log(
+      `TBHGN server running on http://${host}:${port} (env=${process.env.NODE_ENV || 'development'})`
+    );
   });
 }
 
