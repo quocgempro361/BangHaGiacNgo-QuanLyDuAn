@@ -9,6 +9,7 @@ import {
 } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
 import {
+  AlertTriangle,
   CheckCircle2,
   ClipboardList,
   Download,
@@ -36,6 +37,7 @@ import {
 import {
   addCommentInFirestore,
   archiveOrRestoreTaskInFirestore,
+  assignMemberToTasksInFirestore,
   AuthResolutionResult,
   bootstrapOwnerAdmin,
   createCategoryInFirestore,
@@ -356,17 +358,25 @@ export default function App() {
     taskId: string,
     patch: Partial<Pick<TaskItem, 'status' | 'nextStep'>>,
     expectedVersion: number
-  ) => {
-    await handleSaveTask(taskId, patch, expectedVersion);
+  ): Promise<{ ok: boolean; error?: string }> => {
+    return await handleSaveTask(taskId, patch, expectedVersion);
   };
 
-  const handleAddComment = async (taskId: string, content: string) => {
-    if (!currentUser) return;
+  const handleAddComment = async (
+    taskId: string,
+    content: string
+  ): Promise<{ ok: boolean; error?: string }> => {
+    if (!currentUser) {
+      return { ok: false, error: 'Phiên đăng nhập không hợp lệ.' };
+    }
     try {
       await addCommentInFirestore(taskId, content, currentUser);
       showToast('success', 'Đã đăng góp ý lên Firestore');
+      return { ok: true };
     } catch (err) {
-      showToast('error', formatActionError(err));
+      const msg = formatActionError(err);
+      showToast('error', msg);
+      return { ok: false, error: msg };
     }
   };
 
@@ -557,6 +567,38 @@ export default function App() {
     }
   };
 
+  const handleAssignTasksToMember = async (
+    member: ProjectMember,
+    taskIds: string[]
+  ): Promise<{ updatedCount: number; skippedCount: number }> => {
+    if (!currentUser || currentUser.role !== 'admin' || !currentUser.isActive) {
+      throw new Error('Chỉ Quản trị viên đang hoạt động mới được giao công việc.');
+    }
+    try {
+      const result = await assignMemberToTasksInFirestore(
+        member,
+        taskIds,
+        currentUser
+      );
+      if (result.updatedCount > 0) {
+        showToast(
+          'success',
+          `Đã giao ${result.updatedCount} công việc cho ${member.displayName}`
+        );
+      } else {
+        showToast(
+          'success',
+          'Không có công việc mới cần gán thêm (các việc chọn đã được gán trước đó).'
+        );
+      }
+      return result;
+    } catch (err) {
+      const msg = formatActionError(err);
+      showToast('error', msg);
+      throw new Error(msg);
+    }
+  };
+
   const handleExportCSV = () => {
     const csv = exportTasksToCSV(tasks, categories);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -570,6 +612,10 @@ export default function App() {
   };
 
   const handleExportJSON = () => {
+    if (!currentUser || currentUser.role !== 'admin' || !currentUser.isActive) {
+      showToast('error', 'Chỉ Quản trị viên mới được xuất toàn bộ dữ liệu JSON.');
+      return;
+    }
     const payload = {
       exportedAt: new Date().toISOString(),
       categories,
@@ -825,14 +871,16 @@ export default function App() {
               <Download className="w-3.5 h-3.5" />
               <span>CSV</span>
             </button>
-            <button
-              type="button"
-              onClick={handleExportJSON}
-              className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-slate-100 transition-colors"
-            >
-              <FileJson className="w-3.5 h-3.5" />
-              <span>JSON</span>
-            </button>
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={handleExportJSON}
+                className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-2 rounded-lg bg-white/10 hover:bg-white/15 text-slate-100 transition-colors"
+              >
+                <FileJson className="w-3.5 h-3.5" />
+                <span>JSON</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={handleSignOut}
@@ -878,7 +926,7 @@ export default function App() {
               type="button"
               onClick={handleExportCSV}
               aria-label="Xuất dữ liệu sao lưu CSV"
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-[#13294B] bg-slate-100 hover:bg-slate-200 rounded-lg whitespace-nowrap shrink-0 min-h-[36px]"
+              className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-xs font-medium text-[#13294B] bg-slate-100 hover:bg-slate-200 rounded-lg whitespace-nowrap shrink-0 min-h-[40px] min-w-[40px]"
             >
               <Download className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Xuất CSV</span>
@@ -888,7 +936,7 @@ export default function App() {
               type="button"
               onClick={handleSignOut}
               aria-label="Đăng xuất"
-              className="lg:hidden inline-flex items-center justify-center px-2.5 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg min-h-[36px]"
+              className="lg:hidden inline-flex items-center justify-center px-2.5 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg min-h-[40px] min-w-[40px]"
             >
               <LogOut className="w-3.5 h-3.5" />
             </button>
@@ -896,7 +944,7 @@ export default function App() {
         </header>
 
         {/* Main Viewport Content */}
-        <main className="flex-1 w-full max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-6 pb-20 lg:pb-8">
+        <main className="flex-1 w-full max-w-6xl mx-auto px-3 sm:px-6 py-4 sm:py-6 pb-24 lg:pb-8">
           {route === 'overview' && (
             <OverviewView
               tasks={tasks}
@@ -934,6 +982,7 @@ export default function App() {
               categories={categories}
               currentUser={currentUser}
               onSelectTask={(id) => setSelectedTaskId(id)}
+              onNavigateToTasks={() => setRoute('tasks')}
               onQuickUpdate={handleQuickUpdate}
             />
           )}
@@ -950,6 +999,7 @@ export default function App() {
               categoriesPanel={categoriesPanel}
               importPanel={importPanel}
               onToggleOpenGoogleLogin={handleToggleOpenGoogleLogin}
+              onAssignTasksToMember={handleAssignTasksToMember}
               onAddInvite={handleAddInvite}
               onUpdateMember={handleUpdateMember}
               onUpdateInvite={handleUpdateInvite}
@@ -959,10 +1009,10 @@ export default function App() {
         </main>
       </div>
 
-      {/* Mobile Bottom Navigation Bar (56px height) */}
+      {/* Mobile Bottom Navigation Bar */}
       <nav
         aria-label="Điều hướng di động"
-        className="lg:hidden fixed bottom-0 left-0 right-0 z-30 h-14 bg-white/95 backdrop-blur-sm border-t border-slate-200 grid grid-cols-4"
+        className="lg:hidden fixed bottom-0 left-0 right-0 z-30 min-h-[56px] pb-[env(safe-area-inset-bottom)] bg-white/95 backdrop-blur-sm border-t border-slate-200 grid grid-cols-4"
       >
         {navItems.map((item) => {
           const Icon = item.icon;
@@ -972,7 +1022,7 @@ export default function App() {
               key={item.id}
               type="button"
               onClick={() => setRoute(item.id)}
-              className={`flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition-colors ${
+              className={`min-h-[54px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition-colors ${
                 active ? 'text-[#13294B]' : 'text-slate-500'
               }`}
             >
@@ -1020,20 +1070,24 @@ export default function App() {
       {/* Toast Notification */}
       {toast && (
         <div
-          role="status"
-          className={`fixed bottom-16 lg:bottom-5 right-3 sm:right-5 z-50 max-w-md px-3.5 py-2.5 rounded-xl border shadow-lg flex items-center gap-2.5 text-xs font-medium ${
+          role={toast.type === 'error' ? 'alert' : 'status'}
+          className={`fixed bottom-[4.5rem] lg:bottom-5 left-3 right-3 sm:left-auto sm:right-5 z-50 sm:max-w-md px-3.5 py-2.5 rounded-xl border shadow-lg flex items-center gap-2.5 text-xs font-medium ${
             toast.type === 'success'
               ? 'bg-[#13294B] text-white border-[#0E203B]'
               : 'bg-red-50 text-red-900 border-red-200'
           }`}
         >
-          <CheckCircle2 className="w-4 h-4 shrink-0" />
+          {toast.type === 'error' ? (
+            <AlertTriangle className="w-4 h-4 shrink-0 text-red-700" />
+          ) : (
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
+          )}
           <span className="flex-1 break-words">{toast.text}</span>
           <button
             type="button"
             onClick={() => setToast(null)}
             aria-label="Đóng thông báo"
-            className="opacity-75 hover:opacity-100"
+            className="min-w-[32px] min-h-[32px] flex items-center justify-center opacity-75 hover:opacity-100"
           >
             <X className="w-3.5 h-3.5" />
           </button>

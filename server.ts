@@ -202,6 +202,83 @@ async function createServer() {
     }
   });
 
+  app.get('/api/admin/official-import-source', async (req, res) => {
+    try {
+      const authHeader = req.headers.authorization || '';
+      const token = authHeader.startsWith('Bearer ')
+        ? authHeader.slice(7).trim()
+        : '';
+      if (!token) {
+        res.status(401).json({ error: 'Yêu cầu đăng nhập Quản trị viên.' });
+        return;
+      }
+      const verified = await verifyFirebaseIdToken(token);
+      const dbId = firebaseConfig.firestoreDatabaseId || '(default)';
+      const userDocUrl = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(
+        firebaseConfig.projectId
+      )}/databases/${encodeURIComponent(dbId)}/documents/users/${encodeURIComponent(
+        verified.uid
+      )}`;
+      const userResp = await fetch(userDocUrl, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!userResp.ok) {
+        res.status(403).json({
+          error: 'Chỉ Quản trị viên đang hoạt động mới được truy cập dữ liệu nguồn.',
+        });
+        return;
+      }
+      const userDoc = (await userResp.json()) as {
+        fields?: {
+          role?: { stringValue?: string };
+          isActive?: { booleanValue?: boolean };
+        };
+      };
+      const isAdmin =
+        userDoc.fields?.role?.stringValue === 'admin' &&
+        userDoc.fields?.isActive?.booleanValue === true;
+      if (!isAdmin) {
+        res.status(403).json({
+          error: 'Chỉ Quản trị viên đang hoạt động mới được truy cập dữ liệu nguồn.',
+        });
+        return;
+      }
+
+      const sourcePath = path.resolve(
+        process.cwd(),
+        'server_data',
+        'TBHGN_du_lieu_20_cong_viec_da_khoi_phuc_URL_38662941.json'
+      );
+      const rawJson = fs.readFileSync(sourcePath, 'utf8');
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.setHeader('Cache-Control', 'no-store');
+      res.send(rawJson);
+    } catch (error) {
+      res.status(401).json({
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Không thể xác minh quyền Quản trị viên.',
+      });
+    }
+  });
+
+  // Block direct HTTP access to server-only data and rules/config files in both dev and production
+  app.use(
+    [
+      '/server_data',
+      '/firestore.rules',
+      '/firestore.rules.backup',
+      '/firestore.rules.test.ts',
+      '/firebase-blueprint.json',
+      '/security_spec.md',
+      '/server.ts',
+    ],
+    (_req, res) => {
+      res.status(403).json({ error: 'Truy cập bị từ chối.' });
+    }
+  );
+
   if (process.env.NODE_ENV === 'production') {
     const distDir = path.resolve(process.cwd(), 'dist');
     app.use(express.static(distDir));

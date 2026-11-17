@@ -380,7 +380,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
                           aria-label={
                             isExpanded ? 'Thu gọn việc con' : 'Mở rộng việc con'
                           }
-                          className="w-8 h-8 -ml-1 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-200/70 hover:text-slate-900 shrink-0"
+                          className="w-10 h-10 -ml-1.5 -mt-1 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-200/70 hover:text-slate-900 shrink-0"
                         >
                           {isExpanded ? (
                             <ChevronDown className="w-4 h-4" />
@@ -389,7 +389,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
                           )}
                         </button>
                       ) : (
-                        <span className="w-7 shrink-0" />
+                        <span className="w-8 shrink-0" />
                       )}
 
                       <button
@@ -555,7 +555,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
                           className="w-full text-left px-3 py-3 sm:px-4 hover:bg-slate-100/70 transition-colors block"
                         >
                           <div className="flex items-start gap-2 lg:grid lg:grid-cols-12 lg:items-center lg:gap-3">
-                            <div className="flex items-start gap-2 flex-1 min-w-0 pl-3 sm:pl-6 lg:col-span-5">
+                            <div className="flex items-start gap-2 flex-1 min-w-0 pl-2 sm:pl-6 lg:col-span-5">
                               <CornerDownRight className="w-3.5 h-3.5 text-slate-400 mt-1 shrink-0" />
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-baseline gap-2">
@@ -634,7 +634,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
                           </div>
 
                           {/* Mobile Child Metadata */}
-                          <div className="lg:hidden pl-8 sm:pl-11 mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500">
+                          <div className="lg:hidden pl-7 sm:pl-11 mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500">
                             <span
                               className={
                                 child.assignees.length === 0
@@ -694,7 +694,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
         <button
           type="button"
           onClick={() => setShowArchived((v) => !v)}
-          className="hover:text-slate-800 underline"
+          className="px-2 py-2 hover:text-slate-800 underline min-h-[38px]"
         >
           {showArchived ? 'Ẩn việc đã lưu trữ' : 'Xem việc đã lưu trữ'}
         </button>

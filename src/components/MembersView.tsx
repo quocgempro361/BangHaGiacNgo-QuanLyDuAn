@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import {
   AlertTriangle,
   CheckCircle2,
+  ClipboardCheck,
   Clock,
   Info,
   Link2Off,
@@ -26,7 +27,9 @@ import {
   EXPECTED_TBHGN_ACCOUNTS,
   formatStandardMemberLabel,
   isTemporaryAccountEmail,
+  normalizeTextKey,
 } from '../utils/memberMapping';
+import { isB1TestTask } from '../utils/taskHelpers';
 
 interface MembersViewProps {
   members: ProjectMember[];
@@ -39,6 +42,10 @@ interface MembersViewProps {
   categoriesPanel?: React.ReactNode;
   importPanel?: React.ReactNode;
   onToggleOpenGoogleLogin?: (allowOpen: boolean) => Promise<void>;
+  onAssignTasksToMember?: (
+    member: ProjectMember,
+    taskIds: string[]
+  ) => Promise<{ updatedCount: number; skippedCount: number }>;
   onAddInvite: (input: {
     displayName: string;
     email: string;
@@ -71,6 +78,7 @@ export const MembersView: React.FC<MembersViewProps> = ({
   categoriesPanel,
   importPanel,
   onToggleOpenGoogleLogin,
+  onAssignTasksToMember,
   onAddInvite,
   onUpdateMember,
   onUpdateInvite,
@@ -85,6 +93,14 @@ export const MembersView: React.FC<MembersViewProps> = ({
   const [canApprove, setCanApprove] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [togglingOpenLogin, setTogglingOpenLogin] = useState(false);
+  const [assignPreviewKey, setAssignPreviewKey] = useState<string | null>(null);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
+  const [assigningTasks, setAssigningTasks] = useState(false);
+  const [assignFeedback, setAssignFeedback] = useState<{
+    key: string;
+    type: 'success' | 'error';
+    text: string;
+  } | null>(null);
 
   const activeEmails = new Set(members.map((m) => m.email.toLowerCase()));
   const pendingInvites = invites.filter(
@@ -103,6 +119,67 @@ export const MembersView: React.FC<MembersViewProps> = ({
       ),
     [members, invites, tasks]
   );
+
+  const officialActiveTasks = useMemo(
+    () =>
+      tasks
+        .filter((t) => !t.archivedAt && !isB1TestTask(t))
+        .sort((a, b) => a.sortOrder - b.sortOrder),
+    [tasks]
+  );
+
+  const openAssignPreview = (
+    originalName: string,
+    matchedMember: ProjectMember
+  ) => {
+    if (assignPreviewKey === originalName) {
+      setAssignPreviewKey(null);
+      return;
+    }
+    const matchingUnlinkedIds = officialActiveTasks
+      .filter(
+        (t) =>
+          t.assignees.some(
+            (a) => normalizeTextKey(a) === normalizeTextKey(originalName)
+          ) && !t.assigneeUids.includes(matchedMember.uid)
+      )
+      .map((t) => t.id);
+
+    setAssignPreviewKey(originalName);
+    setSelectedTaskIds(matchingUnlinkedIds);
+    setAssignFeedback(null);
+  };
+
+  const handleConfirmAssignTasks = async (
+    originalName: string,
+    matchedMember: ProjectMember
+  ) => {
+    if (!onAssignTasksToMember || assigningTasks || selectedTaskIds.length === 0) {
+      return;
+    }
+    setAssigningTasks(true);
+    setAssignFeedback(null);
+    try {
+      const res = await onAssignTasksToMember(matchedMember, selectedTaskIds);
+      setAssignFeedback({
+        key: originalName,
+        type: 'success',
+        text: `Đã xác nhận giao ${res.updatedCount} công việc cho ${matchedMember.displayName} (giữ nguyên tên gốc trên bảng tính).`,
+      });
+      setSelectedTaskIds([]);
+    } catch (err) {
+      setAssignFeedback({
+        key: originalName,
+        type: 'error',
+        text:
+          err instanceof Error
+            ? err.message
+            : 'Không thể giao công việc cho tài khoản này.',
+      });
+    } finally {
+      setAssigningTasks(false);
+    }
+  };
 
   const handleToggleOpenLogin = async () => {
     if (!isAdmin || !onToggleOpenGoogleLogin || togglingOpenLogin) return;
@@ -187,7 +264,7 @@ export const MembersView: React.FC<MembersViewProps> = ({
           <button
             type="button"
             onClick={() => onChangeAdminTab('members')}
-            className={`py-2.5 border-b-2 font-medium transition-colors whitespace-nowrap ${
+            className={`py-2.5 min-h-[44px] border-b-2 font-medium transition-colors whitespace-nowrap ${
               adminTab === 'members'
                 ? 'border-[#13294B] text-[#13294B]'
                 : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -199,7 +276,7 @@ export const MembersView: React.FC<MembersViewProps> = ({
             <button
               type="button"
               onClick={() => onChangeAdminTab('categories')}
-              className={`py-2.5 border-b-2 font-medium transition-colors whitespace-nowrap ${
+              className={`py-2.5 min-h-[44px] border-b-2 font-medium transition-colors whitespace-nowrap ${
                 adminTab === 'categories'
                   ? 'border-[#13294B] text-[#13294B]'
                   : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -212,7 +289,7 @@ export const MembersView: React.FC<MembersViewProps> = ({
             <button
               type="button"
               onClick={() => onChangeAdminTab('import')}
-              className={`py-2.5 border-b-2 font-medium transition-colors whitespace-nowrap ${
+              className={`py-2.5 min-h-[44px] border-b-2 font-medium transition-colors whitespace-nowrap ${
                 adminTab === 'import'
                   ? 'border-[#13294B] text-[#13294B]'
                   : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -434,13 +511,15 @@ export const MembersView: React.FC<MembersViewProps> = ({
             </form>
           )}
 
-          {/* Signed-in Accounts: Role, Active Status & 1-click Pairing to 6 Project People */}
+          {/* Step 1: Signed-in Accounts -> Confirm Staff Identity & Role */}
           <div className="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100 overflow-hidden">
-            <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 flex items-center justify-between gap-2">
-              <span>Tài khoản đã đăng nhập ({members.length})</span>
-              <span className="font-normal text-slate-500">
-                Chọn người dự án tương ứng để ghép &amp; nâng quyền từ Viewer lên Member
-              </span>
+            <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 space-y-1">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-[#13294B]">
+                <span>Bước 1 · Xác nhận nhân sự &amp; quyền tài khoản ({members.length})</span>
+              </div>
+              <p className="text-[11px] text-slate-600">
+                Chọn đúng nhân sự dự án để liên kết tên gốc với tài khoản Google và cấp vai trò (chưa tự giao công việc). Sau đó chuyển xuống <strong>Bước 2</strong> bên dưới để xem trước và xác nhận gán từng đầu việc.
+              </p>
             </div>
             {members.map((m) => {
               const isSelf = m.uid === currentUser.uid;
@@ -449,10 +528,15 @@ export const MembersView: React.FC<MembersViewProps> = ({
                 (acc) =>
                   acc.originalName.toLowerCase() === m.sheetAlias.trim().toLowerCase()
               );
+              const matchedPreviewRow = matchedSpec
+                ? mappingPreview.accountRows.find(
+                    (r) => r.account.originalName === matchedSpec.originalName
+                  )
+                : undefined;
               return (
                 <div
                   key={m.uid}
-                  className={`p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3 ${
+                  className={`p-3.5 sm:p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3 ${
                     !m.isActive ? 'bg-slate-50 opacity-75' : ''
                   }`}
                 >
@@ -477,8 +561,8 @@ export const MembersView: React.FC<MembersViewProps> = ({
                         </span>
                       )}
                       {m.role === 'viewer' && m.isActive && (
-                        <span className="text-[11px] font-medium text-slate-500">
-                          · Chỉ đọc (chờ nâng quyền)
+                        <span className="text-[11px] font-medium text-[#7C4D00]">
+                          · Đang là Viewer (Chỉ đọc)
                         </span>
                       )}
                     </div>
@@ -488,7 +572,7 @@ export const MembersView: React.FC<MembersViewProps> = ({
                         <>
                           <span aria-hidden="true">·</span>
                           <span className="text-emerald-800 font-medium">
-                            Đã ghép: {formatStandardMemberLabel(matchedSpec)}
+                            Đã xác nhận nhân sự: {formatStandardMemberLabel(matchedSpec)}
                           </span>
                         </>
                       ) : m.sheetAlias ? (
@@ -496,13 +580,23 @@ export const MembersView: React.FC<MembersViewProps> = ({
                           <span aria-hidden="true">·</span>
                           <span>Tên đối chiếu: {m.sheetAlias}</span>
                         </>
-                      ) : null}
+                      ) : (
+                        <>
+                          <span aria-hidden="true">·</span>
+                          <span className="text-slate-400">Chưa xác nhận nhân sự</span>
+                        </>
+                      )}
                     </div>
+                    {matchedPreviewRow && m.isActive && matchedPreviewRow.readyToConfirmCount > 0 && (
+                      <div className="mt-1.5 text-[11px] text-[#13294B]">
+                        Có <strong>{matchedPreviewRow.readyToConfirmCount}</strong> công việc mang tên &ldquo;{matchedSpec?.originalName}&rdquo; chưa gán tài khoản này — xác nhận ở Bước 2 bên dưới.
+                      </div>
+                    )}
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 shrink-0">
                     <select
-                      aria-label={`Ghép thành viên dự án cho ${m.displayName}`}
+                      aria-label={`Xác nhận nhân sự cho ${m.displayName}`}
                       value={matchedSpec ? matchedSpec.originalName : ''}
                       onChange={(e) => {
                         const nextAlias = e.target.value;
@@ -510,9 +604,9 @@ export const MembersView: React.FC<MembersViewProps> = ({
                           sheetAlias: nextAlias,
                         });
                       }}
-                      className="px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-800 min-h-[38px]"
+                      className="col-span-2 sm:col-span-1 px-2.5 py-2 text-xs bg-white border border-slate-200 rounded-lg text-slate-800 min-h-[42px]"
                     >
-                      <option value="">-- Ghép người dự án --</option>
+                      <option value="">-- Xác nhận nhân sự --</option>
                       {EXPECTED_TBHGN_ACCOUNTS.map((acc) => (
                         <option key={acc.originalName} value={acc.originalName}>
                           {formatStandardMemberLabel(acc)}
@@ -532,7 +626,7 @@ export const MembersView: React.FC<MembersViewProps> = ({
                           ...(isTemp ? { canApprove: false } : {}),
                         });
                       }}
-                      className="px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-800 disabled:bg-slate-100 min-h-[38px]"
+                      className="px-2.5 py-2 text-xs bg-white border border-slate-200 rounded-lg text-slate-800 disabled:bg-slate-100 min-h-[42px]"
                     >
                       <option value="admin" disabled={isTemp && m.role !== 'admin'}>
                         Admin
@@ -549,7 +643,7 @@ export const MembersView: React.FC<MembersViewProps> = ({
                           canApprove: !m.canApprove,
                         });
                       }}
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg border min-h-[38px] transition-colors disabled:opacity-50 ${
+                      className={`inline-flex items-center justify-center gap-1.5 px-2.5 py-2 text-xs font-medium rounded-lg border min-h-[42px] transition-colors disabled:opacity-50 ${
                         m.canApprove || m.role === 'admin'
                           ? 'bg-[#FFF8E7] border-[#D9A84E] text-[#7C4D00]'
                           : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
@@ -561,7 +655,7 @@ export const MembersView: React.FC<MembersViewProps> = ({
                           : 'Quyền phê duyệt công việc'
                       }
                     >
-                      <ShieldCheck className="w-3.5 h-3.5" />
+                      <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
                       <span>
                         {m.canApprove || m.role === 'admin'
                           ? 'Được duyệt'
@@ -577,7 +671,7 @@ export const MembersView: React.FC<MembersViewProps> = ({
                           isActive: !m.isActive,
                         })
                       }
-                      className={`inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg border min-h-[38px] disabled:opacity-40 ${
+                      className={`col-span-2 sm:col-span-1 inline-flex items-center justify-center gap-1 px-2.5 py-2 text-xs font-medium rounded-lg border min-h-[42px] disabled:opacity-40 ${
                         m.isActive
                           ? 'bg-white border-slate-200 text-slate-700 hover:bg-red-50 hover:text-red-700 hover:border-red-200'
                           : 'bg-emerald-50 border-emerald-200 text-emerald-800'
@@ -728,10 +822,15 @@ export const MembersView: React.FC<MembersViewProps> = ({
                 </div>
               </div>
 
-              {/* 6 Standardized Members List */}
+              {/* Step 2: 6 Standardized Members -> Preview Matching Tasks & Explicitly Confirm UID Assignment */}
               <div className="border border-slate-200 rounded-lg overflow-hidden">
-                <div className="px-3.5 py-2 bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-700">
-                  1. 6 thành viên trong dự án (giữ nguyên tên gốc trên công việc)
+                <div className="px-3.5 py-2.5 bg-slate-50 border-b border-slate-200 space-y-0.5">
+                  <div className="text-xs font-semibold text-[#13294B]">
+                    Bước 2 · Giao công việc cho 6 nhân sự dự án (xem trước &amp; xác nhận gán UID)
+                  </div>
+                  <p className="text-[11px] text-slate-600">
+                    Admin bấm <strong>Xem &amp; giao việc</strong> trên từng nhân sự đã xác nhận tài khoản để xem các đầu việc có tên gốc tương ứng, chọn các việc muốn gán UID và bấm xác nhận. Tên gốc trên công việc luôn được giữ nguyên.
+                  </p>
                 </div>
                 <div className="divide-y divide-slate-100">
                   {mappingPreview.accountRows.map((row) => {
@@ -744,87 +843,287 @@ export const MembersView: React.FC<MembersViewProps> = ({
                       readyToConfirmCount,
                       hasPrivilegeWarning,
                     } = row;
+                    const isPreviewOpen = assignPreviewKey === account.originalName;
+                    const matchingTasksForPerson = officialActiveTasks.filter((t) =>
+                      t.assignees.some(
+                        (a) =>
+                          normalizeTextKey(a) ===
+                          normalizeTextKey(account.originalName)
+                      )
+                    );
+                    const feedbackForRow =
+                      assignFeedback?.key === account.originalName
+                        ? assignFeedback
+                        : null;
+
                     return (
-                      <div
-                        key={account.originalName}
-                        className="p-3.5 flex flex-col md:flex-row md:items-center justify-between gap-2.5 text-xs"
-                      >
-                        <div className="min-w-0 space-y-0.5">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-semibold text-slate-900 text-sm">
-                              {formatStandardMemberLabel(account)}
-                            </span>
-                            <span className="font-mono-tabular text-slate-600 break-all">
-                              {account.email}
-                            </span>
-                            <span
-                              className={`text-[11px] font-medium ${
-                                account.isTemporary
-                                  ? 'text-[#7C4D00]'
-                                  : 'text-[#13294B]'
-                              }`}
-                            >
-                              ({account.isTemporary ? 'Tạm thời' : 'Chính thức'})
-                            </span>
-                          </div>
-                          <div className="text-[11px] text-slate-500 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                            <span>
-                              Công việc mang tên &ldquo;{account.originalName}&rdquo;:{' '}
-                              <strong className="text-slate-700">
-                                {matchingTaskCodes.length} việc
-                              </strong>
-                              {matchingTaskCodes.length > 0
-                                ? ` (${matchingTaskCodes.join(', ')})`
-                                : ''}
-                            </span>
-                            <span aria-hidden="true">·</span>
-                            <span>
-                              Đã xác nhận quyền sửa:{' '}
-                              <strong className="text-slate-700">
-                                {linkedTaskCodes.length}/{matchingTaskCodes.length}
-                              </strong>
-                            </span>
-                            {matchedMember && (
-                              <>
-                                <span aria-hidden="true">·</span>
-                                <span className="text-slate-600">
-                                  Tài khoản: {matchedMember.email} ({matchedMember.role}
-                                  {matchedMember.canApprove ? ', Được duyệt' : ''})
-                                </span>
-                              </>
+                      <div key={account.originalName} className="p-3.5 space-y-3 text-xs">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5">
+                          <div className="min-w-0 space-y-0.5">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-semibold text-slate-900 text-sm">
+                                {formatStandardMemberLabel(account)}
+                              </span>
+                              <span className="font-mono-tabular text-slate-600 break-all">
+                                {account.email}
+                              </span>
+                              <span
+                                className={`text-[11px] font-medium ${
+                                  account.isTemporary
+                                    ? 'text-[#7C4D00]'
+                                    : 'text-[#13294B]'
+                                }`}
+                              >
+                                ({account.isTemporary ? 'Tạm thời' : 'Chính thức'})
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-slate-500 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                              <span>
+                                Công việc mang tên &ldquo;{account.originalName}&rdquo;:{' '}
+                                <strong className="text-slate-700">
+                                  {matchingTaskCodes.length} việc
+                                </strong>
+                                {matchingTaskCodes.length > 0
+                                  ? ` (${matchingTaskCodes.join(', ')})`
+                                  : ''}
+                              </span>
+                              <span aria-hidden="true">·</span>
+                              <span>
+                                Đã giao tài khoản:{' '}
+                                <strong className="text-slate-700">
+                                  {linkedTaskCodes.length}/{matchingTaskCodes.length}
+                                </strong>
+                              </span>
+                              {matchedMember && (
+                                <>
+                                  <span aria-hidden="true">·</span>
+                                  <span className="text-slate-600">
+                                    Tài khoản: {matchedMember.email} ({matchedMember.role}
+                                    {matchedMember.canApprove ? ', Được duyệt' : ''})
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                            {hasPrivilegeWarning && (
+                              <div className="text-[11px] text-red-700 font-medium">
+                                Cảnh báo: Tài khoản tạm đang có quyền Admin hoặc Duyệt — nên hạ về Member và tắt quyền duyệt.
+                              </div>
                             )}
                           </div>
-                          {hasPrivilegeWarning && (
-                            <div className="text-[11px] text-red-700 font-medium">
-                              Cảnh báo: Tài khoản tạm đang có quyền Admin hoặc Duyệt — nên hạ về Member và tắt quyền duyệt.
-                            </div>
-                          )}
+
+                          <div className="flex flex-wrap items-center gap-2 shrink-0">
+                            {signInStatus === 'signed_in' ? (
+                              <>
+                                <span className="inline-flex items-center gap-1.5 text-emerald-800 font-medium">
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                  <span>
+                                    {matchedMember && !matchedMember.isActive
+                                      ? 'Đã đăng nhập (Đã khóa)'
+                                      : readyToConfirmCount > 0
+                                      ? `${readyToConfirmCount} việc chờ giao`
+                                      : 'Đã giao đủ việc'}
+                                  </span>
+                                </span>
+                                {matchedMember &&
+                                  matchedMember.isActive &&
+                                  matchingTasksForPerson.length > 0 &&
+                                  onAssignTasksToMember && (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        openAssignPreview(
+                                          account.originalName,
+                                          matchedMember
+                                        )
+                                      }
+                                      className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-medium min-h-[40px] transition-colors ${
+                                        isPreviewOpen
+                                          ? 'bg-[#13294B] text-white border-[#13294B]'
+                                          : 'bg-white text-[#13294B] border-[#13294B] hover:bg-slate-50'
+                                      }`}
+                                    >
+                                      <ClipboardCheck className="w-3.5 h-3.5 shrink-0" />
+                                      <span>
+                                        {isPreviewOpen
+                                          ? 'Đóng xem trước'
+                                          : readyToConfirmCount > 0
+                                          ? `Xem & giao việc (${readyToConfirmCount})`
+                                          : 'Xem việc đã giao'}
+                                      </span>
+                                    </button>
+                                  )}
+                              </>
+                            ) : signInStatus === 'invited_pending' ? (
+                              <span className="inline-flex items-center gap-1.5 text-slate-600 font-medium">
+                                <Clock className="w-3.5 h-3.5" />
+                                <span>Đã mời · Chờ đăng nhập Google</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 text-[#7C4D00] font-medium">
+                                <Link2Off className="w-3.5 h-3.5" />
+                                <span>Chưa liên kết tài khoản</span>
+                              </span>
+                            )}
+                          </div>
                         </div>
 
-                        <div className="flex items-center gap-2 shrink-0">
-                          {signInStatus === 'signed_in' ? (
-                            <span className="inline-flex items-center gap-1.5 text-emerald-800 font-medium">
-                              <CheckCircle2 className="w-3.5 h-3.5" />
-                              <span>
-                                {matchedMember && !matchedMember.isActive
-                                  ? 'Đã đăng nhập (Đã khóa)'
-                                  : readyToConfirmCount > 0
-                                  ? `Đã đăng nhập · ${readyToConfirmCount} việc chờ xác nhận`
-                                  : 'Đã đăng nhập & ghép đủ'}
-                              </span>
-                            </span>
-                          ) : signInStatus === 'invited_pending' ? (
-                            <span className="inline-flex items-center gap-1.5 text-slate-600 font-medium">
-                              <Clock className="w-3.5 h-3.5" />
-                              <span>Đã mời · Chờ đăng nhập Google</span>
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1.5 text-[#7C4D00] font-medium">
-                              <Link2Off className="w-3.5 h-3.5" />
-                              <span>Chưa liên kết tài khoản</span>
-                            </span>
-                          )}
-                        </div>
+                        {feedbackForRow && (
+                          <div
+                            className={`p-2.5 rounded-lg border text-xs ${
+                              feedbackForRow.type === 'success'
+                                ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                                : 'bg-red-50 border-red-200 text-red-800'
+                            }`}
+                          >
+                            {feedbackForRow.text}
+                          </div>
+                        )}
+
+                        {isPreviewOpen && matchedMember && matchedMember.isActive && (
+                          <div className="bg-slate-50 border border-slate-200 rounded-lg p-3 space-y-3">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                              <div>
+                                <div className="font-semibold text-[#13294B]">
+                                  Xem trước các công việc có tên &ldquo;{account.originalName}&rdquo; để giao cho {matchedMember.displayName} ({matchedMember.email})
+                                </div>
+                                <p className="text-[11px] text-slate-600 mt-0.5">
+                                  Chỉ các công việc bạn tích chọn và bấm xác nhận mới được gán UID. Tên phụ trách gốc và vai trò tài khoản không tự thay đổi.
+                                </p>
+                              </div>
+                              {readyToConfirmCount > 0 && (
+                                <div className="flex items-center gap-2 shrink-0 text-[11px]">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setSelectedTaskIds(
+                                        matchingTasksForPerson
+                                          .filter(
+                                            (t) =>
+                                              !t.assigneeUids.includes(
+                                                matchedMember.uid
+                                              )
+                                          )
+                                          .map((t) => t.id)
+                                      )
+                                    }
+                                    className="text-[#13294B] font-medium hover:underline"
+                                  >
+                                    Chọn tất cả chưa gán
+                                  </button>
+                                  <span aria-hidden="true">·</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setSelectedTaskIds([])}
+                                    className="text-slate-600 hover:underline"
+                                  >
+                                    Bỏ chọn
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+
+                            {matchedMember.role === 'viewer' && (
+                              <div className="p-2.5 bg-[#FFF8E7] border border-[#D9A84E] rounded-lg text-[11px] text-[#7C4D00] flex items-start gap-2">
+                                <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                                <span>
+                                  Tài khoản này hiện có vai trò <strong>Viewer (Chỉ đọc)</strong>. Sau khi giao việc, bạn cần đổi vai trò lên <strong>Member</strong> ở Bước 1 nếu muốn người này cập nhật tiến độ.
+                                </span>
+                              </div>
+                            )}
+
+                            <div className="bg-white border border-slate-200 rounded-lg divide-y divide-slate-100">
+                              {matchingTasksForPerson.map((task) => {
+                                const alreadyAssigned = task.assigneeUids.includes(
+                                  matchedMember.uid
+                                );
+                                const isChecked =
+                                  alreadyAssigned ||
+                                  selectedTaskIds.includes(task.id);
+                                return (
+                                  <label
+                                    key={task.id}
+                                    className={`p-2.5 flex items-start justify-between gap-2.5 text-xs ${
+                                      alreadyAssigned
+                                        ? 'bg-emerald-50/40 cursor-default'
+                                        : 'hover:bg-slate-50 cursor-pointer'
+                                    }`}
+                                  >
+                                    <div className="flex items-start gap-2.5 min-w-0">
+                                      <input
+                                        type="checkbox"
+                                        checked={isChecked}
+                                        disabled={alreadyAssigned || assigningTasks}
+                                        onChange={() => {
+                                          if (alreadyAssigned) return;
+                                          setSelectedTaskIds((prev) =>
+                                            prev.includes(task.id)
+                                              ? prev.filter((id) => id !== task.id)
+                                              : [...prev, task.id]
+                                          );
+                                        }}
+                                        className="mt-0.5 w-4 h-4 rounded border-slate-300 text-[#13294B]"
+                                      />
+                                      <div className="min-w-0">
+                                        <div className="flex items-baseline gap-1.5 flex-wrap">
+                                          <span className="font-mono-tabular font-bold text-[#13294B]">
+                                            {task.displayCode}
+                                          </span>
+                                          <span className="font-medium text-slate-900 break-words">
+                                            {task.title}
+                                          </span>
+                                        </div>
+                                        <div className="text-[11px] text-slate-500 mt-0.5">
+                                          Tên gốc: {task.assignees.join(', ')} · Trạng thái: {task.status ?? 'Cần rà soát'}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <span
+                                      className={`shrink-0 text-[11px] font-medium ${
+                                        alreadyAssigned
+                                          ? 'text-emerald-800'
+                                          : 'text-[#7C4D00]'
+                                      }`}
+                                    >
+                                      {alreadyAssigned ? 'Đã gán UID' : 'Chưa gán UID'}
+                                    </span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+
+                            <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setAssignPreviewKey(null)}
+                                className="px-3.5 py-2 text-xs font-medium text-slate-600 hover:text-slate-900 min-h-[40px]"
+                              >
+                                Đóng
+                              </button>
+                              {readyToConfirmCount > 0 && (
+                                <button
+                                  type="button"
+                                  disabled={
+                                    assigningTasks || selectedTaskIds.length === 0
+                                  }
+                                  onClick={() =>
+                                    handleConfirmAssignTasks(
+                                      account.originalName,
+                                      matchedMember
+                                    )
+                                  }
+                                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-semibold bg-[#13294B] text-white rounded-lg hover:bg-[#1E3A66] disabled:opacity-50 min-h-[42px]"
+                                >
+                                  <ClipboardCheck className="w-4 h-4" />
+                                  <span>
+                                    {assigningTasks
+                                      ? 'Đang giao công việc...'
+                                      : `Xác nhận giao ${selectedTaskIds.length} công việc đã chọn`}
+                                  </span>
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     );
                   })}

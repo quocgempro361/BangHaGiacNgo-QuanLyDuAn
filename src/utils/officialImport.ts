@@ -8,8 +8,7 @@ import {
   TaskStatus,
 } from '../types/project';
 
-export const OFFICIAL_IMPORT_JSON_PATH =
-  '/assets/aistudio/TBHGN_du_lieu_20_cong_viec_da_khoi_phuc_URL_38662941.json';
+export const OFFICIAL_IMPORT_JSON_PATH = '/api/admin/official-import-source';
 
 export const REQUIRED_TBHGN_CATEGORIES: Array<{
   id: string;
@@ -189,10 +188,16 @@ export function parseOfficialJsonDataset(raw: unknown): OfficialImportDataset {
 }
 
 export async function loadOfficialJsonDataset(
+  idToken?: string,
   signal?: AbortSignal
 ): Promise<OfficialImportDataset> {
+  const headers: Record<string, string> = {};
+  if (idToken) {
+    headers.Authorization = `Bearer ${idToken}`;
+  }
   const response = await fetch(OFFICIAL_IMPORT_JSON_PATH, {
     cache: 'no-store',
+    headers,
     signal,
   });
   if (!response.ok) {

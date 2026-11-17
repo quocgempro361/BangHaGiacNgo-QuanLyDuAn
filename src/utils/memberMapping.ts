@@ -434,3 +434,40 @@ export function computeUpdatedAssigneeNamesOnUidToggle(
   });
   return filtered.join(', ');
 }
+
+export interface ConfirmedTaskAssignmentUpdate {
+  taskId: string;
+  displayCode: string;
+  nextAssigneeUids: string[];
+  nextReviewFlags: TaskItem['reviewFlags'];
+}
+
+/**
+ * Prepares explicit Admin-confirmed UID assignments for selected tasks.
+ * Never alters original `assignees` text, never removes existing UIDs, and never escalates user roles.
+ */
+export function buildConfirmedAssignmentUpdates(
+  member: Pick<ProjectMember, 'uid' | 'isActive'>,
+  selectedTaskIds: string[],
+  tasks: TaskItem[]
+): ConfirmedTaskAssignmentUpdate[] {
+  if (!member.uid || !member.isActive) return [];
+  const selectedSet = new Set(selectedTaskIds);
+  const updates: ConfirmedTaskAssignmentUpdate[] = [];
+
+  for (const t of tasks) {
+    if (!selectedSet.has(t.id)) continue;
+    if (t.archivedAt || isB1TestTask(t)) continue;
+    if (t.assigneeUids.includes(member.uid)) continue;
+
+    updates.push({
+      taskId: t.id,
+      displayCode: t.displayCode,
+      nextAssigneeUids: [...t.assigneeUids, member.uid],
+      nextReviewFlags: t.reviewFlags.filter((f) => f !== 'missing_assignee'),
+    });
+  }
+
+  return updates;
+}
+

@@ -238,7 +238,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
             type="button"
             onClick={onClose}
             aria-label="Đóng"
-            className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"
+            className="w-10 h-10 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"
           >
             <X className="w-5 h-5" />
           </button>
@@ -270,7 +270,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
         ) : (
           <form
             onSubmit={handleSubmit}
-            className="p-4 space-y-3.5 max-h-[80vh] overflow-y-auto"
+            className="p-4 pb-[max(1rem,env(safe-area-inset-bottom))] space-y-3.5 max-h-[82dvh] overflow-y-auto"
           >
             {error && (
               <div className="p-2.5 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg">
@@ -287,7 +287,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
               <select
                 value={parentId}
                 onChange={(e) => setParentId(e.target.value)}
-                className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#13294B]"
+                className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#13294B] min-h-[42px]"
               >
                 {isAdmin && <option value="">Đầu việc cha (cấp 1)</option>}
                 {eligibleParents.map((p) => (
@@ -305,10 +305,11 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
                 </label>
                 <input
                   type="text"
+                  maxLength={24}
                   value={displayCode}
                   onChange={(e) => setDisplayCode(e.target.value)}
                   placeholder={suggestedCode}
-                  className="w-full px-3 py-2 text-sm font-mono-tabular border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#13294B]"
+                  className="w-full px-3 py-2 text-sm font-mono-tabular border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#13294B] min-h-[42px]"
                 />
               </div>
               <div className="sm:col-span-3">
@@ -318,10 +319,11 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
                 <input
                   type="text"
                   required
+                  maxLength={300}
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="Nhập tên công việc..."
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#13294B]"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#13294B] min-h-[42px]"
                 />
               </div>
             </div>
@@ -333,14 +335,14 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
                   {parentId && !isAdmin && '(kế thừa từ việc cha)'}
                 </label>
                 {parentId && !isAdmin ? (
-                  <div className="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-700">
+                  <div className="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-700 min-h-[42px] flex items-center">
                     {parentCatMeta?.category || 'Chưa phân hạng mục'}
                   </div>
                 ) : (
                   <select
                     value={categoryId}
                     onChange={(e) => setCategoryId(e.target.value)}
-                    className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg"
+                    className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg min-h-[42px]"
                   >
                     <option value="">
                       {parentId && parentCatMeta?.category
@@ -363,7 +365,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
                 <select
                   value={status}
                   onChange={(e) => setStatus(e.target.value as TaskStatus)}
-                  className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg"
+                  className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg min-h-[42px]"
                 >
                   {ALL_STATUSES.filter((s) => s !== 'Hoàn thành').map((st) => (
                     <option key={st} value={st}>
@@ -436,10 +438,11 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
                 </label>
                 <input
                   type="text"
+                  maxLength={500}
                   value={nextStep}
                   onChange={(e) => setNextStep(e.target.value)}
                   placeholder="Ghi ngắn gọn bước kế tiếp..."
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg min-h-[42px]"
                 />
               </div>
 
@@ -451,7 +454,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
                   type="date"
                   value={dueDate}
                   onChange={(e) => setDueDate(e.target.value)}
-                  className="w-full px-3 py-2 text-sm font-mono-tabular border border-slate-200 rounded-lg"
+                  className="w-full px-3 py-2 text-sm font-mono-tabular border border-slate-200 rounded-lg min-h-[42px]"
                 />
               </div>
             </div>
@@ -460,14 +463,14 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 min-h-[42px]"
+                className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 min-h-[44px]"
               >
                 Hủy
               </button>
               <button
                 type="submit"
                 disabled={submitting}
-                className="px-4 py-2 text-sm font-medium bg-[#13294B] text-white rounded-lg hover:bg-[#1E3A66] disabled:opacity-50 min-h-[42px]"
+                className="px-4 py-2 text-sm font-medium bg-[#13294B] text-white rounded-lg hover:bg-[#1E3A66] disabled:opacity-50 min-h-[44px]"
               >
                 {submitting
                   ? 'Đang lưu...'

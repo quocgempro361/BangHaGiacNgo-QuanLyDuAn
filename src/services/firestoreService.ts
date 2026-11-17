@@ -1410,3 +1410,91 @@ export async function removeInviteInFirestore(emailLower: string): Promise<void>
     handleFirestoreError(error, OperationType.DELETE, path);
   }
 }
+
+/**
+ * Admin-only explicit confirmation: assigns a member's Firebase UID to selected tasks
+ * inside one atomic transaction without overwriting original `assignees` text.
+ */
+export async function assignMemberToTasksInFirestore(
+  member: ProjectMember,
+  selectedTaskIds: string[],
+  adminUser: ProjectMember
+): Promise<{ updatedCount: number; skippedCount: number }> {
+  if (adminUser.role !== 'admin' || !adminUser.isActive) {
+    throw new Error('Chỉ Quản trị viên đang hoạt động mới được giao công việc.');
+  }
+  if (!member.isActive) {
+    throw new Error('Không thể giao việc cho tài khoản đang bị khóa.');
+  }
+  const uniqueTaskIds = Array.from(new Set(selectedTaskIds)).filter(Boolean);
+  if (uniqueTaskIds.length === 0) {
+    return { updatedCount: 0, skippedCount: 0 };
+  }
+
+  try {
+    const result = await runTransaction(db, async (tx) => {
+      const snaps = await Promise.all(
+        uniqueTaskIds.map((id) => tx.get(doc(db, 'tasks', id)))
+      );
+
+      let updatedCount = 0;
+      let skippedCount = 0;
+      const nowTs = serverTimestamp();
+      const logPrefix = `log_assign_${Date.now().toString(36)}`;
+
+      snaps.forEach((snap, idx) => {
+        if (!snap.exists()) {
+          skippedCount++;
+          return;
+        }
+        const existing = mapTaskDoc(
+          snap.id,
+          snap.data() as Record<string, unknown>
+        );
+        if (existing.archivedAt || existing.assigneeUids.includes(member.uid)) {
+          skippedCount++;
+          return;
+        }
+
+        const nextUids = [...existing.assigneeUids, member.uid];
+        const nextFlags = existing.reviewFlags.filter(
+          (f) => f !== 'missing_assignee'
+        );
+        const taskRef = doc(db, 'tasks', snap.id);
+        const logId = `${logPrefix}_${idx}`;
+        const logRef = doc(db, 'tasks', snap.id, 'activityLogs', logId);
+
+        tx.update(taskRef, {
+          assigneeUids: nextUids,
+          reviewFlags: nextFlags,
+          version: existing.version + 1,
+          updatedAt: nowTs,
+          updatedBy: adminUser.displayName,
+          updatedByUid: adminUser.uid,
+        });
+
+        tx.set(logRef, {
+          id: logId,
+          taskId: snap.id,
+          actorUid: adminUser.uid,
+          actorName: adminUser.displayName,
+          action: 'update',
+          summary: `Xác nhận giao việc cho ${member.displayName} (${member.email})`,
+          createdAt: nowTs,
+        });
+
+        updatedCount++;
+      });
+
+      return { updatedCount, skippedCount };
+    });
+
+    return result;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, 'tasks (batch assign)', {
+      targetUid: member.uid,
+      taskCount: uniqueTaskIds.length,
+    });
+  }
+}
+

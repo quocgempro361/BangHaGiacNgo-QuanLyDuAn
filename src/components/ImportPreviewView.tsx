@@ -13,6 +13,7 @@ import {
   ShieldAlert,
   Upload,
 } from 'lucide-react';
+import { auth } from '../firebase';
 import { CategoryItem, ProjectMember, TaskItem } from '../types/project';
 import {
   buildOfficialImportPlan,
@@ -66,23 +67,23 @@ export const ImportPreviewView: React.FC<ImportPreviewViewProps> = ({
   const [liveVerification, setLiveVerification] =
     useState<OfficialImportVerification | null>(null);
 
-  const fetchSourceJson = useCallback((signal?: AbortSignal) => {
+  const fetchSourceJson = useCallback(async (signal?: AbortSignal) => {
     setLoading(true);
     setLoadError(null);
-    loadOfficialJsonDataset(signal)
-      .then((data) => {
-        setDataset(data);
-        setLoading(false);
-      })
-      .catch((err: unknown) => {
-        if (err instanceof DOMException && err.name === 'AbortError') return;
-        setLoadError(
-          err instanceof Error
-            ? err.message
-            : 'Không thể đọc tệp dữ liệu JSON nguồn.'
-        );
-        setLoading(false);
-      });
+    try {
+      const idToken = await auth.currentUser?.getIdToken();
+      const data = await loadOfficialJsonDataset(idToken, signal);
+      setDataset(data);
+      setLoading(false);
+    } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
+      setLoadError(
+        err instanceof Error
+          ? err.message
+          : 'Không thể đọc tệp dữ liệu JSON nguồn.'
+      );
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {

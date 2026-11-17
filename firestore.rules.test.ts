@@ -42,6 +42,7 @@ import {
   validateOfficialImportPreflight,
 } from './src/utils/officialImport';
 import {
+  buildConfirmedAssignmentUpdates,
   buildMemberMappingPreview,
   COLLECTIVE_GROUP_LABEL,
   computeUpdatedAssigneeNamesOnUidToggle,
@@ -55,6 +56,15 @@ import { CategoryItem, MemberInvite, ProjectMember, TaskItem } from './src/types
 const rootDir = process.cwd();
 const rulesText = fs.readFileSync(path.join(rootDir, 'firestore.rules'), 'utf8');
 const appText = fs.readFileSync(path.join(rootDir, 'src/App.tsx'), 'utf8');
+const myTasksText = fs.readFileSync(
+  path.join(rootDir, 'src/components/MyTasksView.tsx'),
+  'utf8'
+);
+const drawerText = fs.readFileSync(
+  path.join(rootDir, 'src/components/TaskDetailDrawer.tsx'),
+  'utf8'
+);
+const serverText = fs.readFileSync(path.join(rootDir, 'server.ts'), 'utf8');
 const importPreviewText = fs.readFileSync(
   path.join(rootDir, 'src/components/ImportPreviewView.tsx'),
   'utf8'
@@ -67,7 +77,7 @@ const officialJsonRaw = JSON.parse(
   fs.readFileSync(
     path.join(
       rootDir,
-      'public/assets/aistudio/TBHGN_du_lieu_20_cong_viec_da_khoi_phuc_URL_38662941.json'
+      'server_data/TBHGN_du_lieu_20_cong_viec_da_khoi_phuc_URL_38662941.json'
     ),
     'utf8'
   )
@@ -1508,4 +1518,94 @@ test('Case 7: B1 test tasks are strictly hidden from normal counts, parent total
   assert.equal(isB1TestTask({ id: normalNewTask.taskId, isTestRecord: normalNewTask.taskPayload.isTestRecord }), false);
 });
 
+test('Case 8: Pre-release safety audit, explicit two-step assignment, and draft preservation on save failure', () => {
+  // 1. Raw project JSON/CSV must NOT be exposed publicly under public/assets
+  assert.equal(
+    fs.existsSync(
+      path.join(
+        rootDir,
+        'public/assets/aistudio/TBHGN_du_lieu_20_cong_viec_da_khoi_phuc_URL_38662941.json'
+      )
+    ),
+    false
+  );
+  assert.equal(
+    fs.existsSync(
+      path.join(
+        rootDir,
+        'public/assets/aistudio/UPGRADE_TBHTGN_Danh_muc_cong_viec_du_an_6eb9e9c3'
+      )
+    ),
+    false
+  );
+  assert.equal(
+    serverText.includes("app.get('/api/admin/official-import-source'"),
+    true
+  );
+  assert.equal(serverText.includes('verifyFirebaseIdToken(token)'), true);
+  assert.equal(
+    serverText.includes("userDoc.fields?.role?.stringValue === 'admin'"),
+    true
+  );
+
+  assert.equal(serverText.includes("'/server_data'"), true);
+  const viteConfigText = fs.readFileSync(path.join(rootDir, 'vite.config.ts'), 'utf8');
+  assert.equal(viteConfigText.includes("'**/server_data/**'"), true);
+
+  // 2. Full JSON backup export in App.tsx is restricted to active Admin
+  assert.match(
+    appText,
+    /\{isAdmin\s*&&\s*\(\s*<button[\s\S]{0,120}onClick=\{handleExportJSON\}/
+  );
+  assert.equal(
+    appText.includes("if (!currentUser || currentUser.role !== 'admin' || !currentUser.isActive)"),
+    true
+  );
+
+  // 3. Explicit two-step task assignment helper preserves original assignee names & clears missing_assignee
+  const targetTasks: TaskItem[] = [
+    {
+      ...sampleTasks[0],
+      id: 'tbhgn_2',
+      displayCode: '2',
+      assignees: ['Quốc', 'Khả Tuệ'],
+      assigneeUids: [],
+      reviewFlags: ['missing_assignee'],
+      isTestRecord: false,
+    },
+    {
+      ...sampleTasks[0],
+      id: 'tbhgn_3',
+      displayCode: '3',
+      assignees: ['Quốc'],
+      assigneeUids: [memberUser.uid],
+      reviewFlags: [],
+      isTestRecord: false,
+    },
+    {
+      ...sampleTasks[0],
+      id: 'b1_test_parent',
+      displayCode: 'T1',
+      assignees: ['Quốc'],
+      assigneeUids: [],
+      reviewFlags: ['missing_assignee'],
+      isTestRecord: true,
+    },
+  ];
+  const updates = buildConfirmedAssignmentUpdates(
+    memberUser,
+    ['tbhgn_2', 'tbhgn_3', 'b1_test_parent'],
+    targetTasks
+  );
+  assert.equal(updates.length, 1);
+  assert.equal(updates[0].taskId, 'tbhgn_2');
+  assert.deepEqual(updates[0].nextAssigneeUids, [memberUser.uid]);
+  assert.deepEqual(updates[0].nextReviewFlags, []);
+
+  // 4. Draft preservation on failure & completed-task status lock for non-approvers
+  assert.match(myTasksText, /if\s*\(res\.ok\)\s*\{\s*setEditingNextStepId\(null\);/);
+  assert.match(drawerText, /if\s*\(res\.ok\)\s*\{\s*setCommentText\(''\);/);
+  assert.equal(myTasksText.includes('statusLockedForNonApprover'), true);
+  assert.equal(drawerText.includes('statusLockedByCompletion'), true);
+});
 
