@@ -179,7 +179,14 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
 
     const resolvedUids = isAdmin ? assigneeUids : [currentUser.uid];
     const uidNames = resolvedUids
-      .map((uid) => members.find((m) => m.uid === uid)?.displayName)
+      .map((uid) => {
+        const matched =
+          members.find((m) => m.uid === uid) ??
+          (uid === currentUser.uid ? currentUser : undefined);
+        return matched
+          ? matched.displayName || matched.sheetAlias || matched.email
+          : '';
+      })
       .filter((n): n is string => Boolean(n));
     const extraNames = isAdmin
       ? customAssigneeNote

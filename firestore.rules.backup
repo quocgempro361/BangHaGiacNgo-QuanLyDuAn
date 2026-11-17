@@ -1,0 +1,427 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net: Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // ---------------------------------------------------------
+    // Global Helpers
+    // ---------------------------------------------------------
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidEmailId(emailId) {
+      return emailId is string && emailId.size() >= 3 && emailId.size() <= 254;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isVerifiedUser() {
+      return request.auth != null
+        && request.auth.token.email_verified == true
+        && request.auth.token.email is string;
+    }
+
+    function userEmail() {
+      return request.auth.token.email.lower();
+    }
+
+    function isBootstrapOwner() {
+      return isVerifiedUser() && userEmail() == 'ngaothuyet2023@gmail.com';
+    }
+
+    function userDocPath(uid) {
+      return /databases/$(database)/documents/users/$(uid);
+    }
+
+    function inviteDocPath(emailLower) {
+      return /databases/$(database)/documents/invites/$(emailLower);
+    }
+
+    function hasUserProfile() {
+      return isVerifiedUser() && exists(userDocPath(request.auth.uid));
+    }
+
+    function userProfile() {
+      return get(userDocPath(request.auth.uid)).data;
+    }
+
+    function isActiveMember() {
+      return hasUserProfile() && userProfile().isActive == true;
+    }
+
+    function isAdmin() {
+      return isActiveMember() && userProfile().role == 'admin';
+    }
+
+    function isMemberRole() {
+      return isActiveMember() && userProfile().role == 'member';
+    }
+
+    function isViewerRole() {
+      return isActiveMember() && userProfile().role == 'viewer';
+    }
+
+    function isApprover() {
+      return isActiveMember() && (userProfile().role == 'admin' || userProfile().canApprove == true);
+    }
+
+    // Permissions MUST bind strictly to Firebase UID (never text display names)
+    function isAssignedToTask(taskData) {
+      return request.auth.uid in taskData.assigneeUids;
+    }
+
+    function isScopedApprover(taskData) {
+      return isApprover() && (
+        isAssignedToTask(taskData)
+        || ('approverUids' in taskData && request.auth.uid in taskData.approverUids)
+      );
+    }
+
+    // Supports both existing parents and parent+child created in the same batch via existsAfter/getAfter
+    function canCreateSubtaskUnder(parentId) {
+      return existsAfter(/databases/$(database)/documents/tasks/$(parentId))
+        && getAfter(/databases/$(database)/documents/tasks/$(parentId)).data.parentId == null
+        && getAfter(/databases/$(database)/documents/tasks/$(parentId)).data.archivedAt == null
+        && (
+          isAdmin()
+          || (
+            isMemberRole()
+            && request.auth.uid in getAfter(/databases/$(database)/documents/tasks/$(parentId)).data.assigneeUids
+          )
+        );
+    }
+
+    // ---------------------------------------------------------
+    // Validation Blueprints
+    // ---------------------------------------------------------
+    function isValidUserProfile(data, uid) {
+      return data.keys().hasAll(['uid', 'email', 'displayName', 'sheetAlias', 'role', 'canApprove', 'isActive', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'email', 'displayName', 'sheetAlias', 'role', 'canApprove', 'isActive', 'createdAt', 'updatedAt'])
+        && data.uid == uid
+        && isValidId(data.uid)
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 254
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120
+        && data.sheetAlias is string && data.sheetAlias.size() <= 80
+        && data.role in ['admin', 'member', 'viewer']
+        && data.canApprove is bool
+        && data.isActive is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidInvite(data, emailId) {
+      return data.keys().hasAll(['email', 'displayName', 'sheetAlias', 'role', 'canApprove', 'isActive', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['email', 'displayName', 'sheetAlias', 'role', 'canApprove', 'isActive', 'createdBy', 'createdAt', 'updatedAt'])
+        && data.email is string && data.email == emailId && isValidEmailId(data.email)
+        && data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 120
+        && data.sheetAlias is string && data.sheetAlias.size() <= 80
+        && data.role in ['admin', 'member', 'viewer']
+        && data.canApprove is bool
+        && data.isActive is bool
+        && data.createdBy is string && data.createdBy.size() >= 1 && data.createdBy.size() <= 128
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidCategory(data) {
+      return data.keys().hasAll(['name', 'color', 'sortOrder', 'isActive', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy'])
+        && data.keys().hasOnly(['name', 'color', 'sortOrder', 'isActive', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy'])
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 100
+        && data.color is string && data.color.size() >= 4 && data.color.size() <= 20 && data.color.matches('^#[0-9a-fA-F]{6}$')
+        && data.sortOrder is number
+        && data.isActive is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && data.createdBy is string && data.createdBy.size() >= 1 && data.createdBy.size() <= 128
+        && data.updatedBy is string && data.updatedBy.size() >= 1 && data.updatedBy.size() <= 128;
+    }
+
+    function isValidTask(data, taskId) {
+      return data.keys().hasAll(['id', 'displayCode', 'parentId', 'sortOrder', 'title', 'assignees', 'assigneeUids', 'status', 'version', 'updatedAt', 'updatedByUid', 'archivedAt'])
+        && data.keys().hasOnly(['id', 'displayCode', 'parentId', 'sortOrder', 'title', 'categoryId', 'category', 'assignees', 'assigneeUids', 'approverUids', 'status', 'nextStep', 'dueDate', 'notes', 'referenceLinks', 'resultLinks', 'reviewFlags', 'version', 'updatedAt', 'updatedBy', 'updatedByUid', 'archivedAt', 'archivedBy', 'isTestRecord'])
+        && data.id == taskId
+        && isValidId(data.id)
+        && data.displayCode is string && data.displayCode.size() >= 1 && data.displayCode.size() <= 24
+        && (data.parentId == null || isValidId(data.parentId))
+        && data.sortOrder is number
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 300
+        && (!('categoryId' in data) || data.categoryId == null || isValidId(data.categoryId))
+        && (!('category' in data) || data.category == null || (data.category is string && data.category.size() <= 100))
+        && data.assignees is list && data.assignees.size() <= 20 && (data.assignees.size() == 0 || data.assignees[0] is string)
+        && data.assigneeUids is list && data.assigneeUids.size() <= 20 && (data.assigneeUids.size() == 0 || data.assigneeUids[0] is string)
+        && (!('approverUids' in data) || (data.approverUids is list && data.approverUids.size() <= 10 && (data.approverUids.size() == 0 || data.approverUids[0] is string)))
+        && (data.status == null || data.status in ['Đang làm', 'Chờ duyệt', 'Tạm dừng', 'Hoàn thành', 'Chưa bắt đầu'])
+        && (!('nextStep' in data) || data.nextStep == null || (data.nextStep is string && data.nextStep.size() <= 500))
+        && (!('dueDate' in data) || data.dueDate == null || (data.dueDate is string && data.dueDate.size() <= 20))
+        && (!('notes' in data) || data.notes == null || (data.notes is string && data.notes.size() <= 2000))
+        && (!('referenceLinks' in data) || (data.referenceLinks is list && data.referenceLinks.size() <= 20 && (data.referenceLinks.size() == 0 || data.referenceLinks[0] is map)))
+        && (!('resultLinks' in data) || (data.resultLinks is list && data.resultLinks.size() <= 20 && (data.resultLinks.size() == 0 || data.resultLinks[0] is map)))
+        && (!('reviewFlags' in data) || (data.reviewFlags is list && data.reviewFlags.size() <= 10 && data.reviewFlags.hasOnly(['missing_assignee', 'missing_status', 'missing_hyperlink_url'])))
+        && data.version is int && data.version >= 1
+        && data.updatedAt is timestamp
+        && (!('updatedBy' in data) || data.updatedBy == null || (data.updatedBy is string && data.updatedBy.size() <= 120))
+        && data.updatedByUid is string && data.updatedByUid.size() >= 1 && data.updatedByUid.size() <= 128
+        && (data.archivedAt == null || data.archivedAt is timestamp)
+        && (!('archivedBy' in data) || data.archivedBy == null || (data.archivedBy is string && data.archivedBy.size() <= 120))
+        && (!('isTestRecord' in data) || data.isTestRecord is bool);
+    }
+
+    function isValidComment(data, taskId, commentId) {
+      return data.keys().hasAll(['id', 'taskId', 'authorUid', 'authorName', 'content', 'createdAt'])
+        && data.keys().hasOnly(['id', 'taskId', 'authorUid', 'authorName', 'content', 'createdAt'])
+        && data.id == commentId && isValidId(data.id)
+        && data.taskId == taskId && isValidId(data.taskId)
+        && data.authorUid == request.auth.uid
+        && data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 120
+        && data.content is string && data.content.size() >= 1 && data.content.size() <= 2000
+        && data.createdAt is timestamp;
+    }
+
+    function isValidActivityLog(data, taskId, logId) {
+      return data.keys().hasAll(['id', 'taskId', 'actorUid', 'actorName', 'action', 'summary', 'createdAt'])
+        && data.keys().hasOnly(['id', 'taskId', 'actorUid', 'actorName', 'action', 'summary', 'createdAt'])
+        && data.id == logId && isValidId(data.id)
+        && data.taskId == taskId && isValidId(data.taskId)
+        && data.actorUid == request.auth.uid
+        && data.actorName is string && data.actorName.size() >= 1 && data.actorName.size() <= 120
+        && data.action in ['create', 'update', 'status_change', 'approve', 'comment', 'archive', 'restore']
+        && data.summary is string && data.summary.size() >= 1 && data.summary.size() <= 500
+        && data.createdAt is timestamp;
+    }
+
+    // ---------------------------------------------------------
+    // Collection: /users/{uid} (PII Isolated: get owner/admin; list admin only)
+    // ---------------------------------------------------------
+    match /users/{uid} {
+      allow get: if isVerifiedUser() && isValidId(uid) && (request.auth.uid == uid || isAdmin());
+      allow list: if isAdmin();
+
+      allow create: if isVerifiedUser()
+        && isValidId(uid)
+        && request.auth.uid == uid
+        && isValidUserProfile(incoming(), uid)
+        && incoming().email.lower() == userEmail()
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          (
+            isBootstrapOwner()
+            && incoming().role == 'admin'
+            && incoming().canApprove == true
+            && incoming().isActive == true
+          )
+          || (
+            exists(inviteDocPath(userEmail()))
+            && get(inviteDocPath(userEmail())).data.isActive == true
+            && incoming().role == get(inviteDocPath(userEmail())).data.role
+            && incoming().canApprove == get(inviteDocPath(userEmail())).data.canApprove
+            && incoming().isActive == true
+            && incoming().sheetAlias == get(inviteDocPath(userEmail())).data.sheetAlias
+          )
+        );
+
+      allow update: if isAdmin()
+        && isValidId(uid)
+        && isValidUserProfile(incoming(), uid)
+        && incoming().uid == existing().uid
+        && incoming().email == existing().email
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'sheetAlias', 'role', 'canApprove', 'isActive', 'updatedAt']);
+
+      allow delete: if false;
+    }
+
+    // ---------------------------------------------------------
+    // Collection: /invites/{emailId} (Admin-managed allowlist)
+    // ---------------------------------------------------------
+    match /invites/{emailId} {
+      allow get: if isVerifiedUser() && isValidEmailId(emailId) && (userEmail() == emailId || isAdmin());
+      allow list: if isAdmin();
+
+      allow create: if isAdmin()
+        && isValidEmailId(emailId)
+        && isValidInvite(incoming(), emailId)
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isAdmin()
+        && isValidEmailId(emailId)
+        && isValidInvite(incoming(), emailId)
+        && incoming().email == existing().email
+        && incoming().createdBy == existing().createdBy
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'sheetAlias', 'role', 'canApprove', 'isActive', 'updatedAt']);
+
+      allow delete: if isAdmin() && isValidEmailId(emailId);
+    }
+
+    // ---------------------------------------------------------
+    // Collection: /categories/{categoryId}
+    // ---------------------------------------------------------
+    match /categories/{categoryId} {
+      allow get: if isActiveMember() && isValidId(categoryId);
+      allow list: if isActiveMember();
+
+      allow create: if isAdmin()
+        && isValidId(categoryId)
+        && isValidCategory(incoming())
+        && incoming().createdBy == request.auth.uid
+        && incoming().updatedBy == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isAdmin()
+        && isValidId(categoryId)
+        && isValidCategory(incoming())
+        && incoming().createdBy == existing().createdBy
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedBy == request.auth.uid
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'color', 'sortOrder', 'isActive', 'updatedAt', 'updatedBy']);
+
+      allow delete: if isAdmin() && isValidId(categoryId);
+    }
+
+    // ---------------------------------------------------------
+    // Collection: /tasks/{taskId}
+    // ---------------------------------------------------------
+    match /tasks/{taskId} {
+      allow get: if isActiveMember() && isValidId(taskId);
+      allow list: if isActiveMember();
+
+      // Create:
+      // - Admin can create parent (parentId == null) or 2nd-level child task
+      // - Member can create ONLY a 2nd-level child task under an assigned parent (never 3rd-level, never Hoàn thành)
+      allow create: if isActiveMember()
+        && isValidId(taskId)
+        && isValidTask(incoming(), taskId)
+        && incoming().version == 1
+        && incoming().updatedAt == request.time
+        && incoming().updatedByUid == request.auth.uid
+        && incoming().archivedAt == null
+        && (
+          (isAdmin() && incoming().parentId == null)
+          || (
+            incoming().parentId != null
+            && incoming().parentId != taskId
+            && canCreateSubtaskUnder(incoming().parentId)
+            && (isAdmin() || (isMemberRole() && incoming().status != 'Hoàn thành'))
+          )
+        );
+
+      allow update: if isActiveMember()
+        && isValidId(taskId)
+        && isValidTask(incoming(), taskId)
+        && incoming().id == existing().id
+        && incoming().version == existing().version + 1
+        && incoming().updatedAt == request.time
+        && incoming().updatedByUid == request.auth.uid
+        && (
+          (
+            isAdmin()
+            && (
+              incoming().parentId == existing().parentId
+              || incoming().parentId == null
+              || (
+                incoming().parentId != taskId
+                && existsAfter(/databases/$(database)/documents/tasks/$(incoming().parentId))
+                && getAfter(/databases/$(database)/documents/tasks/$(incoming().parentId)).data.parentId == null
+              )
+            )
+            && incoming().diff(existing()).affectedKeys().hasOnly(['displayCode', 'parentId', 'sortOrder', 'title', 'categoryId', 'category', 'assignees', 'assigneeUids', 'approverUids', 'status', 'nextStep', 'dueDate', 'notes', 'referenceLinks', 'resultLinks', 'reviewFlags', 'version', 'updatedAt', 'updatedBy', 'updatedByUid', 'archivedAt', 'archivedBy', 'isTestRecord'])
+          )
+          || (
+            isMemberRole()
+            && existing().archivedAt == null
+            && incoming().parentId == existing().parentId
+            && incoming().assignees == existing().assignees
+            && incoming().assigneeUids == existing().assigneeUids
+            && incoming().archivedAt == existing().archivedAt
+            && (
+              (
+                isAssignedToTask(existing())
+                && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'nextStep', 'notes', 'referenceLinks', 'resultLinks', 'version', 'updatedAt', 'updatedBy', 'updatedByUid'])
+                && (
+                  (incoming().status == existing().status)
+                  || (
+                    incoming().status != 'Hoàn thành'
+                    && existing().status != 'Hoàn thành'
+                  )
+                  || isScopedApprover(existing())
+                )
+              )
+              || (
+                isScopedApprover(existing())
+                && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'nextStep', 'version', 'updatedAt', 'updatedBy', 'updatedByUid'])
+              )
+            )
+          )
+        );
+
+      allow delete: if false;
+
+      // Subcollection: /tasks/{taskId}/comments/{commentId}
+      match /comments/{commentId} {
+        allow get: if isActiveMember() && isValidId(taskId) && isValidId(commentId);
+        allow list: if isActiveMember() && isValidId(taskId);
+
+        allow create: if isActiveMember()
+          && !isViewerRole()
+          && isValidId(taskId)
+          && isValidId(commentId)
+          && exists(/databases/$(database)/documents/tasks/$(taskId))
+          && isValidComment(incoming(), taskId, commentId)
+          && incoming().createdAt == request.time;
+
+        allow update, delete: if false;
+      }
+
+      // Subcollection: /tasks/{taskId}/activityLogs/{logId}
+      match /activityLogs/{logId} {
+        allow get: if isActiveMember() && isValidId(taskId) && isValidId(logId);
+        allow list: if isActiveMember() && isValidId(taskId);
+
+        allow create: if isActiveMember()
+          && !isViewerRole()
+          && isValidId(taskId)
+          && isValidId(logId)
+          && isValidActivityLog(incoming(), taskId, logId)
+          && incoming().createdAt == request.time
+          && (
+            (
+              existsAfter(/databases/$(database)/documents/tasks/$(taskId))
+              && getAfter(/databases/$(database)/documents/tasks/$(taskId)).data.updatedAt == request.time
+              && getAfter(/databases/$(database)/documents/tasks/$(taskId)).data.updatedByUid == request.auth.uid
+            )
+            || (
+              incoming().action == 'comment'
+              && existsAfter(/databases/$(database)/documents/tasks/$(taskId)/comments/$(logId))
+              && getAfter(/databases/$(database)/documents/tasks/$(taskId)/comments/$(logId)).data.authorUid == request.auth.uid
+              && getAfter(/databases/$(database)/documents/tasks/$(taskId)/comments/$(logId)).data.createdAt == request.time
+            )
+          );
+
+        allow update, delete: if false;
+      }
+    }
+
+    match /test/{docId} {
+      allow read, write: if false;
+    }
+  }
+}

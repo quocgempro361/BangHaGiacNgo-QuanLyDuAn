@@ -632,10 +632,14 @@ export async function deleteUnusedCategoryInFirestore(
   }
 }
 
-/**
- * Creates a task + atomic activityLog inside one Firestore transaction.
- */
-export async function createTaskInFirestore(
+function generateUniqueSuffix(): string {
+  if (typeof globalThis.crypto?.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID().replace(/-/g, '').slice(0, 12);
+  }
+  return `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export function buildCreateTaskPayloads(
   input: {
     displayCode: string;
     title: string;
@@ -649,14 +653,23 @@ export async function createTaskInFirestore(
     dueDate: string | null;
     sortOrder: number;
   },
-  currentUser: ProjectMember
-): Promise<string> {
-  const taskId = `test_task_${Date.now()}`;
-  const logId = `log_${Date.now()}`;
-  const taskRef = doc(db, 'tasks', taskId);
-  const logRef = doc(db, 'tasks', taskId, 'activityLogs', logId);
+  currentUser: ProjectMember,
+  ids?: { taskId?: string; logId?: string }
+) {
+  const suffix = generateUniqueSuffix();
+  const taskId = ids?.taskId ?? `test_task_${suffix}`;
+  const logId = ids?.logId ?? `log_${suffix}`;
+  const actorDisplayName = (
+    currentUser.displayName ||
+    currentUser.sheetAlias ||
+    currentUser.email ||
+    'Thành viên'
+  )
+    .trim()
+    .slice(0, 120);
+  const nowTs = serverTimestamp();
 
-  const payload = {
+  const taskPayload = {
     id: taskId,
     displayCode: input.displayCode,
     parentId: input.parentId,
@@ -674,28 +687,58 @@ export async function createTaskInFirestore(
     resultLinks: [],
     reviewFlags: input.assigneeUids.length === 0 ? ['missing_assignee'] : [],
     version: 1,
-    updatedAt: serverTimestamp(),
-    updatedBy: currentUser.displayName,
+    updatedAt: nowTs,
+    updatedBy: actorDisplayName,
     updatedByUid: currentUser.uid,
     archivedAt: null,
     archivedBy: null,
     isTestRecord: true,
   };
 
-  try {
-    await runTransaction(db, async (tx) => {
-      tx.set(taskRef, payload);
+  const logPayload = {
+    id: logId,
+    taskId,
+    actorUid: currentUser.uid,
+    actorName: actorDisplayName,
+    action: 'create' as const,
+    summary: `Tạo đầu việc kiểm thử (${input.displayCode})`,
+    createdAt: nowTs,
+  };
 
-      tx.set(logRef, {
-        id: logId,
-        taskId,
-        actorUid: currentUser.uid,
-        actorName: currentUser.displayName,
-        action: 'create',
-        summary: `Tạo đầu việc kiểm thử (${input.displayCode})`,
-        createdAt: serverTimestamp(),
-      });
-    });
+  return { taskId, logId, taskPayload, logPayload };
+}
+
+/**
+ * Creates a task + atomic activityLog inside one Firestore writeBatch.
+ */
+export async function createTaskInFirestore(
+  input: {
+    displayCode: string;
+    title: string;
+    parentId: string | null;
+    categoryId: string | null;
+    category: TaskCategory | null;
+    assignees: string[];
+    assigneeUids: string[];
+    status: TaskStatus | null;
+    nextStep: string | null;
+    dueDate: string | null;
+    sortOrder: number;
+  },
+  currentUser: ProjectMember
+): Promise<string> {
+  const { taskId, logId, taskPayload, logPayload } = buildCreateTaskPayloads(
+    input,
+    currentUser
+  );
+  const taskRef = doc(db, 'tasks', taskId);
+  const logRef = doc(db, 'tasks', taskId, 'activityLogs', logId);
+
+  try {
+    const batch = writeBatch(db);
+    batch.set(taskRef, taskPayload);
+    batch.set(logRef, logPayload);
+    await batch.commit();
     return taskId;
   } catch (error) {
     handleFirestoreError(error, OperationType.CREATE, `tasks/${taskId}`, {

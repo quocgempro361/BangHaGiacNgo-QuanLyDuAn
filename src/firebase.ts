@@ -19,9 +19,11 @@ googleProvider.setCustomParameters({
   prompt: 'select_account',
 });
 
-setPersistence(auth, browserLocalPersistence).catch((err) => {
-  console.warn('Auth persistence setup warning:', err);
-});
+if (typeof window !== 'undefined') {
+  setPersistence(auth, browserLocalPersistence).catch((err) => {
+    console.warn('Auth persistence setup warning:', err);
+  });
+}
 
 export enum OperationType {
   CREATE = 'create',
@@ -138,6 +140,8 @@ export async function testConnection(): Promise<void> {
   }
 }
 
-testConnection();
+if (typeof window !== 'undefined') {
+  testConnection();
+}
 
 export { firebaseConfig };

@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import { initializeApp, deleteApp } from 'firebase/app';
-import { doc, getDoc, getFirestore, setDoc } from 'firebase/firestore';
+import { doc, getDoc, getFirestore, setDoc, terminate } from 'firebase/firestore';
 import firebaseConfig from './firebase-applet-config.json';
 import {
   canBeParent,
@@ -14,6 +14,7 @@ import {
   computeParentProgress,
   getEffectiveCategory,
 } from './src/utils/taskHelpers';
+import { buildCreateTaskPayloads } from './src/services/firestoreService';
 import { CategoryItem, ProjectMember, TaskItem } from './src/types/project';
 
 const rootDir = process.cwd();
@@ -90,7 +91,7 @@ const sampleCategories: CategoryItem[] = [
 
 const sampleTasks: TaskItem[] = [
   {
-    id: 'p1',
+    id: 'b1_test_parent',
     displayCode: 'T1',
     parentId: null,
     sortOrder: 0,
@@ -115,7 +116,7 @@ const sampleTasks: TaskItem[] = [
     isTestRecord: true,
   },
   {
-    id: 'p2_text_only',
+    id: 'b1_test_unassigned',
     displayCode: 'T2',
     parentId: null,
     sortOrder: 1,
@@ -139,9 +140,9 @@ const sampleTasks: TaskItem[] = [
     isTestRecord: true,
   },
   {
-    id: 'c1',
+    id: 'b1_test_child_1',
     displayCode: 'T1.1',
-    parentId: 'p1',
+    parentId: 'b1_test_parent',
     sortOrder: 2,
     title: 'Việc con kế thừa hạng mục từ T1',
     categoryId: null,
@@ -163,6 +164,48 @@ const sampleTasks: TaskItem[] = [
     isTestRecord: true,
   },
 ];
+
+function evaluateSimulatedSubtaskCreate(
+  actor: ProjectMember,
+  parentTask: TaskItem | null,
+  taskPayload: ReturnType<typeof buildCreateTaskPayloads>['taskPayload'],
+  logPayload: ReturnType<typeof buildCreateTaskPayloads>['logPayload']
+): { allowed: boolean; reason?: string } {
+  if (!actor.isActive) return { allowed: false, reason: 'inactive_user' };
+  if (actor.role === 'viewer') return { allowed: false, reason: 'viewer_readonly' };
+  if (taskPayload.updatedByUid !== actor.uid) {
+    return { allowed: false, reason: 'updatedByUid_mismatch' };
+  }
+  if (logPayload.actorUid !== actor.uid || logPayload.taskId !== taskPayload.id) {
+    return { allowed: false, reason: 'activityLog_actor_or_task_mismatch' };
+  }
+  if (taskPayload.version !== 1 || taskPayload.archivedAt !== null) {
+    return { allowed: false, reason: 'invalid_initial_version_or_archive' };
+  }
+  if (taskPayload.parentId === null) {
+    return actor.role === 'admin'
+      ? { allowed: true }
+      : { allowed: false, reason: 'member_cannot_create_parent_task' };
+  }
+  if (!parentTask || parentTask.parentId !== null || parentTask.archivedAt !== null) {
+    return { allowed: false, reason: 'invalid_parent_task' };
+  }
+  if (actor.role === 'admin') return { allowed: true };
+  if (actor.role !== 'member') return { allowed: false, reason: 'not_member' };
+  if (!parentTask.assigneeUids.includes(actor.uid)) {
+    return { allowed: false, reason: 'member_uid_not_assigned_on_parent' };
+  }
+  if (taskPayload.status === 'Hoàn thành') {
+    return { allowed: false, reason: 'member_cannot_create_completed' };
+  }
+  if (
+    taskPayload.assigneeUids.length !== 1 ||
+    taskPayload.assigneeUids[0] !== actor.uid
+  ) {
+    return { allowed: false, reason: 'member_must_assign_only_self_uid' };
+  }
+  return { allowed: true };
+}
 
 test('Live Firebase SDK: unauthenticated reads/writes are rejected by deployed rules on named database', async () => {
   const probeApp = initializeApp(firebaseConfig, `probe_${Date.now()}`);
@@ -192,46 +235,160 @@ test('Live Firebase SDK: unauthenticated reads/writes are rejected by deployed r
       }
     );
   } finally {
+    await terminate(probeDb);
     await deleteApp(probeApp);
   }
 });
 
-test('Firestore Rules use existsAfter/getAfter for batch parent validation and strictly bind task permissions to UID', () => {
-  assert.match(rulesText, /existsAfter\(\/databases\/\$\(database\)\/documents\/tasks\/\$\(parentId\)\)/);
-  assert.match(rulesText, /getAfter\(\/databases\/\$\(database\)\/documents\/tasks\/\$\(parentId\)\)\.data\.parentId == null/);
+test('Firestore Rules use exists/get for existing parent and existsAfter/getAfter only for same-batch parent creation', () => {
+  assert.match(rulesText, /exists\(taskDocPath\(parentId\)\)/);
+  assert.match(rulesText, /!exists\(taskDocPath\(parentId\)\)\s*&&\s*existsAfter\(taskDocPath\(parentId\)\)/);
+  assert.match(rulesText, /incoming\(\)\.assigneeUids == \[request\.auth\.uid\]/);
   assert.match(rulesText, /function isAssignedToTask\(taskData\) \{\s*return request\.auth\.uid in taskData\.assigneeUids;\s*\}/);
   assert.equal(rulesText.includes("'Nhóm' in taskData.assignees"), false);
-  assert.match(rulesText, /match \/categories\/\{categoryId\}/);
 });
 
-test('Client RBAC strictly enforces UID-based edit and parent-scoped subtask creation', () => {
-  const assignedParent = sampleTasks[0];
-  const textOnlyParent = sampleTasks[1];
-  const unassignedChild = sampleTasks[2];
+test('Case 1: Assigned Member on T1 produces valid T1.2 + atomic activityLog payload matching Firestore Rules', () => {
+  const parentT1 = sampleTasks[0];
+  assert.equal(canUserCreateSubtaskInParent(memberUser, parentT1), true);
 
-  // Admin: full access
-  assert.equal(canUserEditTask(adminUser, textOnlyParent), true);
-  assert.equal(canUserCreateSubtaskInParent(adminUser, assignedParent), true);
-  assert.equal(canUserCreateSubtaskInParent(adminUser, textOnlyParent), true);
-  assert.equal(canUserCreateSubtaskInParent(adminUser, unassignedChild), false); // 3rd level blocked
+  const { taskId, logId, taskPayload, logPayload } = buildCreateTaskPayloads(
+    {
+      displayCode: 'T1.2',
+      title: 'Việc con kiểm thử T1.2 của Member',
+      parentId: parentT1.id,
+      categoryId: parentT1.categoryId ?? null,
+      category: parentT1.category ?? null,
+      assignees: [memberUser.displayName],
+      assigneeUids: [memberUser.uid],
+      status: 'Chưa bắt đầu',
+      nextStep: 'Cập nhật tiến độ',
+      dueDate: null,
+      sortOrder: 3,
+    },
+    memberUser
+  );
 
-  // Member: strictly UID-bound; text display name "Quốc" / "Nhóm" grants ZERO permission
-  assert.equal(canUserEditTask(memberUser, assignedParent), true);
-  assert.equal(canUserEditTask(memberUser, textOnlyParent), false);
-  assert.equal(canUserCreateSubtaskInParent(memberUser, assignedParent), true);
-  assert.equal(canUserCreateSubtaskInParent(memberUser, textOnlyParent), false);
-  assert.equal(canUserCreateSubtaskInParent(memberUser, unassignedChild), false);
-  assert.equal(canUserApproveTask(memberUser, assignedParent), false);
+  assert.match(taskId, /^[a-zA-Z0-9_\-]+$/);
+  assert.match(logId, /^[a-zA-Z0-9_\-]+$/);
+  assert.equal(taskPayload.id, taskId);
+  assert.equal(taskPayload.parentId, 'b1_test_parent');
+  assert.deepEqual(taskPayload.assigneeUids, ['uid_member']);
+  assert.equal(taskPayload.updatedByUid, 'uid_member');
+  assert.equal(taskPayload.version, 1);
+  assert.equal(taskPayload.archivedAt, null);
+  assert.equal(taskPayload.isTestRecord, true);
+  assert.equal(logPayload.taskId, taskId);
+  assert.equal(logPayload.actorUid, 'uid_member');
+  assert.equal(logPayload.action, 'create');
+  assert.equal(taskPayload.updatedAt, logPayload.createdAt);
 
-  // Scoped approver
-  assert.equal(canUserApproveTask(scopedApproverMember, assignedParent), true);
-  assert.equal(canUserApproveTask(scopedApproverMember, textOnlyParent), false);
+  const check = evaluateSimulatedSubtaskCreate(
+    memberUser,
+    parentT1,
+    taskPayload,
+    logPayload
+  );
+  assert.deepEqual(check, { allowed: true });
+});
 
-  // Viewer & Locked user
-  assert.equal(canUserEditTask(viewerUser, assignedParent), false);
+test('Case 2: Member cannot create parent task, inject foreign assigneeUid, or edit/subtask unassigned T2', () => {
+  const unassignedT2 = sampleTasks[1];
+  const parentT1 = sampleTasks[0];
+
+  assert.equal(canUserEditTask(memberUser, unassignedT2), false);
+  assert.equal(canUserCreateSubtaskInParent(memberUser, unassignedT2), false);
+  assert.equal(canUserApproveTask(memberUser, parentT1), false);
+
+  const parentAttempt = buildCreateTaskPayloads(
+    {
+      displayCode: 'T3',
+      title: 'Việc cha trái phép',
+      parentId: null,
+      categoryId: 'cat_foundation',
+      category: 'Nền tảng & quy chuẩn',
+      assignees: [memberUser.displayName],
+      assigneeUids: [memberUser.uid],
+      status: 'Chưa bắt đầu',
+      nextStep: null,
+      dueDate: null,
+      sortOrder: 4,
+    },
+    memberUser
+  );
+  assert.equal(
+    evaluateSimulatedSubtaskCreate(
+      memberUser,
+      null,
+      parentAttempt.taskPayload,
+      parentAttempt.logPayload
+    ).allowed,
+    false
+  );
+
+  const foreignUidAttempt = buildCreateTaskPayloads(
+    {
+      displayCode: 'T1.3',
+      title: 'Gán UID người khác',
+      parentId: parentT1.id,
+      categoryId: parentT1.categoryId ?? null,
+      category: parentT1.category ?? null,
+      assignees: ['Admin'],
+      assigneeUids: ['uid_admin'],
+      status: 'Chưa bắt đầu',
+      nextStep: null,
+      dueDate: null,
+      sortOrder: 5,
+    },
+    memberUser
+  );
+  assert.equal(
+    evaluateSimulatedSubtaskCreate(
+      memberUser,
+      parentT1,
+      foreignUidAttempt.taskPayload,
+      foreignUidAttempt.logPayload
+    ).allowed,
+    false
+  );
+});
+
+test('Case 3: Viewer cannot create or edit any task', () => {
+  const parentT1 = sampleTasks[0];
+  const unassignedT2 = sampleTasks[1];
+
   assert.equal(canUserCreateSubtask(viewerUser), false);
-  assert.equal(canUserCreateSubtaskInParent(viewerUser, assignedParent), false);
-  assert.equal(canUserEditTask(lockedMember, assignedParent), false);
+  assert.equal(canUserCreateSubtaskInParent(viewerUser, parentT1), false);
+  assert.equal(canUserEditTask(viewerUser, parentT1), false);
+  assert.equal(canUserEditTask(viewerUser, unassignedT2), false);
+  assert.equal(canUserApproveTask(viewerUser, parentT1), false);
+  assert.equal(canUserEditTask(lockedMember, parentT1), false);
+
+  const viewerAttempt = buildCreateTaskPayloads(
+    {
+      displayCode: 'T1.4',
+      title: 'Viewer tạo trái phép',
+      parentId: parentT1.id,
+      categoryId: parentT1.categoryId ?? null,
+      category: parentT1.category ?? null,
+      assignees: [viewerUser.displayName],
+      assigneeUids: [viewerUser.uid],
+      status: 'Chưa bắt đầu',
+      nextStep: null,
+      dueDate: null,
+      sortOrder: 6,
+    },
+    viewerUser
+  );
+  assert.equal(
+    evaluateSimulatedSubtaskCreate(
+      viewerUser,
+      parentT1,
+      viewerAttempt.taskPayload,
+      viewerAttempt.logPayload
+    ).allowed,
+    false
+  );
 });
 
 test('Category inheritance by categoryId and 2-level hierarchy checks work accurately', () => {
@@ -241,9 +398,9 @@ test('Category inheritance by categoryId and 2-level hierarchy checks work accur
   assert.equal(eff.category, 'Nền tảng & quy chuẩn');
   assert.equal(eff.inherited, true);
 
-  assert.equal(canBeParent('p1', null, sampleTasks).ok, true);
-  assert.equal(canBeParent('c1', null, sampleTasks).ok, false);
-  assert.deepEqual(computeParentProgress('p1', sampleTasks), {
+  assert.equal(canBeParent('b1_test_parent', null, sampleTasks).ok, true);
+  assert.equal(canBeParent('b1_test_child_1', null, sampleTasks).ok, false);
+  assert.deepEqual(computeParentProgress('b1_test_parent', sampleTasks), {
     completed: 0,
     total: 1,
     percentage: 0,

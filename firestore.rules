@@ -89,18 +89,32 @@ service cloud.firestore {
       );
     }
 
-    // Supports both existing parents and parent+child created in the same batch via existsAfter/getAfter
-    function canCreateSubtaskUnder(parentId) {
-      return existsAfter(/databases/$(database)/documents/tasks/$(parentId))
-        && getAfter(/databases/$(database)/documents/tasks/$(parentId)).data.parentId == null
-        && getAfter(/databases/$(database)/documents/tasks/$(parentId)).data.archivedAt == null
+    function taskDocPath(id) {
+      return /databases/$(database)/documents/tasks/$(id);
+    }
+
+    function isParentValidForSubtask(parentData) {
+      return parentData.parentId == null
+        && parentData.archivedAt == null
         && (
           isAdmin()
           || (
             isMemberRole()
-            && request.auth.uid in getAfter(/databases/$(database)/documents/tasks/$(parentId)).data.assigneeUids
+            && isAssignedToTask(parentData)
           )
         );
+    }
+
+    // Check existing parent via exists/get first; fall back to existsAfter/getAfter only when parent+child are created in the same batch
+    function canCreateSubtaskUnder(parentId) {
+      return (
+        exists(taskDocPath(parentId))
+        && isParentValidForSubtask(get(taskDocPath(parentId)).data)
+      ) || (
+        !exists(taskDocPath(parentId))
+        && existsAfter(taskDocPath(parentId))
+        && isParentValidForSubtask(getAfter(taskDocPath(parentId)).data)
+      );
     }
 
     // ---------------------------------------------------------
@@ -320,7 +334,14 @@ service cloud.firestore {
             incoming().parentId != null
             && incoming().parentId != taskId
             && canCreateSubtaskUnder(incoming().parentId)
-            && (isAdmin() || (isMemberRole() && incoming().status != 'Hoàn thành'))
+            && (
+              isAdmin()
+              || (
+                isMemberRole()
+                && incoming().status != 'Hoàn thành'
+                && incoming().assigneeUids == [request.auth.uid]
+              )
+            )
           )
         );
 
@@ -339,8 +360,10 @@ service cloud.firestore {
               || incoming().parentId == null
               || (
                 incoming().parentId != taskId
-                && existsAfter(/databases/$(database)/documents/tasks/$(incoming().parentId))
-                && getAfter(/databases/$(database)/documents/tasks/$(incoming().parentId)).data.parentId == null
+                && (
+                  (exists(taskDocPath(incoming().parentId)) && get(taskDocPath(incoming().parentId)).data.parentId == null)
+                  || (!exists(taskDocPath(incoming().parentId)) && existsAfter(taskDocPath(incoming().parentId)) && getAfter(taskDocPath(incoming().parentId)).data.parentId == null)
+                )
               )
             )
             && incoming().diff(existing()).affectedKeys().hasOnly(['displayCode', 'parentId', 'sortOrder', 'title', 'categoryId', 'category', 'assignees', 'assigneeUids', 'approverUids', 'status', 'nextStep', 'dueDate', 'notes', 'referenceLinks', 'resultLinks', 'reviewFlags', 'version', 'updatedAt', 'updatedBy', 'updatedByUid', 'archivedAt', 'archivedBy', 'isTestRecord'])
