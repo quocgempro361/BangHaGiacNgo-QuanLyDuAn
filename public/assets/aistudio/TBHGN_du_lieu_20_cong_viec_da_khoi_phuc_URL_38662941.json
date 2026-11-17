@@ -1,0 +1,667 @@
+{
+  "dataset": "TBHGN Project Tasks - verified migration source",
+  "schemaVersion": "1.0",
+  "source": {
+    "kind": "excel",
+    "fileName": "UPGRADE TBHTGN_Danh muc cong viec du an.xlsx",
+    "spreadsheetUrl": "https://docs.google.com/spreadsheets/d/13IG3DPHYOX0qXeM-dR-51_LGtyVFM4qK/edit",
+    "tab": "Công việc",
+    "rows": "4:23",
+    "linkColumn": "K — Kết quả nghiên cứu hiện tại (link)"
+  },
+  "qualityNotes": [
+    "13 real URLs were recovered from HYPERLINK formulas; URLs were NOT individually opened or permission-checked.",
+    "Column J (Tài liệu phục vụ nghiên cứu) is empty in the current input for these 13 rows; do not misclassify K URLs as missing.",
+    "6 tasks have no source assignee names; 1 task has a blank status. Never fabricate owners, Google emails, or dates.",
+    "status null means unset. Display “Cần rà soát” as a UI badge, not as a sixth workflow status unless explicitly approved.",
+    "assignees are original text aliases; assigneeUids must remain empty until real Google identities are mapped by the admin.",
+    "IDs are deterministic for an idempotent one-time import; after import they must remain unchanged even if displayCode is edited.",
+    "This is a local preview/migration artifact, not production data; do not write to Firebase without explicit approval."
+  ],
+  "counts": {
+    "tasks": 20,
+    "parents": 9,
+    "children": 11,
+    "tasksWithRecoveredRealUrls": 13,
+    "missingAssignee": 6,
+    "missingStatus": 1,
+    "missingHyperlinkUrl": 0
+  },
+  "tasks": [
+    {
+      "id": "tbhgn_1",
+      "displayCode": "1",
+      "parentId": null,
+      "sortOrder": 0,
+      "title": "Đề cương tổng thể sách & file tóm lược",
+      "category": "Đề cương",
+      "assignees": [
+        "Nhóm"
+      ],
+      "assigneeUids": [],
+      "status": "Tạm dừng",
+      "nextStep": null,
+      "dueDate": null,
+      "lastCheckedAt": null,
+      "notes": null,
+      "referenceLinks": [],
+      "resultLinks": [
+        {
+          "id": "1_result_1",
+          "label": "Mở tài liệu",
+          "url": "https://drive.google.com/drive/folders/1wHhzU8VHQwAtVpLLn7pVJN6d0qcwyr6z?usp=drive_link",
+          "type": "google_drive_link",
+          "needsUrlExtraction": false
+        }
+      ],
+      "reviewFlags": [],
+      "version": 1,
+      "updatedAt": null,
+      "updatedBy": null,
+      "archivedAt": null,
+      "archivedBy": null,
+      "migrationSourceRow": 4
+    },
+    {
+      "id": "tbhgn_2",
+      "displayCode": "2",
+      "parentId": null,
+      "sortOrder": 1,
+      "title": "Logo& Bìa",
+      "category": "Nền tảng & quy chuẩn",
+      "assignees": [
+        "Khánh"
+      ],
+      "assigneeUids": [],
+      "status": "Tạm dừng",
+      "nextStep": null,
+      "dueDate": null,
+      "lastCheckedAt": null,
+      "notes": null,
+      "referenceLinks": [],
+      "resultLinks": [
+        {
+          "id": "2_result_1",
+          "label": "Mở tài liệu",
+          "url": "https://drive.google.com/drive/folders/1sSFAxKrlw62XFUpjgDS0Exy5XClZsNs0?usp=drive_link",
+          "type": "google_drive_link",
+          "needsUrlExtraction": false
+        }
+      ],
+      "reviewFlags": [],
+      "version": 1,
+      "updatedAt": null,
+      "updatedBy": null,
+      "archivedAt": null,
+      "archivedBy": null,
+      "migrationSourceRow": 5
+    },
+    {
+      "id": "tbhgn_3",
+      "displayCode": "3",
+      "parentId": null,
+      "sortOrder": 2,
+      "title": "Thư viện",
+      "category": "Truy nguồn & nghiên cứu",
+      "assignees": [
+        "Khánh"
+      ],
+      "assigneeUids": [],
+      "status": "Tạm dừng",
+      "nextStep": null,
+      "dueDate": null,
+      "lastCheckedAt": null,
+      "notes": null,
+      "referenceLinks": [],
+      "resultLinks": [],
+      "reviewFlags": [],
+      "version": 1,
+      "updatedAt": null,
+      "updatedBy": null,
+      "archivedAt": null,
+      "archivedBy": null,
+      "migrationSourceRow": 6
+    },
+    {
+      "id": "tbhgn_3_1",
+      "displayCode": "3.1",
+      "parentId": "tbhgn_3",
+      "sortOrder": 3,
+      "title": "Danh sách tác giả",
+      "category": "Truy nguồn & nghiên cứu",
+      "assignees": [],
+      "assigneeUids": [],
+      "status": "Tạm dừng",
+      "nextStep": null,
+      "dueDate": null,
+      "lastCheckedAt": null,
+      "notes": null,
+      "referenceLinks": [],
+      "resultLinks": [
+        {
+          "id": "3_1_result_1",
+          "label": "Mở tài liệu",
+          "url": "https://docs.google.com/spreadsheets/d/11YK0BhCtBPBhL1e91iVDakLZPmFLuWbh/edit?usp=drive_link&ouid=116783298176673344851&rtpof=true&sd=true",
+          "type": "google_drive_link",
+          "needsUrlExtraction": false
+        }
+      ],
+      "reviewFlags": [
+        "missing_assignee"
+      ],
+      "version": 1,
+      "updatedAt": null,
+      "updatedBy": null,
+      "archivedAt": null,
+      "archivedBy": null,
+      "migrationSourceRow": 7
+    },
+    {
+      "id": "tbhgn_3_2",
+      "displayCode": "3.2",
+      "parentId": "tbhgn_3",
+      "sortOrder": 4,
+      "title": "Sách",
+      "category": "Truy nguồn & nghiên cứu",
+      "assignees": [],
+      "assigneeUids": [],
+      "status": "Tạm dừng",
+      "nextStep": null,
+      "dueDate": null,
+      "lastCheckedAt": null,
+      "notes": null,
+      "referenceLinks": [],
+      "resultLinks": [
+        {
+          "id": "3_2_result_1",
+          "label": "Mở tài liệu",
+          "url": "https://drive.google.com/drive/folders/1mzv0kYLzElu625AgR0bXiyHLvs5lhsdq?usp=drive_link",
+          "type": "google_drive_link",
+          "needsUrlExtraction": false
+        }
+      ],
+      "reviewFlags": [
+        "missing_assignee"
+      ],
+      "version": 1,
+      "updatedAt": null,
+      "updatedBy": null,
+      "archivedAt": null,
+      "archivedBy": null,
+      "migrationSourceRow": 8
+    },
+    {
+      "id": "tbhgn_4",
+      "displayCode": "4",
+      "parentId": null,
+      "sortOrder": 5,
+      "title": "Thống nhất quy chuẩn trình bày trích dẫn, quy trình thực hiện dự án",
+      "category": "Nền tảng & quy chuẩn",
+      "assignees": [
+        "Quốc",
+        "Khả Tuệ",
+        "Khánh"
+      ],
+      "assigneeUids": [],
+      "status": "Đang làm",
+      "nextStep": null,
+      "dueDate": null,
+      "lastCheckedAt": null,
+      "notes": null,
+      "referenceLinks": [],
+      "resultLinks": [],
+      "reviewFlags": [],
+      "version": 1,
+      "updatedAt": null,
+      "updatedBy": null,
+      "archivedAt": null,
+      "archivedBy": null,
+      "migrationSourceRow": 9
+    },
+    {
+      "id": "tbhgn_4_1",
+      "displayCode": "4.1",
+      "parentId": "tbhgn_4",
+      "sortOrder": 6,
+      "title": "Quy cách đặt tên nguồn trích dẫn",
+      "category": null,
+      "assignees": [
+        "Khánh"
+      ],
+      "assigneeUids": [],
+      "status": "Tạm dừng",
+      "nextStep": null,
+      "dueDate": null,
+      "lastCheckedAt": null,
+      "notes": null,
+      "referenceLinks": [],
+      "resultLinks": [
+        {
+          "id": "4_1_result_1",
+          "label": "Mở tài liệu",
+          "url": "https://drive.google.com/file/d/15SrZ9M9p0L4a-p5SOziC3y4zOBBlSmHx/view?usp=drive_link",
+          "type": "google_drive_link",
+          "needsUrlExtraction": false
+        }
+      ],
+      "reviewFlags": [],
+      "version": 1,
+      "updatedAt": null,
+      "updatedBy": null,
+      "archivedAt": null,
+      "archivedBy": null,
+      "migrationSourceRow": 10
+    },
+    {
+      "id": "tbhgn_4_2",
+      "displayCode": "4.2",
+      "parentId": "tbhgn_4",
+      "sortOrder": 7,
+      "title": "Sổ tay quy trình sử dụng AI cho dự án",
+      "category": null,
+      "assignees": [
+        "Quốc",
+        "Khả Tuệ",
+        "Khánh"
+      ],
+      "assigneeUids": [],
+      "status": "Tạm dừng",
+      "nextStep": null,
+      "dueDate": null,
+      "lastCheckedAt": null,
+      "notes": null,
+      "referenceLinks": [],
+      "resultLinks": [
+        {
+          "id": "4_2_result_1",
+          "label": "Mở tài liệu",
+          "url": "https://docs.google.com/document/d/1qM-_KwrbCoMyPVCZ9ndGEKtYZrCvE7ts/edit?usp=drive_link&ouid=116783298176673344851&rtpof=true&sd=true",
+          "type": "google_drive_link",
+          "needsUrlExtraction": false
+        }
+      ],
+      "reviewFlags": [],
+      "version": 1,
+      "updatedAt": null,
+      "updatedBy": null,
+      "archivedAt": null,
+      "archivedBy": null,
+      "migrationSourceRow": 11
+    },
+    {
+      "id": "tbhgn_4_3",
+      "displayCode": "4.3",
+      "parentId": "tbhgn_4",
+      "sortOrder": 8,
+      "title": "Thể thức trình bày sách",
+      "category": null,
+      "assignees": [
+        "Quốc"
+      ],
+      "assigneeUids": [],
+      "status": "Đang làm",
+      "nextStep": null,
+      "dueDate": null,
+      "lastCheckedAt": null,
+      "notes": null,
+      "referenceLinks": [],
+      "resultLinks": [],
+      "reviewFlags": [],
+      "version": 1,
+      "updatedAt": null,
+      "updatedBy": null,
+      "archivedAt": null,
+      "archivedBy": null,
+      "migrationSourceRow": 12
+    },
+    {
+      "id": "tbhgn_4_4",
+      "displayCode": "4.4",
+      "parentId": "tbhgn_4",
+      "sortOrder": 9,
+      "title": "Tool convert file định dạng md",
+      "category": null,
+      "assignees": [
+        "Quốc",
+        "Khả Tuệ"
+      ],
+      "assigneeUids": [],
+      "status": "Tạm dừng",
+      "nextStep": null,
+      "dueDate": null,
+      "lastCheckedAt": null,
+      "notes": null,
+      "referenceLinks": [],
+      "resultLinks": [
+        {
+          "id": "4_4_result_1",
+          "label": "Mở tài liệu",
+          "url": "https://docs.google.com/document/d/13mq0VpC7WS4NhcJBuf2KttLZzFzmd2Gb7KjevLrm4AQ/edit?tab=t.0",
+          "type": "google_drive_link",
+          "needsUrlExtraction": false
+        }
+      ],
+      "reviewFlags": [],
+      "version": 1,
+      "updatedAt": null,
+      "updatedBy": null,
+      "archivedAt": null,
+      "archivedBy": null,
+      "migrationSourceRow": 13
+    },
+    {
+      "id": "tbhgn_4_5",
+      "displayCode": "4.5",
+      "parentId": "tbhgn_4",
+      "sortOrder": 10,
+      "title": "Kế hoạch dự toán chi phí mua sắm tài khoản",
+      "category": null,
+      "assignees": [
+        "Quốc",
+        "Khả Tuệ"
+      ],
+      "assigneeUids": [],
+      "status": null,
+      "nextStep": null,
+      "dueDate": null,
+      "lastCheckedAt": null,
+      "notes": null,
+      "referenceLinks": [],
+      "resultLinks": [],
+      "reviewFlags": [
+        "missing_status"
+      ],
+      "version": 1,
+      "updatedAt": null,
+      "updatedBy": null,
+      "archivedAt": null,
+      "archivedBy": null,
+      "migrationSourceRow": 14
+    },
+    {
+      "id": "tbhgn_5",
+      "displayCode": "5",
+      "parentId": null,
+      "sortOrder": 11,
+      "title": "Từ điển Phật học và Bà La Môn giáo",
+      "category": "Truy nguồn & nghiên cứu",
+      "assignees": [
+        "Nhóm"
+      ],
+      "assigneeUids": [],
+      "status": "Đang làm",
+      "nextStep": null,
+      "dueDate": null,
+      "lastCheckedAt": null,
+      "notes": "Trạng thái gốc: Đang chỉnh sửa",
+      "referenceLinks": [],
+      "resultLinks": [],
+      "reviewFlags": [],
+      "version": 1,
+      "updatedAt": null,
+      "updatedBy": null,
+      "archivedAt": null,
+      "archivedBy": null,
+      "migrationSourceRow": 15
+    },
+    {
+      "id": "tbhgn_5_1",
+      "displayCode": "5.1",
+      "parentId": "tbhgn_5",
+      "sortOrder": 12,
+      "title": "Danh mục tổng từ điển",
+      "category": null,
+      "assignees": [],
+      "assigneeUids": [],
+      "status": "Tạm dừng",
+      "nextStep": null,
+      "dueDate": null,
+      "lastCheckedAt": null,
+      "notes": null,
+      "referenceLinks": [],
+      "resultLinks": [
+        {
+          "id": "5_1_result_1",
+          "label": "Mở tài liệu",
+          "url": "https://drive.google.com/drive/folders/1Yte6CpC13q8GHQlDhLb10q2MmP6yZsE6?usp=drive_link",
+          "type": "google_drive_link",
+          "needsUrlExtraction": false
+        }
+      ],
+      "reviewFlags": [
+        "missing_assignee"
+      ],
+      "version": 1,
+      "updatedAt": null,
+      "updatedBy": null,
+      "archivedAt": null,
+      "archivedBy": null,
+      "migrationSourceRow": 16
+    },
+    {
+      "id": "tbhgn_5_2",
+      "displayCode": "5.2",
+      "parentId": "tbhgn_5",
+      "sortOrder": 13,
+      "title": "Thể thức trình bày",
+      "category": null,
+      "assignees": [],
+      "assigneeUids": [],
+      "status": "Chờ duyệt",
+      "nextStep": "Chờ Sư phụ duyệt bản nháp",
+      "dueDate": null,
+      "lastCheckedAt": null,
+      "notes": null,
+      "referenceLinks": [],
+      "resultLinks": [
+        {
+          "id": "5_2_result_1",
+          "label": "Mở tài liệu",
+          "url": "https://docs.google.com/document/d/13cP94fpbsRIoWeOrWAQK5QAPuqztaGJgspYegyjTARU/edit?tab=t.0",
+          "type": "google_drive_link",
+          "needsUrlExtraction": false
+        }
+      ],
+      "reviewFlags": [
+        "missing_assignee"
+      ],
+      "version": 1,
+      "updatedAt": null,
+      "updatedBy": null,
+      "archivedAt": null,
+      "archivedBy": null,
+      "migrationSourceRow": 17
+    },
+    {
+      "id": "tbhgn_5_3",
+      "displayCode": "5.3",
+      "parentId": "tbhgn_5",
+      "sortOrder": 14,
+      "title": "Ví dụ minh họa",
+      "category": null,
+      "assignees": [],
+      "assigneeUids": [],
+      "status": "Chờ duyệt",
+      "nextStep": "Chờ Sư phụ duyệt bản nháp",
+      "dueDate": null,
+      "lastCheckedAt": null,
+      "notes": null,
+      "referenceLinks": [],
+      "resultLinks": [
+        {
+          "id": "5_3_result_1",
+          "label": "Mở tài liệu",
+          "url": "https://docs.google.com/document/d/1urs9YJ8WP2Bg7N12FJVTxibCXNLWHvO7qcYh9H2AtWw/edit?usp=sharing",
+          "type": "google_drive_link",
+          "needsUrlExtraction": false
+        }
+      ],
+      "reviewFlags": [
+        "missing_assignee"
+      ],
+      "version": 1,
+      "updatedAt": null,
+      "updatedBy": null,
+      "archivedAt": null,
+      "archivedBy": null,
+      "migrationSourceRow": 18
+    },
+    {
+      "id": "tbhgn_5_4",
+      "displayCode": "5.4",
+      "parentId": "tbhgn_5",
+      "sortOrder": 15,
+      "title": "So sánh cách dùng từ của Cưu Ma La Thập và Huyền Trang",
+      "category": null,
+      "assignees": [],
+      "assigneeUids": [],
+      "status": "Đang làm",
+      "nextStep": null,
+      "dueDate": null,
+      "lastCheckedAt": null,
+      "notes": null,
+      "referenceLinks": [],
+      "resultLinks": [],
+      "reviewFlags": [
+        "missing_assignee"
+      ],
+      "version": 1,
+      "updatedAt": null,
+      "updatedBy": null,
+      "archivedAt": null,
+      "archivedBy": null,
+      "migrationSourceRow": 19
+    },
+    {
+      "id": "tbhgn_6",
+      "displayCode": "6",
+      "parentId": null,
+      "sortOrder": 16,
+      "title": "Đề cương chi tiết Chương 1->3 từ Băng Hà tới Vệ đà upanishad",
+      "category": "Đề cương",
+      "assignees": [
+        "Khánh"
+      ],
+      "assigneeUids": [],
+      "status": "Tạm dừng",
+      "nextStep": null,
+      "dueDate": null,
+      "lastCheckedAt": null,
+      "notes": null,
+      "referenceLinks": [],
+      "resultLinks": [
+        {
+          "id": "6_result_1",
+          "label": "Mở tài liệu",
+          "url": "https://drive.google.com/drive/folders/1jcZiSrdqeE0hr4RLq_IH60ONJDKocS23?usp=drive_link",
+          "type": "google_drive_link",
+          "needsUrlExtraction": false
+        }
+      ],
+      "reviewFlags": [],
+      "version": 1,
+      "updatedAt": null,
+      "updatedBy": null,
+      "archivedAt": null,
+      "archivedBy": null,
+      "migrationSourceRow": 20
+    },
+    {
+      "id": "tbhgn_7",
+      "displayCode": "7",
+      "parentId": null,
+      "sortOrder": 17,
+      "title": "Nội dung chi tiết Chương 5 Phật giáo Sơ kỳ",
+      "category": "Truy nguồn & nghiên cứu",
+      "assignees": [
+        "Sư Minh Hạnh",
+        "Mỵ"
+      ],
+      "assigneeUids": [],
+      "status": "Đang làm",
+      "nextStep": null,
+      "dueDate": null,
+      "lastCheckedAt": null,
+      "notes": null,
+      "referenceLinks": [],
+      "resultLinks": [
+        {
+          "id": "7_result_1",
+          "label": "Mở tài liệu",
+          "url": "https://docs.google.com/document/d/1KUJGYgxZLShMcXkxx2PCv8cJ_FKgV9MIEr4ogxELr2Y/edit?tab=t.0",
+          "type": "google_drive_link",
+          "needsUrlExtraction": false
+        }
+      ],
+      "reviewFlags": [],
+      "version": 1,
+      "updatedAt": null,
+      "updatedBy": null,
+      "archivedAt": null,
+      "archivedBy": null,
+      "migrationSourceRow": 21
+    },
+    {
+      "id": "tbhgn_8",
+      "displayCode": "8",
+      "parentId": null,
+      "sortOrder": 18,
+      "title": "Nội dung  chi tiết Chương 10 Phật giáo Đại thừa",
+      "category": "Đề cương",
+      "assignees": [
+        "Sư Pháp Tín"
+      ],
+      "assigneeUids": [],
+      "status": "Đang làm",
+      "nextStep": null,
+      "dueDate": null,
+      "lastCheckedAt": null,
+      "notes": null,
+      "referenceLinks": [],
+      "resultLinks": [
+        {
+          "id": "8_result_1",
+          "label": "Mở tài liệu",
+          "url": "https://docs.google.com/document/d/18YMoAhTuDiKk9N4h3M0Q9nXw-VRZPHKNzzR7b6R4Rd4/edit?usp=drivesdk",
+          "type": "google_drive_link",
+          "needsUrlExtraction": false
+        }
+      ],
+      "reviewFlags": [],
+      "version": 1,
+      "updatedAt": null,
+      "updatedBy": null,
+      "archivedAt": null,
+      "archivedBy": null,
+      "migrationSourceRow": 22
+    },
+    {
+      "id": "tbhgn_9",
+      "displayCode": "9",
+      "parentId": null,
+      "sortOrder": 19,
+      "title": "Xây dựng dữ liệu đầu vào để tạo app hỏi đáp",
+      "category": "Truy nguồn & nghiên cứu",
+      "assignees": [
+        "Quốc",
+        "Khả Tuệ",
+        "Khánh"
+      ],
+      "assigneeUids": [],
+      "status": "Đang làm",
+      "nextStep": null,
+      "dueDate": null,
+      "lastCheckedAt": null,
+      "notes": null,
+      "referenceLinks": [],
+      "resultLinks": [],
+      "reviewFlags": [],
+      "version": 1,
+      "updatedAt": null,
+      "updatedBy": null,
+      "archivedAt": null,
+      "archivedBy": null,
+      "migrationSourceRow": 23
+    }
+  ]
+}

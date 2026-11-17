@@ -1,0 +1,141 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Approved TBHGN project member profile and RBAC role assignment.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "format": "email", "maxLength": 254 },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "sheetAlias": { "type": "string", "maxLength": 80 },
+        "role": { "type": "string", "enum": ["admin", "member", "viewer"] },
+        "canApprove": { "type": "boolean" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "displayName", "sheetAlias", "role", "canApprove", "isActive", "createdAt", "updatedAt"]
+    },
+    "MemberInvite": {
+      "title": "MemberInvite",
+      "description": "Admin-managed Google email allowlist entry used to activate a user on first sign-in.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email", "maxLength": 254 },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "sheetAlias": { "type": "string", "maxLength": 80 },
+        "role": { "type": "string", "enum": ["admin", "member", "viewer"] },
+        "canApprove": { "type": "boolean" },
+        "isActive": { "type": "boolean" },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "displayName", "sheetAlias", "role", "canApprove", "isActive", "createdBy", "createdAt", "updatedAt"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Project task category managed by Admin with stable ID.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "color": { "type": "string", "minLength": 4, "maxLength": 20, "pattern": "^#[0-9a-fA-F]{6}$" },
+        "sortOrder": { "type": "number" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "createdBy": { "type": "string", "maxLength": 128 },
+        "updatedBy": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["name", "color", "sortOrder", "isActive", "createdAt", "updatedAt", "createdBy", "updatedBy"]
+    },
+    "TaskItem": {
+      "title": "TaskItem",
+      "description": "Two-level TBHGN book project task with optimistic version control and Drive links.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "displayCode": { "type": "string", "minLength": 1, "maxLength": 24 },
+        "parentId": { "type": "string", "maxLength": 128 },
+        "sortOrder": { "type": "number" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 300 },
+        "categoryId": { "type": "string", "maxLength": 128 },
+        "category": { "type": "string", "maxLength": 100 },
+        "assignees": { "type": "array" },
+        "assigneeUids": { "type": "array" },
+        "approverUids": { "type": "array" },
+        "status": { "type": "string", "enum": ["Đang làm", "Chờ duyệt", "Tạm dừng", "Hoàn thành", "Chưa bắt đầu"] },
+        "nextStep": { "type": "string", "maxLength": 500 },
+        "dueDate": { "type": "string", "maxLength": 20 },
+        "notes": { "type": "string", "maxLength": 2000 },
+        "referenceLinks": { "type": "array" },
+        "resultLinks": { "type": "array" },
+        "reviewFlags": { "type": "array" },
+        "version": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "updatedBy": { "type": "string", "maxLength": 120 },
+        "updatedByUid": { "type": "string", "maxLength": 128 },
+        "archivedAt": { "type": "string", "format": "date-time" },
+        "archivedBy": { "type": "string", "maxLength": 120 },
+        "isTestRecord": { "type": "boolean" }
+      },
+      "required": ["id", "displayCode", "parentId", "sortOrder", "title", "assignees", "assigneeUids", "status", "version", "updatedAt", "updatedByUid", "archivedAt"]
+    },
+    "TaskComment": {
+      "title": "TaskComment",
+      "description": "Author-attributed comment on a task.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "taskId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "authorUid": { "type": "string", "maxLength": 128 },
+        "authorName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "content": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "taskId", "authorUid", "authorName", "content", "createdAt"]
+    },
+    "ActivityLog": {
+      "title": "ActivityLog",
+      "description": "Immutable task audit trail entry written atomically with task mutations.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "taskId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "actorUid": { "type": "string", "maxLength": 128 },
+        "actorName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "action": { "type": "string", "enum": ["create", "update", "status_change", "approve", "comment", "archive", "restore"] },
+        "summary": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "taskId", "actorUid", "actorName", "action", "summary", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Approved project member profiles and role assignments"
+    },
+    "/invites/{emailId}": {
+      "schema": { "$ref": "#/entities/MemberInvite" },
+      "description": "Admin-managed Google email allowlist for onboarding members"
+    },
+    "/categories/{categoryId}": {
+      "schema": { "$ref": "#/entities/Category" },
+      "description": "Admin-managed task categories referenced by tasks via categoryId"
+    },
+    "/tasks/{taskId}": {
+      "schema": { "$ref": "#/entities/TaskItem" },
+      "description": "TBHGN book project tasks (max 2 levels)"
+    },
+    "/tasks/{taskId}/comments/{commentId}": {
+      "schema": { "$ref": "#/entities/TaskComment" },
+      "description": "Discussion comments per task"
+    },
+    "/tasks/{taskId}/activityLogs/{logId}": {
+      "schema": { "$ref": "#/entities/ActivityLog" },
+      "description": "Immutable activity history per task"
+    }
+  }
+}

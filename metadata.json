@@ -1,0 +1,6 @@
+{
+  "name": "TBHGN — Quản lý Dự án Sách",
+  "description": "Ứng dụng quản lý tiến độ, tài liệu nghiên cứu và phối hợp nhóm cho dự án sách Từ Băng Hà Đến Giác Ngộ (TBHGN).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
