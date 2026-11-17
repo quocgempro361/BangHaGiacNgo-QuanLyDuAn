@@ -454,7 +454,14 @@ export const TasksView: React.FC<TasksViewProps> = ({
                       className="hidden lg:block lg:col-span-2 text-xs text-slate-700 cursor-pointer"
                     >
                       {parent.assignees.length > 0 ? (
-                        parent.assignees.join(', ')
+                        <div>
+                          <div>{parent.assignees.join(', ')}</div>
+                          {parent.assigneeUids.length === 0 && (
+                            <div className="text-[11px] text-[#7C4D00]">
+                              Chưa liên kết tài khoản
+                            </div>
+                          )}
+                        </div>
                       ) : (
                         <span className="text-[#7C4D00]">Chưa phân công</span>
                       )}
@@ -497,9 +504,19 @@ export const TasksView: React.FC<TasksViewProps> = ({
                     className="lg:hidden w-full text-left pl-8 mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-600"
                   >
                     <span>
-                      {parent.assignees.length > 0
-                        ? parent.assignees.join(', ')
-                        : 'Chưa phân công'}
+                      {parent.assignees.length > 0 ? (
+                        <>
+                          {parent.assignees.join(', ')}
+                          {parent.assigneeUids.length === 0 && (
+                            <span className="text-[#7C4D00]">
+                              {' '}
+                              (Chưa liên kết tài khoản)
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        'Chưa phân công'
+                      )}
                     </span>
                     {parent.nextStep && (
                       <>
@@ -574,7 +591,14 @@ export const TasksView: React.FC<TasksViewProps> = ({
                             {/* Desktop Assignee */}
                             <div className="hidden lg:block lg:col-span-2 text-xs text-slate-700">
                               {child.assignees.length > 0 ? (
-                                child.assignees.join(', ')
+                                <div>
+                                  <div>{child.assignees.join(', ')}</div>
+                                  {child.assigneeUids.length === 0 && (
+                                    <div className="text-[11px] text-[#7C4D00]">
+                                      Chưa liên kết tài khoản
+                                    </div>
+                                  )}
+                                </div>
                               ) : (
                                 <span className="text-[#7C4D00]">
                                   Chưa phân công
@@ -616,9 +640,19 @@ export const TasksView: React.FC<TasksViewProps> = ({
                                   : ''
                               }
                             >
-                              {child.assignees.length > 0
-                                ? child.assignees.join(', ')
-                                : 'Chưa phân công'}
+                              {child.assignees.length > 0 ? (
+                                <>
+                                  {child.assignees.join(', ')}
+                                  {child.assigneeUids.length === 0 && (
+                                    <span className="text-[#7C4D00]">
+                                      {' '}
+                                      (Chưa liên kết tài khoản)
+                                    </span>
+                                  )}
+                                </>
+                              ) : (
+                                'Chưa phân công'
+                              )}
                             </span>
                             {child.nextStep && (
                               <>

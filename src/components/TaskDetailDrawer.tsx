@@ -35,6 +35,7 @@ import {
   getEffectiveCategory,
   REVIEW_FLAG_LABELS,
 } from '../utils/taskHelpers';
+import { computeUpdatedAssigneeNamesOnUidToggle } from '../utils/memberMapping';
 import { StatusBadge } from './StatusBadge';
 
 interface TaskDetailDrawerProps {
@@ -548,36 +549,53 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               {/* Admin-only explicit UID assignment & approval scope */}
               {isAdmin && members.length > 0 && (
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2.5 text-xs">
-                  <div className="font-semibold text-[#13294B]">
-                    Phân quyền theo Firebase UID (Admin)
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="font-semibold text-[#13294B]">
+                      Phân quyền theo Firebase UID (Admin)
+                    </span>
+                    {assigneeUids.length === 0 && (
+                      <span className="text-[11px] font-medium text-[#7C4D00]">
+                        Chưa liên kết tài khoản
+                      </span>
+                    )}
                   </div>
                   <p className="text-[11px] text-slate-500">
-                    Quyền sửa &amp; tạo việc con chỉ dựa vào UID được tích bên dưới (tên text chỉ để hiển thị).
+                    Quyền sửa &amp; tạo việc con chỉ dựa vào UID được tích bên dưới. Khi đổi sang tài khoản chính thức sau này, chỉ cần tích UID mới và bỏ tích UID cũ để thu hồi quyền mà vẫn giữ nguyên công việc và lịch sử.
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    {members.map((m) => (
-                      <label
-                        key={`assign_${m.uid}`}
-                        className="inline-flex items-center gap-1.5 px-2 py-1 bg-white border border-slate-200 rounded cursor-pointer"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={assigneeUids.includes(m.uid)}
-                          onChange={() => {
-                            const nextUids = toggleUid(assigneeUids, m.uid);
-                            setAssigneeUids(nextUids);
-                            const nextNames = nextUids
-                              .map(
-                                (uid) =>
-                                  members.find((u) => u.uid === uid)?.displayName
-                              )
-                              .filter((n): n is string => Boolean(n));
-                            setAssigneesText(nextNames.join(', '));
-                          }}
-                        />
-                        <span>{m.displayName}</span>
-                      </label>
-                    ))}
+                    {members
+                      .filter((m) => m.isActive || assigneeUids.includes(m.uid))
+                      .map((m) => (
+                        <label
+                          key={`assign_${m.uid}`}
+                          className={`inline-flex items-center gap-1.5 px-2 py-1 border rounded cursor-pointer ${
+                            !m.isActive
+                              ? 'bg-red-50 border-red-200 text-red-800'
+                              : 'bg-white border-slate-200'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={assigneeUids.includes(m.uid)}
+                            onChange={() => {
+                              const nextUids = toggleUid(assigneeUids, m.uid);
+                              setAssigneeUids(nextUids);
+                              setAssigneesText(
+                                computeUpdatedAssigneeNamesOnUidToggle(
+                                  assigneesText,
+                                  m,
+                                  nextUids,
+                                  members
+                                )
+                              );
+                            }}
+                          />
+                          <span>
+                            {m.displayName}
+                            {!m.isActive ? ' (Đã khóa)' : ''}
+                          </span>
+                        </label>
+                      ))}
                   </div>
                   {members.some((m) => m.canApprove && m.role !== 'admin') && (
                     <div className="pt-1 border-t border-slate-200">

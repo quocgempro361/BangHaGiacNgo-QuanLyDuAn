@@ -13,6 +13,7 @@ import {
   ClipboardList,
   Download,
   FileJson,
+  FileSpreadsheet,
   FolderKanban,
   LayoutDashboard,
   LogOut,
@@ -40,6 +41,7 @@ import {
   createOrUpdateInvite,
   createTaskInFirestore,
   deleteUnusedCategoryInFirestore,
+  importOfficialTasksToFirestore,
   removeInviteInFirestore,
   resolveUserMembership,
   seedB1SandboxTasks,
@@ -53,7 +55,12 @@ import {
   updateInviteInFirestore,
   updateMemberInFirestore,
   updateTaskInFirestore,
+  verifyOfficialImportInFirestore,
 } from './services/firestoreService';
+import {
+  OfficialImportPlanItem,
+  OfficialImportSummary,
+} from './utils/officialImport';
 import { exportTasksToCSV } from './utils/taskHelpers';
 import { TbhgnLogo } from './components/TbhgnLogo';
 import { AuthGate } from './components/AuthGate';
@@ -62,6 +69,7 @@ import { TasksView } from './components/TasksView';
 import { MyTasksView } from './components/MyTasksView';
 import { MembersView } from './components/MembersView';
 import { CategoriesView } from './components/CategoriesView';
+import { ImportPreviewView } from './components/ImportPreviewView';
 import { TaskDetailDrawer } from './components/TaskDetailDrawer';
 import { NewTaskModal } from './components/NewTaskModal';
 
@@ -75,6 +83,9 @@ function formatActionError(err: unknown): string {
   const raw = err instanceof Error ? err.message : String(err);
   if (raw.startsWith('CONFLICT:')) {
     return raw.slice('CONFLICT:'.length).trim();
+  }
+  if (raw.startsWith('PREFLIGHT:')) {
+    return raw.slice('PREFLIGHT:'.length).trim();
   }
   try {
     const parsed = JSON.parse(raw) as {
@@ -111,7 +122,7 @@ export default function App() {
   const [invites, setInvites] = useState<MemberInvite[]>([]);
 
   const [route, setRoute] = useState<AppRoute>('overview');
-  const [adminTab, setAdminTab] = useState<'members' | 'categories'>('members');
+  const [adminTab, setAdminTab] = useState<'members' | 'categories' | 'import'>('members');
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [newTaskParentId, setNewTaskParentId] = useState<
     string | null | undefined
@@ -641,6 +652,64 @@ export default function App() {
     />
   ) : null;
 
+  const handleExecuteOfficialImport = async (
+    items: OfficialImportPlanItem[],
+    summary: OfficialImportSummary
+  ) => {
+    if (!currentUser || currentUser.role !== 'admin') {
+      throw new Error('Chỉ Quản trị viên mới được nhập dữ liệu chính thức.');
+    }
+    try {
+      const result = await importOfficialTasksToFirestore(
+        items,
+        summary,
+        currentUser
+      );
+      showToast(
+        'success',
+        result.importedCount > 0
+          ? `Đã nhập ${result.importedCount} công việc chính thức vào Firestore (bỏ qua ${result.skippedIds.length} bản ghi đã tồn tại).`
+          : `Không ghi thêm bản ghi mới (đã bỏ qua ${result.skippedIds.length} bản ghi tồn tại sẵn).`
+      );
+      return result;
+    } catch (err) {
+      const msg = formatActionError(err);
+      showToast('error', msg);
+      throw new Error(msg);
+    }
+  };
+
+  const handleVerifyOfficialFirestore = async (expectedIds: string[]) => {
+    if (!currentUser || currentUser.role !== 'admin') {
+      throw new Error('Chỉ Quản trị viên mới được đối chiếu trực tiếp Firestore.');
+    }
+    try {
+      const verification = await verifyOfficialImportInFirestore(expectedIds);
+      showToast(
+        verification.allChecksPassed ? 'success' : 'error',
+        verification.allChecksPassed
+          ? `Đối chiếu Firestore thật đạt 20/20 công việc và ${verification.resultUrlCount}/13 URL.`
+          : `Đối chiếu Firestore thật có sai lệch: ${verification.mismatches.join(' ')}`
+      );
+      return verification;
+    } catch (err) {
+      const msg = formatActionError(err);
+      showToast('error', msg);
+      throw new Error(msg);
+    }
+  };
+
+  const importPanel = isAdmin ? (
+    <ImportPreviewView
+      existingTasks={tasks}
+      existingCategories={categories}
+      currentUser={currentUser}
+      onNavigateToCategories={() => setAdminTab('categories')}
+      onExecuteImport={handleExecuteOfficialImport}
+      onVerifyLiveFirestore={handleVerifyOfficialFirestore}
+    />
+  ) : null;
+
   return (
     <div className="min-h-screen flex flex-col lg:flex-row bg-[#F7F8FA] text-[#0F172A] overflow-x-hidden">
       {/* Desktop Sidebar (240px) */}
@@ -657,7 +726,7 @@ export default function App() {
             const Icon = item.icon;
             const active =
               route === item.id &&
-              !(item.id === 'members' && adminTab === 'categories');
+              !(item.id === 'members' && adminTab !== 'members');
             return (
               <button
                 key={item.id}
@@ -679,21 +748,39 @@ export default function App() {
           })}
 
           {isAdmin && (
-            <button
-              type="button"
-              onClick={() => {
-                setRoute('members');
-                setAdminTab('categories');
-              }}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
-                route === 'members' && adminTab === 'categories'
-                  ? 'bg-white/15 text-[#F5D77F]'
-                  : 'text-slate-200 hover:bg-white/10 hover:text-white'
-              }`}
-            >
-              <FolderKanban className="w-4 h-4 shrink-0" />
-              <span>Quản lý hạng mục</span>
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  setRoute('members');
+                  setAdminTab('categories');
+                }}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+                  route === 'members' && adminTab === 'categories'
+                    ? 'bg-white/15 text-[#F5D77F]'
+                    : 'text-slate-200 hover:bg-white/10 hover:text-white'
+                }`}
+              >
+                <FolderKanban className="w-4 h-4 shrink-0" />
+                <span>Quản lý hạng mục</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setRoute('members');
+                  setAdminTab('import');
+                }}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+                  route === 'members' && adminTab === 'import'
+                    ? 'bg-white/15 text-[#F5D77F]'
+                    : 'text-slate-200 hover:bg-white/10 hover:text-white'
+                }`}
+              >
+                <FileSpreadsheet className="w-4 h-4 shrink-0" />
+                <span>Nhập dữ liệu dự án</span>
+              </button>
+            </>
           )}
         </nav>
 
@@ -761,6 +848,8 @@ export default function App() {
             <span>
               {route === 'members' && adminTab === 'categories'
                 ? 'Quản lý hạng mục'
+                : route === 'members' && adminTab === 'import'
+                ? 'Nhập dữ liệu dự án'
                 : navItems.find((n) => n.id === route)?.label}
             </span>
           </div>
@@ -841,10 +930,12 @@ export default function App() {
             <MembersView
               members={members}
               invites={invites}
+              tasks={tasks}
               currentUser={currentUser}
               adminTab={adminTab}
               onChangeAdminTab={setAdminTab}
               categoriesPanel={categoriesPanel}
+              importPanel={importPanel}
               onAddInvite={handleAddInvite}
               onUpdateMember={handleUpdateMember}
               onUpdateInvite={handleUpdateInvite}

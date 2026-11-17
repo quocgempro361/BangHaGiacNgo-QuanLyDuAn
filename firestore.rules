@@ -58,23 +58,32 @@ service cloud.firestore {
     }
 
     function isActiveMember() {
-      return hasUserProfile() && userProfile().isActive == true;
+      let uPath = userDocPath(request.auth.uid);
+      return isVerifiedUser() && exists(uPath) && get(uPath).data.isActive == true;
     }
 
     function isAdmin() {
-      return isActiveMember() && userProfile().role == 'admin';
+      let uPath = userDocPath(request.auth.uid);
+      let p = get(uPath).data;
+      return isVerifiedUser() && exists(uPath) && p.isActive == true && p.role == 'admin';
     }
 
     function isMemberRole() {
-      return isActiveMember() && userProfile().role == 'member';
+      let uPath = userDocPath(request.auth.uid);
+      let p = get(uPath).data;
+      return isVerifiedUser() && exists(uPath) && p.isActive == true && p.role == 'member';
     }
 
     function isViewerRole() {
-      return isActiveMember() && userProfile().role == 'viewer';
+      let uPath = userDocPath(request.auth.uid);
+      let p = get(uPath).data;
+      return isVerifiedUser() && exists(uPath) && p.isActive == true && p.role == 'viewer';
     }
 
     function isApprover() {
-      return isActiveMember() && (userProfile().role == 'admin' || userProfile().canApprove == true);
+      let uPath = userDocPath(request.auth.uid);
+      let p = get(uPath).data;
+      return isVerifiedUser() && exists(uPath) && p.isActive == true && (p.role == 'admin' || p.canApprove == true);
     }
 
     // Permissions MUST bind strictly to Firebase UID (never text display names)
@@ -82,8 +91,8 @@ service cloud.firestore {
       return request.auth.uid in taskData.assigneeUids;
     }
 
-    function isScopedApprover(taskData) {
-      return isApprover() && (
+    function isScopedApproverForProfile(profile, taskData) {
+      return (profile.role == 'admin' || profile.canApprove == true) && (
         isAssignedToTask(taskData)
         || ('approverUids' in taskData && request.auth.uid in taskData.approverUids)
       );
@@ -93,28 +102,28 @@ service cloud.firestore {
       return /databases/$(database)/documents/tasks/$(id);
     }
 
-    function isParentValidForSubtask(parentData) {
+    function isParentValidForSubtask(parentData, isAdminUser, isMemberUser) {
       return parentData.parentId == null
         && parentData.archivedAt == null
         && (
-          isAdmin()
-          || (
-            isMemberRole()
-            && isAssignedToTask(parentData)
-          )
+          isAdminUser
+          || (isMemberUser && isAssignedToTask(parentData))
         );
     }
 
     // Check existing parent via exists/get first; fall back to existsAfter/getAfter only when parent+child are created in the same batch
-    function canCreateSubtaskUnder(parentId) {
-      return (
-        exists(taskDocPath(parentId))
-        && isParentValidForSubtask(get(taskDocPath(parentId)).data)
-      ) || (
-        !exists(taskDocPath(parentId))
-        && existsAfter(taskDocPath(parentId))
-        && isParentValidForSubtask(getAfter(taskDocPath(parentId)).data)
-      );
+    function canCreateSubtaskUnder(parentId, isAdminUser, isMemberUser) {
+      let pPath = taskDocPath(parentId);
+      return exists(pPath)
+        ? isParentValidForSubtask(get(pPath).data, isAdminUser, isMemberUser)
+        : (
+          existsAfter(pPath)
+          && isParentValidForSubtask(getAfter(pPath).data, isAdminUser, isMemberUser)
+        );
+    }
+
+    function optStrMax(val, maxLen) {
+      return val == null || (val is string && val.size() <= maxLen);
     }
 
     // ---------------------------------------------------------
@@ -163,33 +172,38 @@ service cloud.firestore {
     }
 
     function isValidTask(data, taskId) {
+      let catId = data.get('categoryId', null);
+      let approvers = data.get('approverUids', []);
+      let refLinks = data.get('referenceLinks', []);
+      let resLinks = data.get('resultLinks', []);
+      let flags = data.get('reviewFlags', []);
+      let testRec = data.get('isTestRecord', false);
       return data.keys().hasAll(['id', 'displayCode', 'parentId', 'sortOrder', 'title', 'assignees', 'assigneeUids', 'status', 'version', 'updatedAt', 'updatedByUid', 'archivedAt'])
         && data.keys().hasOnly(['id', 'displayCode', 'parentId', 'sortOrder', 'title', 'categoryId', 'category', 'assignees', 'assigneeUids', 'approverUids', 'status', 'nextStep', 'dueDate', 'notes', 'referenceLinks', 'resultLinks', 'reviewFlags', 'version', 'updatedAt', 'updatedBy', 'updatedByUid', 'archivedAt', 'archivedBy', 'isTestRecord'])
         && data.id == taskId
-        && isValidId(data.id)
         && data.displayCode is string && data.displayCode.size() >= 1 && data.displayCode.size() <= 24
         && (data.parentId == null || isValidId(data.parentId))
         && data.sortOrder is number
         && data.title is string && data.title.size() >= 1 && data.title.size() <= 300
-        && (!('categoryId' in data) || data.categoryId == null || isValidId(data.categoryId))
-        && (!('category' in data) || data.category == null || (data.category is string && data.category.size() <= 100))
+        && (catId == null || isValidId(catId))
+        && optStrMax(data.get('category', null), 100)
         && data.assignees is list && data.assignees.size() <= 20 && (data.assignees.size() == 0 || data.assignees[0] is string)
         && data.assigneeUids is list && data.assigneeUids.size() <= 20 && (data.assigneeUids.size() == 0 || data.assigneeUids[0] is string)
-        && (!('approverUids' in data) || (data.approverUids is list && data.approverUids.size() <= 10 && (data.approverUids.size() == 0 || data.approverUids[0] is string)))
+        && approvers is list && approvers.size() <= 10 && (approvers.size() == 0 || approvers[0] is string)
         && (data.status == null || data.status in ['Đang làm', 'Chờ duyệt', 'Tạm dừng', 'Hoàn thành', 'Chưa bắt đầu'])
-        && (!('nextStep' in data) || data.nextStep == null || (data.nextStep is string && data.nextStep.size() <= 500))
-        && (!('dueDate' in data) || data.dueDate == null || (data.dueDate is string && data.dueDate.size() <= 20))
-        && (!('notes' in data) || data.notes == null || (data.notes is string && data.notes.size() <= 2000))
-        && (!('referenceLinks' in data) || (data.referenceLinks is list && data.referenceLinks.size() <= 20 && (data.referenceLinks.size() == 0 || data.referenceLinks[0] is map)))
-        && (!('resultLinks' in data) || (data.resultLinks is list && data.resultLinks.size() <= 20 && (data.resultLinks.size() == 0 || data.resultLinks[0] is map)))
-        && (!('reviewFlags' in data) || (data.reviewFlags is list && data.reviewFlags.size() <= 10 && data.reviewFlags.hasOnly(['missing_assignee', 'missing_status', 'missing_hyperlink_url'])))
+        && optStrMax(data.get('nextStep', null), 500)
+        && optStrMax(data.get('dueDate', null), 20)
+        && optStrMax(data.get('notes', null), 2000)
+        && refLinks is list && refLinks.size() <= 20 && (refLinks.size() == 0 || refLinks[0] is map)
+        && resLinks is list && resLinks.size() <= 20 && (resLinks.size() == 0 || resLinks[0] is map)
+        && flags is list && flags.size() <= 10 && flags.hasOnly(['missing_assignee', 'missing_status', 'missing_hyperlink_url'])
         && data.version is int && data.version >= 1
         && data.updatedAt is timestamp
-        && (!('updatedBy' in data) || data.updatedBy == null || (data.updatedBy is string && data.updatedBy.size() <= 120))
+        && optStrMax(data.get('updatedBy', null), 120)
         && data.updatedByUid is string && data.updatedByUid.size() >= 1 && data.updatedByUid.size() <= 128
         && (data.archivedAt == null || data.archivedAt is timestamp)
-        && (!('archivedBy' in data) || data.archivedBy == null || (data.archivedBy is string && data.archivedBy.size() <= 120))
-        && (!('isTestRecord' in data) || data.isTestRecord is bool);
+        && optStrMax(data.get('archivedBy', null), 120)
+        && testRec is bool;
     }
 
     function isValidComment(data, taskId, commentId) {
@@ -213,6 +227,135 @@ service cloud.firestore {
         && data.action in ['create', 'update', 'status_change', 'approve', 'comment', 'archive', 'restore']
         && data.summary is string && data.summary.size() >= 1 && data.summary.size() <= 500
         && data.createdAt is timestamp;
+    }
+
+    function canCreateTask(taskId) {
+      let data = request.resource.data;
+      let uPath = userDocPath(request.auth.uid);
+      let profile = get(uPath).data;
+      let isAdminUser = profile.role == 'admin';
+      let isMemberUser = profile.role == 'member';
+      return isVerifiedUser()
+        && isValidId(taskId)
+        && exists(uPath)
+        && profile.isActive == true
+        && (isAdminUser || isMemberUser)
+        && isValidTask(data, taskId)
+        && data.version == 1
+        && data.updatedAt == request.time
+        && data.updatedByUid == request.auth.uid
+        && data.archivedAt == null
+        && (
+          (isAdminUser && data.parentId == null)
+          || (
+            data.parentId != null
+            && data.parentId != taskId
+            && (
+              isAdminUser
+              || (
+                isMemberUser
+                && data.status != 'Hoàn thành'
+                && data.assigneeUids == [request.auth.uid]
+              )
+            )
+            && canCreateSubtaskUnder(data.parentId, isAdminUser, isMemberUser)
+          )
+        );
+    }
+
+    function isAdminParentValidForReparent(parentId, taskId) {
+      let pPath = taskDocPath(parentId);
+      return parentId != taskId && (
+        exists(pPath)
+          ? get(pPath).data.parentId == null
+          : (existsAfter(pPath) && getAfter(pPath).data.parentId == null)
+      );
+    }
+
+    function canUpdateTask(taskId) {
+      let data = request.resource.data;
+      let prev = resource.data;
+      let uPath = userDocPath(request.auth.uid);
+      let profile = get(uPath).data;
+      let isAdminUser = profile.role == 'admin';
+      let isMemberUser = profile.role == 'member';
+      let scopedApprover = isScopedApproverForProfile(profile, prev);
+      return isVerifiedUser()
+        && isValidId(taskId)
+        && exists(uPath)
+        && profile.isActive == true
+        && (isAdminUser || isMemberUser)
+        && isValidTask(data, taskId)
+        && data.id == prev.id
+        && data.version == prev.version + 1
+        && data.updatedAt == request.time
+        && data.updatedByUid == request.auth.uid
+        && (
+          (
+            isAdminUser
+            && (
+              data.parentId == prev.parentId
+              || data.parentId == null
+              || isAdminParentValidForReparent(data.parentId, taskId)
+            )
+            && data.diff(prev).affectedKeys().hasOnly(['displayCode', 'parentId', 'sortOrder', 'title', 'categoryId', 'category', 'assignees', 'assigneeUids', 'approverUids', 'status', 'nextStep', 'dueDate', 'notes', 'referenceLinks', 'resultLinks', 'reviewFlags', 'version', 'updatedAt', 'updatedBy', 'updatedByUid', 'archivedAt', 'archivedBy', 'isTestRecord'])
+          )
+          || (
+            isMemberUser
+            && prev.archivedAt == null
+            && data.parentId == prev.parentId
+            && data.assignees == prev.assignees
+            && data.assigneeUids == prev.assigneeUids
+            && data.archivedAt == prev.archivedAt
+            && (
+              (
+                isAssignedToTask(prev)
+                && data.diff(prev).affectedKeys().hasOnly(['status', 'nextStep', 'notes', 'referenceLinks', 'resultLinks', 'version', 'updatedAt', 'updatedBy', 'updatedByUid'])
+                && (
+                  (data.status == prev.status)
+                  || (
+                    data.status != 'Hoàn thành'
+                    && prev.status != 'Hoàn thành'
+                  )
+                  || scopedApprover
+                )
+              )
+              || (
+                scopedApprover
+                && data.diff(prev).affectedKeys().hasOnly(['status', 'nextStep', 'version', 'updatedAt', 'updatedBy', 'updatedByUid'])
+              )
+            )
+          )
+        );
+    }
+
+    function canCreateActivityLog(taskId, logId) {
+      let data = request.resource.data;
+      let uPath = userDocPath(request.auth.uid);
+      let profile = get(uPath).data;
+      let tPath = taskDocPath(taskId);
+      let cPath = /databases/$(database)/documents/tasks/$(taskId)/comments/$(logId);
+      return isVerifiedUser()
+        && isValidId(taskId)
+        && isValidId(logId)
+        && exists(uPath)
+        && profile.isActive == true
+        && profile.role != 'viewer'
+        && isValidActivityLog(data, taskId, logId)
+        && data.createdAt == request.time
+        && (
+          (
+            existsAfter(tPath)
+            && getAfter(tPath).data.updatedAt == request.time
+            && getAfter(tPath).data.updatedByUid == request.auth.uid
+          )
+          || (
+            data.action == 'comment'
+            && existsAfter(cPath)
+            && getAfter(cPath).data.authorUid == request.auth.uid
+            && getAfter(cPath).data.createdAt == request.time
+          )
+        );
     }
 
     // ---------------------------------------------------------
@@ -321,80 +464,9 @@ service cloud.firestore {
       // Create:
       // - Admin can create parent (parentId == null) or 2nd-level child task
       // - Member can create ONLY a 2nd-level child task under an assigned parent (never 3rd-level, never Hoàn thành)
-      allow create: if isActiveMember()
-        && isValidId(taskId)
-        && isValidTask(incoming(), taskId)
-        && incoming().version == 1
-        && incoming().updatedAt == request.time
-        && incoming().updatedByUid == request.auth.uid
-        && incoming().archivedAt == null
-        && (
-          (isAdmin() && incoming().parentId == null)
-          || (
-            incoming().parentId != null
-            && incoming().parentId != taskId
-            && canCreateSubtaskUnder(incoming().parentId)
-            && (
-              isAdmin()
-              || (
-                isMemberRole()
-                && incoming().status != 'Hoàn thành'
-                && incoming().assigneeUids == [request.auth.uid]
-              )
-            )
-          )
-        );
+      allow create: if canCreateTask(taskId);
 
-      allow update: if isActiveMember()
-        && isValidId(taskId)
-        && isValidTask(incoming(), taskId)
-        && incoming().id == existing().id
-        && incoming().version == existing().version + 1
-        && incoming().updatedAt == request.time
-        && incoming().updatedByUid == request.auth.uid
-        && (
-          (
-            isAdmin()
-            && (
-              incoming().parentId == existing().parentId
-              || incoming().parentId == null
-              || (
-                incoming().parentId != taskId
-                && (
-                  (exists(taskDocPath(incoming().parentId)) && get(taskDocPath(incoming().parentId)).data.parentId == null)
-                  || (!exists(taskDocPath(incoming().parentId)) && existsAfter(taskDocPath(incoming().parentId)) && getAfter(taskDocPath(incoming().parentId)).data.parentId == null)
-                )
-              )
-            )
-            && incoming().diff(existing()).affectedKeys().hasOnly(['displayCode', 'parentId', 'sortOrder', 'title', 'categoryId', 'category', 'assignees', 'assigneeUids', 'approverUids', 'status', 'nextStep', 'dueDate', 'notes', 'referenceLinks', 'resultLinks', 'reviewFlags', 'version', 'updatedAt', 'updatedBy', 'updatedByUid', 'archivedAt', 'archivedBy', 'isTestRecord'])
-          )
-          || (
-            isMemberRole()
-            && existing().archivedAt == null
-            && incoming().parentId == existing().parentId
-            && incoming().assignees == existing().assignees
-            && incoming().assigneeUids == existing().assigneeUids
-            && incoming().archivedAt == existing().archivedAt
-            && (
-              (
-                isAssignedToTask(existing())
-                && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'nextStep', 'notes', 'referenceLinks', 'resultLinks', 'version', 'updatedAt', 'updatedBy', 'updatedByUid'])
-                && (
-                  (incoming().status == existing().status)
-                  || (
-                    incoming().status != 'Hoàn thành'
-                    && existing().status != 'Hoàn thành'
-                  )
-                  || isScopedApprover(existing())
-                )
-              )
-              || (
-                isScopedApprover(existing())
-                && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'nextStep', 'version', 'updatedAt', 'updatedBy', 'updatedByUid'])
-              )
-            )
-          )
-        );
+      allow update: if canUpdateTask(taskId);
 
       allow delete: if false;
 
@@ -419,25 +491,7 @@ service cloud.firestore {
         allow get: if isActiveMember() && isValidId(taskId) && isValidId(logId);
         allow list: if isActiveMember() && isValidId(taskId);
 
-        allow create: if isActiveMember()
-          && !isViewerRole()
-          && isValidId(taskId)
-          && isValidId(logId)
-          && isValidActivityLog(incoming(), taskId, logId)
-          && incoming().createdAt == request.time
-          && (
-            (
-              existsAfter(/databases/$(database)/documents/tasks/$(taskId))
-              && getAfter(/databases/$(database)/documents/tasks/$(taskId)).data.updatedAt == request.time
-              && getAfter(/databases/$(database)/documents/tasks/$(taskId)).data.updatedByUid == request.auth.uid
-            )
-            || (
-              incoming().action == 'comment'
-              && existsAfter(/databases/$(database)/documents/tasks/$(taskId)/comments/$(logId))
-              && getAfter(/databases/$(database)/documents/tasks/$(taskId)/comments/$(logId)).data.authorUid == request.auth.uid
-              && getAfter(/databases/$(database)/documents/tasks/$(taskId)/comments/$(logId)).data.createdAt == request.time
-            )
-          );
+        allow create: if canCreateActivityLog(taskId, logId);
 
         allow update, delete: if false;
       }

@@ -4,6 +4,7 @@ import {
   deleteDoc,
   doc,
   getDoc,
+  getDocsFromServer,
   onSnapshot,
   orderBy,
   query,
@@ -27,6 +28,15 @@ import {
   TaskStatus,
   UserRole,
 } from '../types/project';
+import {
+  buildOfficialTaskFirestoreWritePayloads,
+  computeOfficialFirestoreVerification,
+  OfficialImportExecutionResult,
+  OfficialImportPlanItem,
+  OfficialImportSummary,
+  OfficialImportVerification,
+  validateOfficialImportPreflight,
+} from '../utils/officialImport';
 
 export const DEFAULT_TBHGN_CATEGORIES: Array<{
   id: string;
@@ -833,6 +843,25 @@ export async function updateTaskInFirestore(
       if (isAdmin && patch.categoryId !== undefined && patch.categoryId !== existing.categoryId) {
         changes.push('Cập nhật hạng mục');
       }
+      if (isAdmin && patch.assigneeUids !== undefined) {
+        const prevUids = existing.assigneeUids ?? [];
+        const nextUids = patch.assigneeUids ?? [];
+        const addedUids = nextUids.filter((u) => !prevUids.includes(u));
+        const removedUids = prevUids.filter((u) => !nextUids.includes(u));
+        if (addedUids.length > 0 && removedUids.length > 0) {
+          changes.push(
+            `Đổi liên kết tài khoản UID (thu hồi ${removedUids.length} UID cũ, gán ${addedUids.length} UID mới)`
+          );
+        } else if (removedUids.length > 0) {
+          changes.push(
+            nextUids.length === 0
+              ? `Thu hồi ${removedUids.length} UID cũ (chuyển về Chưa liên kết tài khoản)`
+              : `Thu hồi ${removedUids.length} UID phân công`
+          );
+        } else if (addedUids.length > 0) {
+          changes.push(`Xác nhận liên kết ${addedUids.length} UID thực hiện`);
+        }
+      }
 
       tx.update(taskRef, updatePayload);
       tx.set(logRef, {
@@ -1069,6 +1098,134 @@ export async function seedB1SandboxTasks(
         createdCount,
         ids: items.map((i) => i.id),
         isTestRecord: true,
+      }
+    );
+  }
+}
+
+/**
+ * Reads live Firestore server tasks directly (bypassing local cache) to reconcile
+ * the 20 official TBHGN tasks, parent-child structure, 0/2-0/5-0/4 progress,
+ * statuses, and 13 resultLinks URLs against Firestore truth.
+ */
+export async function verifyOfficialImportInFirestore(
+  expectedIds: string[]
+): Promise<OfficialImportVerification> {
+  try {
+    const snap = await getDocsFromServer(collection(db, 'tasks'));
+    const serverTasks = snap.docs.map((d) =>
+      mapTaskDoc(d.id, d.data() as Record<string, unknown>)
+    );
+    return computeOfficialFirestoreVerification(serverTasks, expectedIds);
+  } catch (error) {
+    handleFirestoreError(
+      error,
+      OperationType.LIST,
+      'tasks (official TBHGN server verification)'
+    );
+  }
+}
+
+/**
+ * Stage B2.2: Idempotent official TBHGN project data import (Admin only, separate from B1 test-task creation).
+ * Performs strict preflight validation + fresh server-side ID/displayCode conflict checks before staging
+ * writes so reruns never duplicate or overwrite existing tasks, then reads back from Firestore server.
+ */
+export async function importOfficialTasksToFirestore(
+  items: OfficialImportPlanItem[],
+  summary: OfficialImportSummary,
+  adminUser: ProjectMember
+): Promise<OfficialImportExecutionResult> {
+  if (adminUser.role !== 'admin' || !adminUser.isActive) {
+    throw new Error('Chỉ Quản trị viên đang hoạt động mới có quyền nhập dữ liệu dự án.');
+  }
+
+  const preflight = validateOfficialImportPreflight(items, summary);
+  if (!preflight.ok) {
+    throw new Error(`PREFLIGHT:${preflight.errors.join(' ')}`);
+  }
+
+  const batch = writeBatch(db);
+  const nowTs = serverTimestamp();
+  const logSuffix = Date.now().toString(36);
+  const skippedIds: string[] = [];
+  let importedCount = 0;
+
+  try {
+    // Re-check live Firestore server right before writing to prevent stale-cache collisions or overwrites
+    const liveSnap = await getDocsFromServer(collection(db, 'tasks'));
+    const liveTasks = liveSnap.docs.map((d) =>
+      mapTaskDoc(d.id, d.data() as Record<string, unknown>)
+    );
+    const liveById = new Map(liveTasks.map((t) => [t.id, t]));
+    const liveByCode = new Map<string, TaskItem[]>();
+    for (const t of liveTasks) {
+      if (t.archivedAt) continue;
+      const key = t.displayCode.trim();
+      const arr = liveByCode.get(key) ?? [];
+      arr.push(t);
+      liveByCode.set(key, arr);
+    }
+
+    for (const item of items) {
+      const targetId = item.normalizedPayload.id;
+      if (liveById.has(targetId)) {
+        skippedIds.push(targetId);
+        continue;
+      }
+
+      const codeConflicts = (
+        liveByCode.get(item.normalizedPayload.displayCode.trim()) ?? []
+      ).filter((t) => t.id !== targetId);
+      if (codeConflicts.length > 0) {
+        throw new Error(
+          `PREFLIGHT:Phát hiện xung đột mã hiển thị "${item.normalizedPayload.displayCode}" trên Firestore thật với bản ghi ${codeConflicts
+            .map((t) => t.id)
+            .join(', ')}. Đã dừng nhập và không ghi đè.`
+        );
+      }
+
+      const { taskId, logId, taskPayload, logPayload } =
+        buildOfficialTaskFirestoreWritePayloads(
+          item,
+          adminUser,
+          nowTs,
+          logSuffix
+        );
+
+      const taskRef = doc(db, 'tasks', taskId);
+      const logRef = doc(db, 'tasks', taskId, 'activityLogs', logId);
+      batch.set(taskRef, taskPayload);
+      batch.set(logRef, logPayload);
+      importedCount++;
+    }
+
+    if (importedCount > 0) {
+      await batch.commit();
+    }
+
+    const verification = await verifyOfficialImportInFirestore(
+      items.map((i) => i.normalizedPayload.id)
+    );
+
+    return {
+      importedCount,
+      skippedIds,
+      errorCount: 0,
+      verification,
+    };
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith('PREFLIGHT:')) {
+      throw error;
+    }
+    handleFirestoreError(
+      error,
+      OperationType.WRITE,
+      'tasks (official TBHGN import batch)',
+      {
+        importedCount,
+        skippedCount: skippedIds.length,
+        isTestRecord: false,
       }
     );
   }
