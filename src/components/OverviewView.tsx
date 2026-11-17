@@ -15,6 +15,7 @@ import {
   computeParentProgress,
   formatShortDate,
   getEffectiveCategory,
+  isB1TestTask,
   isTaskOverdue,
   REVIEW_FLAG_LABELS,
 } from '../utils/taskHelpers';
@@ -26,7 +27,6 @@ interface OverviewViewProps {
   currentUser: ProjectMember;
   onSelectTask: (taskId: string) => void;
   onNavigateToTasks: (filterPreset?: { status?: string; reviewOnly?: boolean }) => void;
-  onSeedB1TestTasks?: () => Promise<void>;
 }
 
 export const OverviewView: React.FC<OverviewViewProps> = ({
@@ -35,7 +35,6 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
   currentUser,
   onSelectTask,
   onNavigateToTasks,
-  onSeedB1TestTasks,
 }) => {
   const isAdmin = currentUser.role === 'admin';
   const [reviewExpanded, setReviewExpanded] = useState<boolean>(isAdmin);
@@ -44,7 +43,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
     setReviewExpanded(isAdmin);
   }, [isAdmin]);
 
-  const activeTasks = tasks.filter((t) => !t.archivedAt);
+  const activeTasks = tasks.filter((t) => !t.archivedAt && !isB1TestTask(t));
   const parentTasks = activeTasks.filter((t) => t.parentId === null);
   const childTasks = activeTasks.filter((t) => t.parentId !== null);
   const tasksWithDueDate = activeTasks.filter((t) => Boolean(t.dueDate));
@@ -366,19 +365,10 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
           </span>
         </div>
         {parentTasks.length === 0 ? (
-          <div className="px-4 py-8 text-center space-y-3">
+          <div className="px-4 py-8 text-center">
             <p className="text-sm text-slate-600">
-              Firestore hiện chưa có dữ liệu công việc (Giai đoạn B1 chỉ dùng dữ liệu kiểm thử, chưa nhập 20 đầu việc chính thức).
+              Chưa có công việc nào trên hệ thống.
             </p>
-            {isAdmin && onSeedB1TestTasks && (
-              <button
-                type="button"
-                onClick={onSeedB1TestTasks}
-                className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium bg-[#13294B] text-white rounded-lg hover:bg-[#1E3A66]"
-              >
-                Tạo 3 đầu việc kiểm thử B1
-              </button>
-            )}
           </div>
         ) : (
           <div className="divide-y divide-slate-100">

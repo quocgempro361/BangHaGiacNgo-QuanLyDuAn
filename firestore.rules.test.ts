@@ -29,7 +29,9 @@ import {
   canUserCreateSubtaskInParent,
   canUserEditTask,
   computeParentProgress,
+  exportTasksToCSV,
   getEffectiveCategory,
+  isB1TestTask,
 } from './src/utils/taskHelpers';
 import { buildCreateTaskPayloads, DEFAULT_TBHGN_CATEGORIES } from './src/services/firestoreService';
 import {
@@ -41,7 +43,9 @@ import {
 } from './src/utils/officialImport';
 import {
   buildMemberMappingPreview,
+  COLLECTIVE_GROUP_LABEL,
   computeUpdatedAssigneeNamesOnUidToggle,
+  doesMemberMatchProjectPerson,
   EXPECTED_TBHGN_ACCOUNTS,
   getSafeInviteDefaults,
   isTemporaryAccountEmail,
@@ -278,13 +282,33 @@ test('Live Firebase SDK: unauthenticated reads/writes are rejected by deployed r
         return code === 'permission-denied' || msg.toLowerCase().includes('permission');
       }
     );
+    await assert.rejects(
+      () => getDoc(doc(probeDb, 'settings', 'auth')),
+      (err: unknown) => {
+        const code = (err as { code?: string })?.code ?? '';
+        const msg = err instanceof Error ? err.message : String(err);
+        return code === 'permission-denied' || msg.toLowerCase().includes('permission');
+      }
+    );
+
+    await assert.rejects(
+      () =>
+        setDoc(doc(probeDb, 'settings', 'auth'), {
+          allowOpenGoogleLogin: true,
+        }),
+      (err: unknown) => {
+        const code = (err as { code?: string })?.code ?? '';
+        const msg = err instanceof Error ? err.message : String(err);
+        return code === 'permission-denied' || msg.toLowerCase().includes('permission');
+      }
+    );
   } finally {
     await terminate(probeDb);
     await deleteApp(probeApp);
   }
 });
 
-test('Firestore Rules use single-fetch let bindings, exists/get first for existing parent, and UID-bound assignment', () => {
+test('Firestore Rules use single-fetch let bindings, exists/get first for existing parent, UID-bound assignment, and locked open-login guardrails', () => {
   assert.match(rulesText, /function canCreateTask\(taskId\)/);
   assert.match(rulesText, /function canUpdateTask\(taskId\)/);
   assert.match(rulesText, /function canCreateActivityLog\(taskId, logId\)/);
@@ -293,6 +317,13 @@ test('Firestore Rules use single-fetch let bindings, exists/get first for existi
   assert.match(rulesText, /data\.assigneeUids == \[request\.auth\.uid\]/);
   assert.match(rulesText, /function isAssignedToTask\(taskData\) \{\s*return request\.auth\.uid in taskData\.assigneeUids;\s*\}/);
   assert.equal(rulesText.includes("'Nhóm' in taskData.assignees"), false);
+
+  // Open Google Login rules invariants
+  assert.match(rulesText, /match \/settings\/\{docId\}/);
+  assert.match(rulesText, /allow get: if isVerifiedUser\(\) && docId == 'auth';/);
+  assert.match(rulesText, /allow create, update: if isAdmin\(\)\s*&& docId == 'auth'\s*&& isValidAuthSettings\(incoming\(\)\);/);
+  assert.match(rulesText, /!hasInvite\s*&& isOpenGoogleLoginEnabled\(\)\s*&& data\.role == 'viewer'\s*&& data\.canApprove == false\s*&& data\.sheetAlias == ''/);
+  assert.match(rulesText, /hasInvite\s*&& matchesActiveInvite\(data, iPath\)/);
 });
 
 test('Firestore Emulator: atomic task + activityLog create, update, comment, and RBAC boundaries', async (t) => {
@@ -776,6 +807,168 @@ test('Firestore Emulator: atomic task + activityLog create, update, comment, and
     assert.deepEqual(swappedSnap.data()?.assigneeUids, [officialUid]);
     const logsSnap = await getDocs(collection(adminDb, 'tasks', 'tbhgn_5', 'activityLogs'));
     assert.ok(logsSnap.docs.length >= 4);
+
+    // Open Google Login Emulator tests (Cases 1-7)
+    // Case 1 & 2: Non-admin cannot enable open login; uninvited user rejected when OFF
+    await assertFails(
+      setDoc(doc(memberDb, 'settings', 'auth'), {
+        allowOpenGoogleLogin: true,
+        updatedAt: serverTimestamp(),
+        updatedBy: memberUser.uid,
+      })
+    );
+    const strangerDb = testEnv
+      .authenticatedContext('uid_stranger_1', {
+        email: 'stranger1@gmail.com',
+        email_verified: true,
+      })
+      .firestore();
+    await assertFails(
+      setDoc(doc(strangerDb, 'users', 'uid_stranger_1'), {
+        uid: 'uid_stranger_1',
+        email: 'stranger1@gmail.com',
+        displayName: 'Stranger 1',
+        sheetAlias: '',
+        role: 'viewer',
+        canApprove: false,
+        isActive: true,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      })
+    );
+
+    // Admin enables open login
+    await assertSucceeds(
+      setDoc(doc(adminDb, 'settings', 'auth'), {
+        allowOpenGoogleLogin: true,
+        updatedAt: serverTimestamp(),
+        updatedBy: adminUser.uid,
+      })
+    );
+
+    // Case 2: Stranger cannot self-escalate to member/admin, only viewer
+    await assertFails(
+      setDoc(doc(strangerDb, 'users', 'uid_stranger_1'), {
+        uid: 'uid_stranger_1',
+        email: 'stranger1@gmail.com',
+        displayName: 'Stranger 1',
+        sheetAlias: '',
+        role: 'member',
+        canApprove: false,
+        isActive: true,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      })
+    );
+    await assertSucceeds(
+      setDoc(doc(strangerDb, 'users', 'uid_stranger_1'), {
+        uid: 'uid_stranger_1',
+        email: 'stranger1@gmail.com',
+        displayName: 'Stranger 1',
+        sheetAlias: '',
+        role: 'viewer',
+        canApprove: false,
+        isActive: true,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      })
+    );
+
+    // Case 3: Locked user or locked invite cannot bypass lock when open login is ON
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const edb = ctx.firestore();
+      await setDoc(doc(edb, 'users', 'uid_locked_user'), {
+        uid: 'uid_locked_user',
+        email: 'locked.user@gmail.com',
+        displayName: 'Locked User',
+        sheetAlias: '',
+        role: 'viewer',
+        canApprove: false,
+        isActive: false,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      await setDoc(doc(edb, 'invites', 'locked.invite@gmail.com'), {
+        email: 'locked.invite@gmail.com',
+        displayName: 'Locked Invite',
+        sheetAlias: '',
+        role: 'member',
+        canApprove: false,
+        isActive: false,
+        createdBy: adminUser.uid,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    });
+
+    const lockedUserDb = testEnv
+      .authenticatedContext('uid_locked_user', {
+        email: 'locked.user@gmail.com',
+        email_verified: true,
+      })
+      .firestore();
+    await assertFails(
+      setDoc(doc(lockedUserDb, 'users', 'uid_locked_user'), {
+        uid: 'uid_locked_user',
+        email: 'locked.user@gmail.com',
+        displayName: 'Locked User',
+        sheetAlias: '',
+        role: 'viewer',
+        canApprove: false,
+        isActive: true,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      })
+    );
+
+    const lockedInviteDb = testEnv
+      .authenticatedContext('uid_locked_inv', {
+        email: 'locked.invite@gmail.com',
+        email_verified: true,
+      })
+      .firestore();
+    await assertFails(
+      setDoc(doc(lockedInviteDb, 'users', 'uid_locked_inv'), {
+        uid: 'uid_locked_inv',
+        email: 'locked.invite@gmail.com',
+        displayName: 'Locked Invite',
+        sheetAlias: '',
+        role: 'viewer',
+        canApprove: false,
+        isActive: true,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      })
+    );
+
+    // Case 4: Admin disables open login; brand-new stranger2 fails, existing stranger1 still reads tasks
+    await assertSucceeds(
+      setDoc(doc(adminDb, 'settings', 'auth'), {
+        allowOpenGoogleLogin: false,
+        updatedAt: serverTimestamp(),
+        updatedBy: adminUser.uid,
+      })
+    );
+    const stranger2Db = testEnv
+      .authenticatedContext('uid_stranger_2', {
+        email: 'stranger2@gmail.com',
+        email_verified: true,
+      })
+      .firestore();
+    await assertFails(
+      setDoc(doc(stranger2Db, 'users', 'uid_stranger_2'), {
+        uid: 'uid_stranger_2',
+        email: 'stranger2@gmail.com',
+        displayName: 'Stranger 2',
+        sheetAlias: '',
+        role: 'viewer',
+        canApprove: false,
+        isActive: true,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      })
+    );
+    await assertSucceeds(getDoc(doc(strangerDb, 'tasks', 'tbhgn_5')));
   } finally {
     await testEnv.cleanup();
   }
@@ -1095,9 +1288,15 @@ test('Stage B2.3 member mapping preview, temporary account guardrails, and safe 
     }
   }
 
+  const unpairedAdmin: ProjectMember = {
+    ...adminUser,
+    displayName: 'Quản trị viên',
+    sheetAlias: '',
+  };
+
   const preview = buildMemberMappingPreview(
     EXPECTED_TBHGN_ACCOUNTS,
-    [adminUser, quocSignedIn],
+    [unpairedAdmin, quocSignedIn],
     [khanhInvitedOnly],
     [...sampleTasks, ...officialTasks]
   );
@@ -1107,7 +1306,54 @@ test('Stage B2.3 member mapping preview, temporary account guardrails, and safe 
   assert.equal(preview.tasksUnlinkedUidCount, 20);
   assert.equal(preview.signedInExpectedCount, 1);
   assert.equal(preview.invitedPendingExpectedCount, 1);
-  assert.equal(preview.temporaryExpectedCount, 4);
+  assert.equal(preview.temporaryExpectedCount, 5);
+  assert.equal(EXPECTED_TBHGN_ACCOUNTS.length, 6);
+  assert.deepEqual(preview.collectiveGroupTaskCodes, ['1', '5']);
+  assert.equal(
+    preview.aliasRows.some((r) => r.alias === COLLECTIVE_GROUP_LABEL),
+    false
+  );
+
+  // Admin account with similar displayName/sheetAlias ("Sư phụ") MUST NEVER auto-match "Sư Minh Hạnh"
+  const adminLookalike: ProjectMember = {
+    ...adminUser,
+    displayName: 'Sư phụ',
+    sheetAlias: 'Sư phụ',
+  };
+  const suMinhHanhSpec = EXPECTED_TBHGN_ACCOUNTS.find(
+    (a) => a.originalName === 'Sư Minh Hạnh'
+  )!;
+  assert.equal(
+    doesMemberMatchProjectPerson(adminLookalike, suMinhHanhSpec),
+    false
+  );
+  const lookalikePreview = buildMemberMappingPreview(
+    EXPECTED_TBHGN_ACCOUNTS,
+    [adminLookalike, quocSignedIn],
+    [],
+    officialTasks
+  );
+  const suMinhHanhRow = lookalikePreview.accountRows.find(
+    (r) => r.account.originalName === 'Sư Minh Hạnh'
+  )!;
+  assert.equal(suMinhHanhRow.matchedMember, null);
+  assert.equal(suMinhHanhRow.signInStatus, 'not_invited');
+
+  // Admin pairing a signed-in user to "Khả Tuệ" (Tuấn) works without changing task originalName
+  const pairedTuan: ProjectMember = {
+    uid: 'uid_tuan_gmail',
+    displayName: 'Nguyễn Văn Tuấn',
+    email: 'tuan.personal@gmail.com',
+    role: 'member',
+    canApprove: false,
+    isActive: true,
+    sheetAlias: 'Khả Tuệ',
+    createdAt: '2026-01-01T00:00:00.000Z',
+  };
+  const khaTueSpec = EXPECTED_TBHGN_ACCOUNTS.find(
+    (a) => a.originalName === 'Khả Tuệ'
+  )!;
+  assert.equal(doesMemberMatchProjectPerson(pairedTuan, khaTueSpec), true);
 
   const quocRow = preview.accountRows.find(
     (r) => r.account.email === 'tduyquoc@gmail.com'
@@ -1140,14 +1386,17 @@ test('Stage B2.3 member mapping preview, temporary account guardrails, and safe 
         role: 'admin',
         canApprove: true,
         isActive: true,
-        sheetAlias: 'Sư Phụ',
+        sheetAlias: 'Sư Minh Hạnh',
         createdAt: '2026-01-01T00:00:00.000Z',
       },
     ],
     [],
     officialTasks
   );
-  assert.equal(escalatedPreview.accountRows[1].hasPrivilegeWarning, true);
+  const escalatedSuPhu = escalatedPreview.accountRows.find(
+    (r) => r.account.email === 'filmfata01@gmail.com'
+  )!;
+  assert.equal(escalatedSuPhu.hasPrivilegeWarning, true);
 
   // Verify TaskDetailDrawer UID toggle preserves unrelated Sheet aliases & "Chưa liên kết tài khoản"
   const merged1 = computeUpdatedAssigneeNamesOnUidToggle(
@@ -1199,4 +1448,64 @@ test('Stage B2.3 member mapping preview, temporary account guardrails, and safe 
     'Khánh'
   );
 });
+
+test('Case 7: B1 test tasks are strictly hidden from normal counts, parent totals (9/11/20), and CSV export', () => {
+  const dataset = parseOfficialJsonDataset(officialJsonRaw);
+  const fullCategories: CategoryItem[] = DEFAULT_TBHGN_CATEGORIES.map((c) => ({
+    ...c,
+    isActive: true,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    createdBy: adminUser.uid,
+    updatedBy: adminUser.uid,
+  }));
+  const { items } = buildOfficialImportPlan(dataset, sampleTasks, fullCategories);
+  const officialTasks: TaskItem[] = items.map((i) => ({
+    ...i.normalizedPayload,
+    updatedAt: null,
+    updatedBy: null,
+  }));
+  const legacyB1Doc: TaskItem = {
+    ...sampleTasks[1],
+    id: 'test_task_legacy_abc',
+    displayCode: 'T1.2',
+    parentId: 'b1_test_parent',
+    isTestRecord: false,
+  };
+
+  const mixedTasks = [...sampleTasks, legacyB1Doc, ...officialTasks];
+  const visibleTasks = mixedTasks.filter((t) => !t.archivedAt && !isB1TestTask(t));
+
+  assert.equal(visibleTasks.length, 20);
+  assert.equal(visibleTasks.filter((t) => t.parentId === null).length, 9);
+  assert.equal(visibleTasks.filter((t) => t.parentId !== null).length, 11);
+
+  const csv = exportTasksToCSV(mixedTasks, fullCategories);
+  assert.equal(csv.includes('b1_test_parent'), false);
+  assert.equal(csv.includes('b1_test_unassigned'), false);
+  assert.equal(csv.includes('test_task_legacy_abc'), false);
+  assert.equal(csv.includes('tbhgn_1'), true);
+  assert.equal(csv.includes('tbhgn_5_4'), true);
+
+  // Regular tasks created through UI use isTestRecord: false so they are NOT hidden
+  const normalNewTask = buildCreateTaskPayloads(
+    {
+      displayCode: '10',
+      title: 'Công việc mới chính thức',
+      parentId: null,
+      categoryId: 'cat_outline',
+      category: 'Đề cương',
+      assignees: ['Quốc'],
+      assigneeUids: ['uid_quoc'],
+      status: 'Chưa bắt đầu',
+      nextStep: null,
+      dueDate: null,
+      sortOrder: 21,
+    },
+    adminUser,
+    { taskId: 'task_new_10', isTestRecord: false }
+  );
+  assert.equal(isB1TestTask({ id: normalNewTask.taskId, isTestRecord: normalNewTask.taskPayload.isTestRecord }), false);
+});
+
 

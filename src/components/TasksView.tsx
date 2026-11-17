@@ -16,6 +16,7 @@ import {
   computeParentProgress,
   formatShortDate,
   getEffectiveCategory,
+  isB1TestTask,
   isTaskOverdue,
 } from '../utils/taskHelpers';
 import { StatusBadge } from './StatusBadge';
@@ -53,7 +54,6 @@ export const TasksView: React.FC<TasksViewProps> = ({
   const [reviewOnly, setReviewOnly] = useState<boolean>(initialReviewOnly);
   const [showArchived, setShowArchived] = useState<boolean>(false);
   const [expandedParents, setExpandedParents] = useState<Record<string, boolean>>({
-    b1_test_parent: true,
     tbhgn_3: true,
     tbhgn_4: true,
     tbhgn_5: true,
@@ -65,7 +65,9 @@ export const TasksView: React.FC<TasksViewProps> = ({
   );
 
   const visiblePool = useMemo(() => {
-    return tasks.filter((t) => (showArchived ? true : !t.archivedAt));
+    return tasks.filter(
+      (t) => !isB1TestTask(t) && (showArchived ? true : !t.archivedAt)
+    );
   }, [tasks, showArchived]);
 
   const assigneeOptions = useMemo(() => {
@@ -337,8 +339,8 @@ export const TasksView: React.FC<TasksViewProps> = ({
         {filteredTree.length === 0 ? (
           <div className="bg-white border border-slate-200 rounded-xl px-4 py-10 text-center">
             <p className="text-sm text-slate-600">
-              {tasks.length === 0
-                ? 'Chưa có công việc nào trên Firestore.'
+              {tasks.filter((t) => !isB1TestTask(t)).length === 0
+                ? 'Chưa có công việc nào trên hệ thống.'
                 : 'Không tìm thấy công việc phù hợp với bộ lọc hiện tại.'}
             </p>
             {hasActiveFilter && (

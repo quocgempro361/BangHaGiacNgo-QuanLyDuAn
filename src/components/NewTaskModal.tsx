@@ -12,6 +12,7 @@ import {
   canBeParent,
   canUserCreateSubtaskInParent,
   getEffectiveCategory,
+  isB1TestTask,
 } from '../utils/taskHelpers';
 
 interface NewTaskModalProps {
@@ -55,10 +56,10 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
     [categories]
   );
 
-  // Admin sees all active parent tasks; Member sees ONLY active parent tasks assigned to their UID
+  // Admin sees all active official parent tasks; Member sees ONLY active official parent tasks assigned to their UID
   const eligibleParents = useMemo(() => {
     return tasks
-      .filter((t) => t.parentId === null && !t.archivedAt)
+      .filter((t) => !isB1TestTask(t) && t.parentId === null && !t.archivedAt)
       .filter((p) => canUserCreateSubtaskInParent(currentUser, p));
   }, [tasks, currentUser]);
 
@@ -126,18 +127,17 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
   const memberCannotCreate = !isAdmin && eligibleParents.length === 0;
 
   const suggestedCode = (() => {
+    const visibleTasks = tasks.filter((t) => !isB1TestTask(t) && !t.archivedAt);
     if (!parentId) {
-      const allParentsCount = tasks.filter(
-        (t) => t.parentId === null && !t.archivedAt
+      const allParentsCount = visibleTasks.filter(
+        (t) => t.parentId === null
       ).length;
-      return `T${allParentsCount + 1}`;
+      return `${allParentsCount + 1}`;
     }
-    const siblings = tasks.filter(
-      (t) => t.parentId === parentId && !t.archivedAt
-    );
+    const siblings = visibleTasks.filter((t) => t.parentId === parentId);
     return selectedParent
       ? `${selectedParent.displayCode}.${siblings.length + 1}`
-      : 'T1.1';
+      : '1.1';
   })();
 
   const toggleUid = (uid: string) => {
@@ -250,10 +250,10 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
               <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
               <div className="space-y-1">
                 <div className="font-semibold">
-                  Chưa có nhóm việc cha được phân quyền cho bạn
+                  Chưa có nhóm việc cha được phân công cho bạn
                 </div>
                 <p>
-                  Tài khoản Member chỉ được tạo <strong>việc con</strong> thuộc nhóm việc cha có gắn Firebase UID của bạn trong trường <code className="font-mono-tabular">assigneeUids</code>. Hiện chưa có việc cha nào phù hợp. Vui lòng liên hệ Quản trị viên để được phân công vào nhóm cha trước.
+                  Tài khoản Thành viên chỉ được tạo <strong>việc con</strong> thuộc nhóm việc cha mà bạn đang phụ trách. Vui lòng liên hệ Quản trị viên để được phân công vào nhóm cha trước.
                 </p>
               </div>
             </div>
@@ -397,7 +397,12 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
                             checked={assigneeUids.includes(m.uid)}
                             onChange={() => toggleUid(m.uid)}
                           />
-                          <span>{m.displayName}</span>
+                          <span>
+                            {m.displayName}
+                            {m.sheetAlias && m.sheetAlias !== m.displayName
+                              ? ` (${m.sheetAlias})`
+                              : ''}
+                          </span>
                         </label>
                       ))}
                   </div>

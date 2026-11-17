@@ -110,6 +110,17 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "taskId", "actorUid", "actorName", "action", "summary", "createdAt"]
+    },
+    "AuthSettings": {
+      "title": "AuthSettings",
+      "description": "Admin-controlled authentication settings (e.g. open Google login toggle for new Viewer accounts).",
+      "type": "object",
+      "properties": {
+        "allowOpenGoogleLogin": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "updatedBy": { "type": "string", "maxLength": 128 }
+      },
+      "required": ["allowOpenGoogleLogin", "updatedAt", "updatedBy"]
     }
   },
   "firestore": {
@@ -120,6 +131,10 @@
     "/invites/{emailId}": {
       "schema": { "$ref": "#/entities/MemberInvite" },
       "description": "Admin-managed Google email allowlist for onboarding members"
+    },
+    "/settings/{docId}": {
+      "schema": { "$ref": "#/entities/AuthSettings" },
+      "description": "Admin-controlled authentication settings document (docId: auth)"
     },
     "/categories/{categoryId}": {
       "schema": { "$ref": "#/entities/Category" },

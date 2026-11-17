@@ -127,4 +127,10 @@ export interface MemberInvite {
   updatedAt: string;
 }
 
+export interface AuthSettings {
+  allowOpenGoogleLogin: boolean;
+  updatedAt?: string | null;
+  updatedBy?: string | null;
+}
+
 export type AppRoute = 'overview' | 'tasks' | 'my-tasks' | 'members';

@@ -24,6 +24,7 @@ import {
 import { auth, db, googleProvider } from './firebase';
 import {
   AppRoute,
+  AuthSettings,
   CategoryItem,
   MemberInvite,
   ProjectMember,
@@ -44,8 +45,8 @@ import {
   importOfficialTasksToFirestore,
   removeInviteInFirestore,
   resolveUserMembership,
-  seedB1SandboxTasks,
   seedDefaultCategories,
+  subscribeAuthSettings,
   subscribeCategories,
   subscribeInvites,
   subscribeTasks,
@@ -54,6 +55,7 @@ import {
   updateCategoryInFirestore,
   updateInviteInFirestore,
   updateMemberInFirestore,
+  updateOpenGoogleLoginSetting,
   updateTaskInFirestore,
   verifyOfficialImportInFirestore,
 } from './services/firestoreService';
@@ -120,6 +122,9 @@ export default function App() {
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [members, setMembers] = useState<ProjectMember[]>([]);
   const [invites, setInvites] = useState<MemberInvite[]>([]);
+  const [authSettings, setAuthSettings] = useState<AuthSettings>({
+    allowOpenGoogleLogin: false,
+  });
 
   const [route, setRoute] = useState<AppRoute>('overview');
   const [adminTab, setAdminTab] = useState<'members' | 'categories' | 'import'>('members');
@@ -170,6 +175,7 @@ export default function App() {
         setCategories([]);
         setMembers([]);
         setInvites([]);
+        setAuthSettings({ allowOpenGoogleLogin: false });
         setSelectedTaskId(null);
         setAuthLoading(false);
         return;
@@ -229,6 +235,7 @@ export default function App() {
       setCategories([]);
       setMembers([]);
       setInvites([]);
+      setAuthSettings({ allowOpenGoogleLogin: false });
       return;
     }
 
@@ -241,6 +248,7 @@ export default function App() {
 
     let unsubUsers: (() => void) | undefined;
     let unsubInvites: (() => void) | undefined;
+    let unsubAuthSettings: (() => void) | undefined;
 
     if (currentUser.role === 'admin') {
       unsubUsers = subscribeUsers(setMembers, (err) => {
@@ -249,9 +257,13 @@ export default function App() {
       unsubInvites = subscribeInvites(setInvites, (err) => {
         showToast('error', formatActionError(err));
       });
+      unsubAuthSettings = subscribeAuthSettings(setAuthSettings, (err) => {
+        showToast('error', formatActionError(err));
+      });
     } else {
       setMembers([currentUser]);
       setInvites([]);
+      setAuthSettings({ allowOpenGoogleLogin: false });
     }
 
     return () => {
@@ -259,6 +271,7 @@ export default function App() {
       unsubCategories();
       if (unsubUsers) unsubUsers();
       if (unsubInvites) unsubInvites();
+      if (unsubAuthSettings) unsubAuthSettings();
     };
   }, [currentUser?.uid, currentUser?.role, currentUser?.isActive, showToast]);
 
@@ -380,7 +393,7 @@ export default function App() {
         },
         currentUser
       );
-      showToast('success', `Đã tạo đầu việc kiểm thử ${input.displayCode}`);
+      showToast('success', `Đã tạo công việc ${input.displayCode}`);
     } catch (err) {
       const msg = formatActionError(err);
       showToast('error', msg);
@@ -409,15 +422,15 @@ export default function App() {
     }
   };
 
-  const handleSeedB1TestTasks = async () => {
+  const handleToggleOpenGoogleLogin = async (allowOpen: boolean) => {
     if (!currentUser || currentUser.role !== 'admin') return;
     try {
-      const count = await seedB1SandboxTasks(currentUser);
+      await updateOpenGoogleLoginSetting(allowOpen, currentUser);
       showToast(
         'success',
-        count > 0
-          ? `Đã tạo ${count} đầu việc kiểm thử Giai đoạn B1 (T1, T1.1, T2)`
-          : 'Các đầu việc kiểm thử B1 đã tồn tại trên Firestore.'
+        allowOpen
+          ? 'Đã bật cho phép người mới đăng nhập Google ở quyền Viewer'
+          : 'Đã tắt đăng nhập mở cho tài khoản chưa được mời'
       );
     } catch (err) {
       showToast('error', formatActionError(err));
@@ -508,12 +521,14 @@ export default function App() {
   const handleUpdateMember = async (
     uid: string,
     email: string,
-    patch: Partial<Pick<ProjectMember, 'role' | 'canApprove' | 'isActive'>>
+    patch: Partial<
+      Pick<ProjectMember, 'role' | 'canApprove' | 'isActive' | 'sheetAlias' | 'displayName'>
+    >
   ) => {
     if (!currentUser || currentUser.role !== 'admin') return;
     try {
       await updateMemberInFirestore(uid, email, patch);
-      showToast('success', 'Đã cập nhật quyền thành viên');
+      showToast('success', 'Đã cập nhật thông tin thành viên');
     } catch (err) {
       showToast('error', formatActionError(err));
     }
@@ -896,9 +911,6 @@ export default function App() {
                 });
                 setRoute('tasks');
               }}
-              onSeedB1TestTasks={
-                isAdmin ? handleSeedB1TestTasks : undefined
-              }
             />
           )}
 
@@ -932,10 +944,12 @@ export default function App() {
               invites={invites}
               tasks={tasks}
               currentUser={currentUser}
+              authSettings={authSettings}
               adminTab={adminTab}
               onChangeAdminTab={setAdminTab}
               categoriesPanel={categoriesPanel}
               importPanel={importPanel}
+              onToggleOpenGoogleLogin={handleToggleOpenGoogleLogin}
               onAddInvite={handleAddInvite}
               onUpdateMember={handleUpdateMember}
               onUpdateInvite={handleUpdateInvite}

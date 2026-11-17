@@ -7,6 +7,7 @@ import {
   canUserEditTask,
   formatShortDate,
   getEffectiveCategory,
+  isB1TestTask,
   isTaskOverdue,
 } from '../utils/taskHelpers';
 import { StatusBadge } from './StatusBadge';
@@ -36,7 +37,7 @@ export const MyTasksView: React.FC<MyTasksViewProps> = ({
   );
   const [nextStepDraft, setNextStepDraft] = useState('');
 
-  const activeTasks = tasks.filter((t) => !t.archivedAt);
+  const activeTasks = tasks.filter((t) => !t.archivedAt && !isB1TestTask(t));
 
   // Primary filter: strictly Firebase UID; optional toggle shows text-labeled "Nhóm" items for visibility only
   const myTasks = activeTasks.filter((t) => {
@@ -108,7 +109,7 @@ export const MyTasksView: React.FC<MyTasksViewProps> = ({
       {myTasks.length === 0 ? (
         <div className="bg-white border border-slate-200 rounded-xl px-4 py-10 text-center">
           <p className="text-sm text-slate-600">
-            Hiện không có công việc nào được phân công theo UID cho {currentUser.displayName}.
+            Hiện bạn chưa được phân công đầu việc nào.
           </p>
         </div>
       ) : (

@@ -277,6 +277,17 @@ export function formatDateTime(iso: string | null): string {
   }).format(d);
 }
 
+export function isB1TestTask(
+  task: Pick<TaskItem, 'id' | 'isTestRecord'>
+): boolean {
+  if (task.id.startsWith('tbhgn_')) return false;
+  return (
+    Boolean(task.isTestRecord) ||
+    task.id.startsWith('b1_test_') ||
+    task.id.startsWith('test_task_')
+  );
+}
+
 export function exportTasksToCSV(
   tasks: TaskItem[],
   categories: CategoryItem[] = []
@@ -312,16 +323,16 @@ export function exportTasksToCSV(
       })
       .join('; ');
 
-  const activeTasks = tasks.filter((t) => !t.archivedAt);
+  const activeTasks = tasks.filter((t) => !t.archivedAt && !isB1TestTask(t));
   const rows = activeTasks.map((t) => {
     const progress =
       t.parentId === null
         ? (() => {
-            const p = computeParentProgress(t.id, tasks);
+            const p = computeParentProgress(t.id, activeTasks);
             return p.total > 0 ? `${p.completed}/${p.total}` : '';
           })()
         : '';
-    const effCat = getEffectiveCategory(t, tasks, categories);
+    const effCat = getEffectiveCategory(t, activeTasks, categories);
 
     return [
       t.id,

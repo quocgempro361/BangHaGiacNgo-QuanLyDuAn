@@ -13,6 +13,7 @@ import {
   X,
 } from 'lucide-react';
 import { CategoryItem, ProjectMember, TaskItem } from '../types/project';
+import { isB1TestTask } from '../utils/taskHelpers';
 import { StatusBadge } from './StatusBadge';
 
 interface CategoriesViewProps {
@@ -276,7 +277,9 @@ export const CategoriesView: React.FC<CategoriesViewProps> = ({
       ) : (
         <div className="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100 overflow-hidden">
           {sortedCategories.map((cat, idx) => {
-            const catTasks = tasks.filter((t) => t.categoryId === cat.id);
+            const catTasks = tasks.filter(
+              (t) => t.categoryId === cat.id && !isB1TestTask(t)
+            );
             const activeCatTasks = catTasks.filter((t) => !t.archivedAt);
             const isEditing = editingId === cat.id;
             const isExpanded = expandedCatId === cat.id;

@@ -11,13 +11,20 @@ import {
   Trash2,
   Unlock,
   UserCheck,
-  UserPlus,
+  Users,
 } from 'lucide-react';
-import { MemberInvite, ProjectMember, TaskItem, UserRole } from '../types/project';
+import {
+  AuthSettings,
+  MemberInvite,
+  ProjectMember,
+  TaskItem,
+  UserRole,
+} from '../types/project';
 import {
   buildMemberMappingPreview,
+  COLLECTIVE_GROUP_LABEL,
   EXPECTED_TBHGN_ACCOUNTS,
-  getSafeInviteDefaults,
+  formatStandardMemberLabel,
   isTemporaryAccountEmail,
 } from '../utils/memberMapping';
 
@@ -26,10 +33,12 @@ interface MembersViewProps {
   invites: MemberInvite[];
   tasks?: TaskItem[];
   currentUser: ProjectMember;
+  authSettings?: AuthSettings;
   adminTab?: 'members' | 'categories' | 'import';
   onChangeAdminTab?: (tab: 'members' | 'categories' | 'import') => void;
   categoriesPanel?: React.ReactNode;
   importPanel?: React.ReactNode;
+  onToggleOpenGoogleLogin?: (allowOpen: boolean) => Promise<void>;
   onAddInvite: (input: {
     displayName: string;
     email: string;
@@ -40,7 +49,9 @@ interface MembersViewProps {
   onUpdateMember: (
     uid: string,
     email: string,
-    patch: Partial<Pick<ProjectMember, 'role' | 'canApprove' | 'isActive'>>
+    patch: Partial<
+      Pick<ProjectMember, 'role' | 'canApprove' | 'isActive' | 'sheetAlias' | 'displayName'>
+    >
   ) => Promise<void>;
   onUpdateInvite: (
     email: string,
@@ -54,10 +65,12 @@ export const MembersView: React.FC<MembersViewProps> = ({
   invites,
   tasks = [],
   currentUser,
+  authSettings = { allowOpenGoogleLogin: false },
   adminTab = 'members',
   onChangeAdminTab,
   categoriesPanel,
   importPanel,
+  onToggleOpenGoogleLogin,
   onAddInvite,
   onUpdateMember,
   onUpdateInvite,
@@ -71,6 +84,7 @@ export const MembersView: React.FC<MembersViewProps> = ({
   const [role, setRole] = useState<UserRole>('member');
   const [canApprove, setCanApprove] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [togglingOpenLogin, setTogglingOpenLogin] = useState(false);
 
   const activeEmails = new Set(members.map((m) => m.email.toLowerCase()));
   const pendingInvites = invites.filter(
@@ -90,16 +104,14 @@ export const MembersView: React.FC<MembersViewProps> = ({
     [members, invites, tasks]
   );
 
-  const handlePrefillExpectedAccount = (
-    account: (typeof EXPECTED_TBHGN_ACCOUNTS)[number]
-  ) => {
-    const safe = getSafeInviteDefaults(account);
-    setDisplayName(safe.displayName);
-    setEmail(safe.email);
-    setSheetAlias(safe.sheetAlias);
-    setRole(safe.role);
-    setCanApprove(safe.canApprove);
-    setShowAddForm(true);
+  const handleToggleOpenLogin = async () => {
+    if (!isAdmin || !onToggleOpenGoogleLogin || togglingOpenLogin) return;
+    setTogglingOpenLogin(true);
+    try {
+      await onToggleOpenGoogleLogin(!authSettings.allowOpenGoogleLogin);
+    } finally {
+      setTogglingOpenLogin(false);
+    }
   };
 
   const handleEmailChange = (nextEmail: string) => {
@@ -129,7 +141,7 @@ export const MembersView: React.FC<MembersViewProps> = ({
         email: cleanEmail,
         role: safeRole,
         canApprove: safeCanApprove,
-        sheetAlias: sheetAlias.trim() || displayName.trim(),
+        sheetAlias: sheetAlias.trim(),
       });
       setDisplayName('');
       setEmail('');
@@ -154,7 +166,7 @@ export const MembersView: React.FC<MembersViewProps> = ({
               : 'Quản lý thành viên'}
           </h1>
           <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
-            Chỉ tài khoản Google được quản trị viên phê duyệt mới có quyền truy cập dữ liệu Firestore.
+            Quản lý tài khoản Google đăng nhập, vai trò và ghép thành viên với danh sách công việc.
           </p>
         </div>
 
@@ -225,7 +237,7 @@ export const MembersView: React.FC<MembersViewProps> = ({
               </div>
               <div className="text-xs text-slate-500 mt-0.5">
                 {currentUser.email}
-                {currentUser.sheetAlias ? ` · Tên đối chiếu: ${currentUser.sheetAlias}` : ''}
+                {currentUser.sheetAlias ? ` · Phụ trách tên: ${currentUser.sheetAlias}` : ''}
               </div>
             </div>
             <div className="text-xs text-slate-700 flex items-center gap-2 shrink-0">
@@ -246,19 +258,77 @@ export const MembersView: React.FC<MembersViewProps> = ({
         <>{importPanel}</>
       ) : (
         <>
+          {/* Admin-only Open Google Login Setting */}
+          <div className="bg-white border border-slate-200 rounded-xl p-4 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="space-y-0.5">
+                <div className="text-sm font-semibold text-[#13294B]">
+                  Cho phép người mới đăng nhập bằng Google
+                </div>
+                <p className="text-xs text-slate-600">
+                  {authSettings.allowOpenGoogleLogin
+                    ? 'Đang BẬT: Mọi tài khoản Google hợp lệ chưa được mời trước sẽ tự vào ở quyền Viewer (Chỉ đọc) để Admin xác nhận nâng quyền sau.'
+                    : 'Đang TẮT: Chỉ tài khoản đã được Admin mời hoặc đã có trong hệ thống mới đăng nhập được. Tắt không khóa thành viên cũ.'}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                role="switch"
+                aria-checked={authSettings.allowOpenGoogleLogin}
+                aria-label="Cho phép người mới đăng nhập bằng Google"
+                disabled={togglingOpenLogin}
+                onClick={handleToggleOpenLogin}
+                className={`inline-flex items-center gap-2.5 px-3 py-2 rounded-lg border text-xs font-semibold transition-colors shrink-0 min-h-[40px] disabled:opacity-50 ${
+                  authSettings.allowOpenGoogleLogin
+                    ? 'bg-[#13294B] text-white border-[#13294B]'
+                    : 'bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100'
+                }`}
+              >
+                <span
+                  className={`w-8 h-4 rounded-full relative transition-colors ${
+                    authSettings.allowOpenGoogleLogin ? 'bg-[#C59B27]' : 'bg-slate-300'
+                  }`}
+                >
+                  <span
+                    className={`absolute top-0.5 w-3 h-3 rounded-full bg-white transition-transform ${
+                      authSettings.allowOpenGoogleLogin ? 'left-4' : 'left-0.5'
+                    }`}
+                  />
+                </span>
+                <span>
+                  {togglingOpenLogin
+                    ? 'Đang lưu...'
+                    : authSettings.allowOpenGoogleLogin
+                    ? 'Đang BẬT (Viewer)'
+                    : 'Đang TẮT'}
+                </span>
+              </button>
+            </div>
+
+            {authSettings.allowOpenGoogleLogin && (
+              <div className="p-2.5 bg-[#FFF8E7] border border-[#D9A84E] rounded-lg text-xs text-[#7C4D00] flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>
+                  Lưu ý bảo mật: Khi bật chế độ này, bất kỳ tài khoản Gmail hợp lệ nào đều có thể xem dữ liệu công việc ở quyền Chỉ đọc (Viewer), nhưng không thể tạo, sửa, bình luận hay duyệt công việc.
+                </span>
+              </div>
+            )}
+          </div>
+
           {showAddForm && (
             <form
               onSubmit={handleSubmit}
               className="bg-white border border-slate-200 rounded-xl p-4 space-y-3"
             >
               <div className="text-sm font-semibold text-[#13294B]">
-                Cấp quyền truy cập cho email Google mới
+                Mời &amp; cấp quyền trước cho email Google
               </div>
               {isEmailTemporary && (
                 <div className="p-2.5 bg-[#FFF8E7] border border-[#D9A84E] rounded-lg text-xs text-[#7C4D00] flex items-start gap-2">
                   <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
                   <span>
-                    Email này là <strong>tài khoản tạm thời</strong> (B2.3). Hệ thống không tự cấp quyền Admin hoặc quyền phê duyệt; giữ vai trò mặc định là Member.
+                    Email này thuộc danh sách <strong>tài khoản tạm thời</strong>. Hệ thống không tự cấp quyền Admin hoặc quyền phê duyệt; giữ vai trò mặc định là Member.
                   </span>
                 </div>
               )}
@@ -291,15 +361,20 @@ export const MembersView: React.FC<MembersViewProps> = ({
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1">
-                    Tên đối chiếu trong Sheet
+                    Ghép tên trong công việc
                   </label>
-                  <input
-                    type="text"
+                  <select
                     value={sheetAlias}
                     onChange={(e) => setSheetAlias(e.target.value)}
-                    placeholder="VD: Quốc"
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#13294B]"
-                  />
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#13294B]"
+                  >
+                    <option value="">-- Chưa ghép --</option>
+                    {EXPECTED_TBHGN_ACCOUNTS.map((acc) => (
+                      <option key={acc.originalName} value={acc.originalName}>
+                        {formatStandardMemberLabel(acc)}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1">
@@ -359,18 +434,25 @@ export const MembersView: React.FC<MembersViewProps> = ({
             </form>
           )}
 
-          {/* Activated Users */}
+          {/* Signed-in Accounts: Role, Active Status & 1-click Pairing to 6 Project People */}
           <div className="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100 overflow-hidden">
-            <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600">
-              Thành viên đã kích hoạt ({members.length})
+            <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 flex items-center justify-between gap-2">
+              <span>Tài khoản đã đăng nhập ({members.length})</span>
+              <span className="font-normal text-slate-500">
+                Chọn người dự án tương ứng để ghép &amp; nâng quyền từ Viewer lên Member
+              </span>
             </div>
             {members.map((m) => {
               const isSelf = m.uid === currentUser.uid;
               const isTemp = isTemporaryAccountEmail(m.email);
+              const matchedSpec = EXPECTED_TBHGN_ACCOUNTS.find(
+                (acc) =>
+                  acc.originalName.toLowerCase() === m.sheetAlias.trim().toLowerCase()
+              );
               return (
                 <div
                   key={m.uid}
-                  className={`p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                  className={`p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3 ${
                     !m.isActive ? 'bg-slate-50 opacity-75' : ''
                   }`}
                 >
@@ -386,7 +468,7 @@ export const MembersView: React.FC<MembersViewProps> = ({
                       )}
                       {isTemp && (
                         <span className="text-[11px] font-medium text-[#7C4D00]">
-                          (Tài khoản tạm thời)
+                          (Tạm thời)
                         </span>
                       )}
                       {!m.isActive && (
@@ -394,23 +476,50 @@ export const MembersView: React.FC<MembersViewProps> = ({
                           Đã khóa
                         </span>
                       )}
+                      {m.role === 'viewer' && m.isActive && (
+                        <span className="text-[11px] font-medium text-slate-500">
+                          · Chỉ đọc (chờ nâng quyền)
+                        </span>
+                      )}
                     </div>
                     <div className="text-xs text-slate-500 mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
                       <span className="font-mono-tabular break-all">{m.email}</span>
-                      {m.sheetAlias && (
+                      {matchedSpec ? (
+                        <>
+                          <span aria-hidden="true">·</span>
+                          <span className="text-emerald-800 font-medium">
+                            Đã ghép: {formatStandardMemberLabel(matchedSpec)}
+                          </span>
+                        </>
+                      ) : m.sheetAlias ? (
                         <>
                           <span aria-hidden="true">·</span>
                           <span>Tên đối chiếu: {m.sheetAlias}</span>
                         </>
-                      )}
-                      <span aria-hidden="true">·</span>
-                      <span className="font-mono-tabular text-[11px] text-slate-400 break-all">
-                        UID: {m.uid}
-                      </span>
+                      ) : null}
                     </div>
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    <select
+                      aria-label={`Ghép thành viên dự án cho ${m.displayName}`}
+                      value={matchedSpec ? matchedSpec.originalName : ''}
+                      onChange={(e) => {
+                        const nextAlias = e.target.value;
+                        onUpdateMember(m.uid, m.email, {
+                          sheetAlias: nextAlias,
+                        });
+                      }}
+                      className="px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-800 min-h-[38px]"
+                    >
+                      <option value="">-- Ghép người dự án --</option>
+                      {EXPECTED_TBHGN_ACCOUNTS.map((acc) => (
+                        <option key={acc.originalName} value={acc.originalName}>
+                          {formatStandardMemberLabel(acc)}
+                        </option>
+                      ))}
+                    </select>
+
                     <select
                       aria-label={`Vai trò của ${m.displayName}`}
                       value={m.role}
@@ -497,7 +606,7 @@ export const MembersView: React.FC<MembersViewProps> = ({
             <div className="bg-white border border-slate-200 rounded-xl divide-y divide-slate-100 overflow-hidden">
               <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5" />
-                <span>Chờ đăng nhập Google lần đầu ({pendingInvites.length})</span>
+                <span>Đã mời trước · Chờ đăng nhập Google ({pendingInvites.length})</span>
               </div>
               {pendingInvites.map((inv) => {
                 const isTemp = isTemporaryAccountEmail(inv.email);
@@ -513,14 +622,18 @@ export const MembersView: React.FC<MembersViewProps> = ({
                         </span>
                         {isTemp && (
                           <span className="text-[11px] font-medium text-[#7C4D00]">
-                            (Tài khoản tạm thời)
+                            (Tạm thời)
                           </span>
                         )}
                       </div>
                       <div className="text-xs text-slate-500 mt-0.5 flex flex-wrap items-center gap-x-2">
                         <span className="font-mono-tabular break-all">{inv.email}</span>
-                        <span aria-hidden="true">·</span>
-                        <span>Tên đối chiếu: {inv.sheetAlias}</span>
+                        {inv.sheetAlias && (
+                          <>
+                            <span aria-hidden="true">·</span>
+                            <span>Ghép: {inv.sheetAlias}</span>
+                          </>
+                        )}
                       </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-2 shrink-0">
@@ -559,42 +672,28 @@ export const MembersView: React.FC<MembersViewProps> = ({
             </div>
           )}
 
-          {/* Stage B2.3: Member Mapping Preparation & Preview (Read-only, NO bulk assignment) */}
+          {/* 6 Standardized Project Members & Task Pairing Overview */}
           <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
             <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
                 <h2 className="text-sm font-semibold text-[#13294B]">
-                  Chuẩn bị &amp; Xem trước ánh xạ thành viên (Giai đoạn B2.3)
+                  Danh sách 6 thành viên dự án &amp; đối chiếu công việc
                 </h2>
                 <p className="text-xs text-slate-600 mt-0.5">
-                  Đối chiếu danh sách tài khoản dự kiến với {mappingPreview.scopeLabel}. Chỉ ánh xạ UID sau khi tài khoản đã đăng nhập và Admin xác nhận.
+                  Tổng hợp từ {mappingPreview.scopeLabel}. Việc chưa xác nhận tài khoản vẫn giữ nguyên tên phụ trách gốc.
                 </p>
               </div>
-              <span className="text-[11px] font-medium text-[#13294B] whitespace-nowrap">
-                Chỉ xem trước · Chưa gán UID hàng loạt
+              <span className="text-xs font-medium text-slate-600 whitespace-nowrap">
+                {mappingPreview.signedInExpectedCount}/{EXPECTED_TBHGN_ACCOUNTS.length} đã liên kết tài khoản
               </span>
             </div>
 
             <div className="p-4 space-y-4">
-              {/* Guardrail & Workflow Notice */}
-              <div className="p-3 bg-[#FFF8E7] border border-[#D9A84E] rounded-lg text-xs text-[#7C4D00] flex items-start gap-2.5">
-                <Info className="w-4 h-4 shrink-0 mt-0.5" />
-                <div className="space-y-1">
-                  <div className="font-semibold">
-                    Nguyên tắc bảo toàn dữ liệu B2.3
-                  </div>
-                  <p>
-                    Dừng ở bước chuẩn bị &amp; xem trước ánh xạ. Công việc chưa gắn Firebase UID giữ nguyên trạng thái{' '}
-                    <strong>“Chưa liên kết tài khoản”</strong>. Tài khoản tạm thời không được tự cấp Admin hay quyền phê duyệt. Khi chuyển sang tài khoản chính thức sau này, Admin chỉ cần gán UID mới và bỏ tích UID cũ trong chi tiết từng công việc — toàn bộ trạng thái, liên kết nghiên cứu và lịch sử cập nhật vẫn giữ nguyên.
-                  </p>
-                </div>
-              </div>
-
               {/* Compact Summary Strip */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="p-3 border border-slate-200 rounded-lg">
                   <div className="text-[11px] text-slate-500">
-                    Tài khoản dự kiến đã đăng nhập
+                    Thành viên đã có tài khoản
                   </div>
                   <div className="text-base font-bold font-mono-tabular text-[#13294B] mt-0.5">
                     {mappingPreview.signedInExpectedCount} / {EXPECTED_TBHGN_ACCOUNTS.length}
@@ -606,46 +705,54 @@ export const MembersView: React.FC<MembersViewProps> = ({
 
                 <div className="p-3 border border-slate-200 rounded-lg">
                   <div className="text-[11px] text-slate-500">
-                    Tài khoản tạm thời (B2.3)
+                    Gmail dự kiến tạm thời
                   </div>
                   <div className="text-base font-bold font-mono-tabular text-slate-900 mt-0.5">
                     {mappingPreview.temporaryExpectedCount} tài khoản
                   </div>
                   <div className="text-[11px] text-slate-500 mt-0.5">
-                    Mặc định Member · không quyền duyệt
+                    Không tự cấp Admin hay quyền duyệt
                   </div>
                 </div>
 
                 <div className="p-3 border border-slate-200 rounded-lg">
                   <div className="text-[11px] text-slate-500">
-                    Việc ở trạng thái Chưa liên kết tài khoản
+                    Công việc chưa liên kết tài khoản
                   </div>
                   <div className="text-base font-bold font-mono-tabular text-[#7C4D00] mt-0.5">
                     {mappingPreview.tasksUnlinkedUidCount} / {mappingPreview.scopeTaskCount}
                   </div>
                   <div className="text-[11px] text-slate-500 mt-0.5">
-                    {mappingPreview.tasksWithTextButNoUidCount} việc có tên text · {mappingPreview.tasksNoAssigneeAtAllCount} việc chưa phân công
+                    {mappingPreview.tasksWithTextButNoUidCount} việc có tên · {mappingPreview.tasksNoAssigneeAtAllCount} việc chưa phân công
                   </div>
                 </div>
               </div>
 
-              {/* Expected Accounts Checklist */}
+              {/* 6 Standardized Members List */}
               <div className="border border-slate-200 rounded-lg overflow-hidden">
                 <div className="px-3.5 py-2 bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-700">
-                  1. Danh sách tài khoản dự kiến (5 tài khoản)
+                  1. 6 thành viên trong dự án (giữ nguyên tên gốc trên công việc)
                 </div>
                 <div className="divide-y divide-slate-100">
                   {mappingPreview.accountRows.map((row) => {
-                    const { account, signInStatus, matchedMember, matchingTaskCodes, linkedTaskCodes, readyToConfirmCount, hasPrivilegeWarning } = row;
+                    const {
+                      account,
+                      signInStatus,
+                      matchedMember,
+                      matchingTaskCodes,
+                      linkedTaskCodes,
+                      readyToConfirmCount,
+                      hasPrivilegeWarning,
+                    } = row;
                     return (
                       <div
-                        key={account.email}
+                        key={account.originalName}
                         className="p-3.5 flex flex-col md:flex-row md:items-center justify-between gap-2.5 text-xs"
                       >
                         <div className="min-w-0 space-y-0.5">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-semibold text-slate-900 text-sm">
-                              {account.displayName}
+                              {formatStandardMemberLabel(account)}
                             </span>
                             <span className="font-mono-tabular text-slate-600 break-all">
                               {account.email}
@@ -662,7 +769,7 @@ export const MembersView: React.FC<MembersViewProps> = ({
                           </div>
                           <div className="text-[11px] text-slate-500 flex flex-wrap items-center gap-x-2 gap-y-0.5">
                             <span>
-                              Khớp tên trong dữ liệu:{' '}
+                              Công việc mang tên &ldquo;{account.originalName}&rdquo;:{' '}
                               <strong className="text-slate-700">
                                 {matchingTaskCodes.length} việc
                               </strong>
@@ -672,7 +779,7 @@ export const MembersView: React.FC<MembersViewProps> = ({
                             </span>
                             <span aria-hidden="true">·</span>
                             <span>
-                              Đã gắn UID:{' '}
+                              Đã xác nhận quyền sửa:{' '}
                               <strong className="text-slate-700">
                                 {linkedTaskCodes.length}/{matchingTaskCodes.length}
                               </strong>
@@ -680,8 +787,8 @@ export const MembersView: React.FC<MembersViewProps> = ({
                             {matchedMember && (
                               <>
                                 <span aria-hidden="true">·</span>
-                                <span className="font-mono-tabular text-slate-500 break-all">
-                                  UID: {matchedMember.uid} ({matchedMember.role}
+                                <span className="text-slate-600">
+                                  Tài khoản: {matchedMember.email} ({matchedMember.role}
                                   {matchedMember.canApprove ? ', Được duyệt' : ''})
                                 </span>
                               </>
@@ -702,24 +809,20 @@ export const MembersView: React.FC<MembersViewProps> = ({
                                 {matchedMember && !matchedMember.isActive
                                   ? 'Đã đăng nhập (Đã khóa)'
                                   : readyToConfirmCount > 0
-                                  ? `Đã đăng nhập · ${readyToConfirmCount} việc chờ Admin xác nhận`
-                                  : 'Đã đăng nhập'}
+                                  ? `Đã đăng nhập · ${readyToConfirmCount} việc chờ xác nhận`
+                                  : 'Đã đăng nhập & ghép đủ'}
                               </span>
                             </span>
                           ) : signInStatus === 'invited_pending' ? (
                             <span className="inline-flex items-center gap-1.5 text-slate-600 font-medium">
                               <Clock className="w-3.5 h-3.5" />
-                              <span>Đã mời · Chờ đăng nhập (chưa có UID)</span>
+                              <span>Đã mời · Chờ đăng nhập Google</span>
                             </span>
                           ) : (
-                            <button
-                              type="button"
-                              onClick={() => handlePrefillExpectedAccount(account)}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-slate-200 rounded-lg bg-white text-[#13294B] hover:bg-slate-50"
-                            >
-                              <UserPlus className="w-3.5 h-3.5" />
-                              <span>Điền sẵn mời (Member)</span>
-                            </button>
+                            <span className="inline-flex items-center gap-1.5 text-[#7C4D00] font-medium">
+                              <Link2Off className="w-3.5 h-3.5" />
+                              <span>Chưa liên kết tài khoản</span>
+                            </span>
                           )}
                         </div>
                       </div>
@@ -728,10 +831,10 @@ export const MembersView: React.FC<MembersViewProps> = ({
                 </div>
               </div>
 
-              {/* Alias -> UID Mapping Preview Table */}
+              {/* Alias -> Account Overview + Separate Collective "Nhóm" Note */}
               <div className="border border-slate-200 rounded-lg overflow-hidden">
                 <div className="px-3.5 py-2 bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-700">
-                  2. Xem trước đối chiếu tên thực hiện trong công việc ↔ Firebase UID ({mappingPreview.aliasRows.length} tên)
+                  2. Trạng thái đối chiếu từng thành viên trong {mappingPreview.scopeLabel}
                 </div>
                 {mappingPreview.aliasRows.length === 0 ? (
                   <div className="p-4 text-xs text-slate-500">
@@ -747,7 +850,9 @@ export const MembersView: React.FC<MembersViewProps> = ({
                         <div className="min-w-0 space-y-0.5">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-semibold text-slate-900">
-                              {row.alias}
+                              {row.expectedAccount
+                                ? formatStandardMemberLabel(row.expectedAccount)
+                                : row.alias}
                             </span>
                             <span className="text-slate-500">
                               ({row.taskCount} việc: {row.taskCodes.join(', ')})
@@ -756,26 +861,26 @@ export const MembersView: React.FC<MembersViewProps> = ({
                           <div className="text-[11px] text-slate-500">
                             {row.matchedMembers.length > 0 ? (
                               <span>
-                                Tài khoản khớp:{' '}
+                                Tài khoản đã ghép:{' '}
                                 {row.matchedMembers
-                                  .map((m) => `${m.email} (${m.uid})`)
-                                  .join('; ')}
+                                  .map((m) => m.email)
+                                  .join(', ')}
                               </span>
                             ) : row.matchedPendingInvites.length > 0 ? (
                               <span>
-                                Đã gửi lời mời tới{' '}
+                                Đã mời{' '}
                                 {row.matchedPendingInvites
                                   .map((i) => i.email)
                                   .join(', ')}{' '}
-                                — chờ đăng nhập Google lần đầu để lấy UID.
+                                — chờ đăng nhập lần đầu.
                               </span>
                             ) : row.expectedAccount ? (
                               <span>
-                                Dự kiến tài khoản: {row.expectedAccount.email} — chưa đăng nhập, giữ nguyên tên hiển thị.
+                                Gmail dự kiến: {row.expectedAccount.email} — chưa liên kết tài khoản.
                               </span>
                             ) : (
                               <span>
-                                Chưa có tài khoản Google tương ứng — giữ nguyên tên hiển thị gốc.
+                                Chưa có tài khoản tương ứng — giữ nguyên tên gốc.
                               </span>
                             )}
                           </div>
@@ -805,6 +910,23 @@ export const MembersView: React.FC<MembersViewProps> = ({
                     ))}
                   </div>
                 )}
+
+                {mappingPreview.collectiveGroupTaskCodes.length > 0 && (
+                  <div className="px-3.5 py-2.5 bg-slate-50 border-t border-slate-200 text-xs text-slate-600 flex items-center gap-2">
+                    <Users className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                    <span>
+                      Nhãn tập thể <strong>&ldquo;{COLLECTIVE_GROUP_LABEL}&rdquo;</strong> (việc{' '}
+                      {mappingPreview.collectiveGroupTaskCodes.join(', ')}) là nhóm làm việc chung, không phải tài khoản Google cá nhân.
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-600 flex items-start gap-2">
+                <Info className="w-4 h-4 shrink-0 mt-0.5 text-slate-500" />
+                <span>
+                  Khi muốn thay đổi người phụ trách sang tài khoản Google chính thức sau này, Admin mở chi tiết công việc, tích chọn tài khoản mới và bỏ tích tài khoản cũ — toàn bộ trạng thái, liên kết tài liệu và lịch sử cập nhật vẫn được giữ nguyên.
+                </span>
               </div>
             </div>
           </div>
@@ -813,4 +935,3 @@ export const MembersView: React.FC<MembersViewProps> = ({
     </div>
   );
 };
-

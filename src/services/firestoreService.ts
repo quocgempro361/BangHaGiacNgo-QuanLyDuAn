@@ -19,6 +19,7 @@ import {
 import { db, handleFirestoreError, OperationType } from '../firebase';
 import {
   ActivityLog,
+  AuthSettings,
   CategoryItem,
   MemberInvite,
   ProjectMember,
@@ -278,6 +279,45 @@ export async function resolveUserMembership(
     // Fallback cleanly to unauthorized if verification endpoint unavailable
   }
 
+  // Check if Open Google Login is enabled by Admin (/settings/auth)
+  if (emailLower && authUser.emailVerified) {
+    const settingsPath = 'settings/auth';
+    try {
+      const settingsSnap = await getDoc(doc(db, 'settings', 'auth'));
+      const allowOpen =
+        settingsSnap.exists() &&
+        Boolean(
+          (settingsSnap.data() as Record<string, unknown>)?.allowOpenGoogleLogin
+        );
+
+      if (allowOpen) {
+        const viewerPayload = {
+          uid: authUser.uid,
+          email: emailLower,
+          displayName: authUser.displayName || emailLower,
+          sheetAlias: '',
+          role: 'viewer' as const,
+          canApprove: false,
+          isActive: true,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        };
+        await setDoc(doc(db, 'users', authUser.uid), viewerPayload);
+        const createdSnap = await getDoc(doc(db, 'users', authUser.uid));
+        const profile = mapUserDoc(
+          createdSnap.id,
+          createdSnap.data() as Record<string, unknown>
+        );
+        return { status: 'active', profile };
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message.toLowerCase() : '';
+      if (!msg.includes('permission') && !msg.includes('missing')) {
+        handleFirestoreError(error, OperationType.GET, settingsPath);
+      }
+    }
+  }
+
   return { status: 'unauthorized', email: emailLower };
 }
 
@@ -419,6 +459,56 @@ export function subscribeInvites(
       }
     }
   );
+}
+
+export function subscribeAuthSettings(
+  onData: (settings: AuthSettings) => void,
+  onError: (err: Error) => void
+): Unsubscribe {
+  return onSnapshot(
+    doc(db, 'settings', 'auth'),
+    (snap) => {
+      if (!snap.exists()) {
+        onData({
+          allowOpenGoogleLogin: false,
+          updatedAt: null,
+          updatedBy: null,
+        });
+        return;
+      }
+      const data = snap.data() as Record<string, unknown>;
+      onData({
+        allowOpenGoogleLogin: Boolean(data.allowOpenGoogleLogin),
+        updatedAt: toIsoString(data.updatedAt),
+        updatedBy: typeof data.updatedBy === 'string' ? data.updatedBy : null,
+      });
+    },
+    (error) => {
+      try {
+        handleFirestoreError(error, OperationType.GET, 'settings/auth');
+      } catch (wrapped) {
+        onError(wrapped as Error);
+      }
+    }
+  );
+}
+
+export async function updateOpenGoogleLoginSetting(
+  allowOpenGoogleLogin: boolean,
+  adminUser: ProjectMember
+): Promise<void> {
+  const path = 'settings/auth';
+  try {
+    await setDoc(doc(db, 'settings', 'auth'), {
+      allowOpenGoogleLogin,
+      updatedAt: serverTimestamp(),
+      updatedBy: adminUser.uid,
+    });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path, {
+      allowOpenGoogleLogin,
+    });
+  }
 }
 
 export function subscribeTaskComments(
@@ -664,10 +754,11 @@ export function buildCreateTaskPayloads(
     sortOrder: number;
   },
   currentUser: ProjectMember,
-  ids?: { taskId?: string; logId?: string }
+  ids?: { taskId?: string; logId?: string; isTestRecord?: boolean }
 ) {
   const suffix = generateUniqueSuffix();
-  const taskId = ids?.taskId ?? `test_task_${suffix}`;
+  const isTestRecord = ids?.isTestRecord ?? true;
+  const taskId = ids?.taskId ?? `${isTestRecord ? 'test_task_' : 'task_'}${suffix}`;
   const logId = ids?.logId ?? `log_${suffix}`;
   const actorDisplayName = (
     currentUser.displayName ||
@@ -702,7 +793,7 @@ export function buildCreateTaskPayloads(
     updatedByUid: currentUser.uid,
     archivedAt: null,
     archivedBy: null,
-    isTestRecord: true,
+    isTestRecord,
   };
 
   const logPayload = {
@@ -711,7 +802,9 @@ export function buildCreateTaskPayloads(
     actorUid: currentUser.uid,
     actorName: actorDisplayName,
     action: 'create' as const,
-    summary: `Tạo đầu việc kiểm thử (${input.displayCode})`,
+    summary: isTestRecord
+      ? `Tạo đầu việc kiểm thử (${input.displayCode})`
+      : `Tạo công việc mới (${input.displayCode})`,
     createdAt: nowTs,
   };
 
@@ -739,7 +832,11 @@ export async function createTaskInFirestore(
 ): Promise<string> {
   const { taskId, logId, taskPayload, logPayload } = buildCreateTaskPayloads(
     input,
-    currentUser
+    currentUser,
+    {
+      taskId: `task_${generateUniqueSuffix()}`,
+      isTestRecord: false,
+    }
   );
   const taskRef = doc(db, 'tasks', taskId);
   const logRef = doc(db, 'tasks', taskId, 'activityLogs', logId);
@@ -757,7 +854,7 @@ export async function createTaskInFirestore(
       categoryId: input.categoryId,
       assigneeUidsCount: input.assigneeUids.length,
       status: input.status,
-      isTestRecord: true,
+      isTestRecord: false,
     });
   }
 }

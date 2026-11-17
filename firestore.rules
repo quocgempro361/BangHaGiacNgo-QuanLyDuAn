@@ -49,6 +49,10 @@ service cloud.firestore {
       return /databases/$(database)/documents/invites/$(emailLower);
     }
 
+    function settingsDocPath(docId) {
+      return /databases/$(database)/documents/settings/$(docId);
+    }
+
     function hasUserProfile() {
       return isVerifiedUser() && exists(userDocPath(request.auth.uid));
     }
@@ -78,6 +82,12 @@ service cloud.firestore {
       let uPath = userDocPath(request.auth.uid);
       let p = get(uPath).data;
       return isVerifiedUser() && exists(uPath) && p.isActive == true && p.role == 'viewer';
+    }
+
+    function isActiveNonViewer() {
+      let uPath = userDocPath(request.auth.uid);
+      let p = get(uPath).data;
+      return isVerifiedUser() && exists(uPath) && p.isActive == true && p.role != 'viewer';
     }
 
     function isApprover() {
@@ -158,6 +168,14 @@ service cloud.firestore {
         && data.updatedAt is timestamp;
     }
 
+    function isValidAuthSettings(data) {
+      return data.keys().hasAll(['allowOpenGoogleLogin', 'updatedAt', 'updatedBy'])
+        && data.keys().hasOnly(['allowOpenGoogleLogin', 'updatedAt', 'updatedBy'])
+        && data.allowOpenGoogleLogin is bool
+        && data.updatedBy == request.auth.uid
+        && data.updatedAt == request.time;
+    }
+
     function isValidCategory(data) {
       return data.keys().hasAll(['name', 'color', 'sortOrder', 'isActive', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy'])
         && data.keys().hasOnly(['name', 'color', 'sortOrder', 'isActive', 'createdAt', 'updatedAt', 'createdBy', 'updatedBy'])
@@ -227,6 +245,52 @@ service cloud.firestore {
         && data.action in ['create', 'update', 'status_change', 'approve', 'comment', 'archive', 'restore']
         && data.summary is string && data.summary.size() >= 1 && data.summary.size() <= 500
         && data.createdAt is timestamp;
+    }
+
+    function matchesActiveInvite(data, iPath) {
+      let inv = get(iPath).data;
+      return inv.isActive == true
+        && data.role == inv.role
+        && data.canApprove == inv.canApprove
+        && data.sheetAlias == inv.sheetAlias;
+    }
+
+    function isOpenGoogleLoginEnabled() {
+      let sPath = settingsDocPath('auth');
+      return exists(sPath) && get(sPath).data.allowOpenGoogleLogin == true;
+    }
+
+    function canCreateOwnUserProfile(uid) {
+      let data = request.resource.data;
+      let e = userEmail();
+      let iPath = inviteDocPath(e);
+      let hasInvite = exists(iPath);
+      return isVerifiedUser()
+        && isValidId(uid)
+        && request.auth.uid == uid
+        && isValidUserProfile(data, uid)
+        && data.email.lower() == e
+        && data.isActive == true
+        && data.createdAt == request.time
+        && data.updatedAt == request.time
+        && (
+          (
+            isBootstrapOwner()
+            && data.role == 'admin'
+            && data.canApprove == true
+          )
+          || (
+            hasInvite
+            && matchesActiveInvite(data, iPath)
+          )
+          || (
+            !hasInvite
+            && isOpenGoogleLoginEnabled()
+            && data.role == 'viewer'
+            && data.canApprove == false
+            && data.sheetAlias == ''
+          )
+        );
     }
 
     function canCreateTask(taskId) {
@@ -365,29 +429,7 @@ service cloud.firestore {
       allow get: if isVerifiedUser() && isValidId(uid) && (request.auth.uid == uid || isAdmin());
       allow list: if isAdmin();
 
-      allow create: if isVerifiedUser()
-        && isValidId(uid)
-        && request.auth.uid == uid
-        && isValidUserProfile(incoming(), uid)
-        && incoming().email.lower() == userEmail()
-        && incoming().createdAt == request.time
-        && incoming().updatedAt == request.time
-        && (
-          (
-            isBootstrapOwner()
-            && incoming().role == 'admin'
-            && incoming().canApprove == true
-            && incoming().isActive == true
-          )
-          || (
-            exists(inviteDocPath(userEmail()))
-            && get(inviteDocPath(userEmail())).data.isActive == true
-            && incoming().role == get(inviteDocPath(userEmail())).data.role
-            && incoming().canApprove == get(inviteDocPath(userEmail())).data.canApprove
-            && incoming().isActive == true
-            && incoming().sheetAlias == get(inviteDocPath(userEmail())).data.sheetAlias
-          )
-        );
+      allow create: if canCreateOwnUserProfile(uid);
 
       allow update: if isAdmin()
         && isValidId(uid)
@@ -425,6 +467,20 @@ service cloud.firestore {
         && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'sheetAlias', 'role', 'canApprove', 'isActive', 'updatedAt']);
 
       allow delete: if isAdmin() && isValidEmailId(emailId);
+    }
+
+    // ---------------------------------------------------------
+    // Collection: /settings/{docId} (Admin-controlled app auth settings)
+    // ---------------------------------------------------------
+    match /settings/{docId} {
+      allow get: if isVerifiedUser() && docId == 'auth';
+      allow list: if false;
+
+      allow create, update: if isAdmin()
+        && docId == 'auth'
+        && isValidAuthSettings(incoming());
+
+      allow delete: if false;
     }
 
     // ---------------------------------------------------------
@@ -475,8 +531,7 @@ service cloud.firestore {
         allow get: if isActiveMember() && isValidId(taskId) && isValidId(commentId);
         allow list: if isActiveMember() && isValidId(taskId);
 
-        allow create: if isActiveMember()
-          && !isViewerRole()
+        allow create: if isActiveNonViewer()
           && isValidId(taskId)
           && isValidId(commentId)
           && exists(/databases/$(database)/documents/tasks/$(taskId))

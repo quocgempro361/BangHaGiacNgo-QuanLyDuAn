@@ -33,6 +33,7 @@ import {
   canUserEditTask,
   formatDateTime,
   getEffectiveCategory,
+  isB1TestTask,
   REVIEW_FLAG_LABELS,
 } from '../utils/taskHelpers';
 import { computeUpdatedAssigneeNamesOnUidToggle } from '../utils/memberMapping';
@@ -144,7 +145,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     ? allTasks.find((t) => t.id === task.parentId) ?? null
     : null;
   const childTasks = allTasks.filter(
-    (t) => t.parentId === task.id && !t.archivedAt
+    (t) => t.parentId === task.id && !t.archivedAt && !isB1TestTask(t)
   );
   const effCategory = getEffectiveCategory(task, allTasks, categories);
   const sortedCategories = [...categories].sort(
@@ -551,7 +552,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg space-y-2.5 text-xs">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="font-semibold text-[#13294B]">
-                      Phân quyền theo Firebase UID (Admin)
+                      Phân công tài khoản phụ trách (Admin)
                     </span>
                     {assigneeUids.length === 0 && (
                       <span className="text-[11px] font-medium text-[#7C4D00]">
@@ -560,7 +561,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     )}
                   </div>
                   <p className="text-[11px] text-slate-500">
-                    Quyền sửa &amp; tạo việc con chỉ dựa vào UID được tích bên dưới. Khi đổi sang tài khoản chính thức sau này, chỉ cần tích UID mới và bỏ tích UID cũ để thu hồi quyền mà vẫn giữ nguyên công việc và lịch sử.
+                    Quyền sửa và tạo việc con dựa vào tài khoản được tích bên dưới. Khi chuyển sang tài khoản chính thức sau này, Admin chỉ cần tích tài khoản mới và bỏ tích tài khoản cũ để thu hồi quyền mà vẫn giữ nguyên công việc và lịch sử.
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {members
@@ -592,6 +593,9 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                           />
                           <span>
                             {m.displayName}
+                            {m.sheetAlias && m.sheetAlias !== m.displayName
+                              ? ` (${m.sheetAlias})`
+                              : ''}
                             {!m.isActive ? ' (Đã khóa)' : ''}
                           </span>
                         </label>
@@ -600,7 +604,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   {members.some((m) => m.canApprove && m.role !== 'admin') && (
                     <div className="pt-1 border-t border-slate-200">
                       <div className="text-[11px] text-slate-600 mb-1">
-                        Phạm vi người có quyền duyệt (canApprove):
+                        Phạm vi người có quyền duyệt công việc:
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {members
@@ -619,7 +623,13 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                                   )
                                 }
                               />
-                              <span>{m.displayName} (Duyệt)</span>
+                              <span>
+                                {m.displayName}
+                                {m.sheetAlias && m.sheetAlias !== m.displayName
+                                  ? ` (${m.sheetAlias})`
+                                  : ''}{' '}
+                                (Duyệt)
+                              </span>
                             </label>
                           ))}
                       </div>

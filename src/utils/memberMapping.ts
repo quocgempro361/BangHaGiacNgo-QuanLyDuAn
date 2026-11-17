@@ -1,48 +1,69 @@
 import { MemberInvite, ProjectMember, TaskItem, UserRole } from '../types/project';
+import { isB1TestTask } from './taskHelpers';
 
 export interface ExpectedAccountSpec {
   email: string;
+  originalName: string;
   displayName: string;
   sheetAlias: string;
   isTemporary: boolean;
   note: string;
 }
 
+export const COLLECTIVE_GROUP_LABEL = 'Nhóm';
+
+/**
+ * 6 standardized project members sourced strictly from the 20 official TBHGN tasks.
+ * "Nhóm" is a collective label, not a personal Google account.
+ */
 export const EXPECTED_TBHGN_ACCOUNTS: ExpectedAccountSpec[] = [
   {
     email: 'tduyquoc@gmail.com',
+    originalName: 'Quốc',
     displayName: 'Quốc',
     sheetAlias: 'Quốc',
     isTemporary: false,
-    note: 'Tài khoản chính thức (đã đăng nhập ứng dụng)',
-  },
-  {
-    email: 'filmfata01@gmail.com',
-    displayName: 'Sư Phụ',
-    sheetAlias: 'Sư Phụ',
-    isTemporary: true,
-    note: 'Tài khoản tạm thời · chỉ Member, không cấp Admin/quyền duyệt',
+    note: 'Tài khoản chính thức (đã đăng nhập)',
   },
   {
     email: 'filmfata02@gmail.com',
+    originalName: 'Khánh',
     displayName: 'Khánh',
     sheetAlias: 'Khánh',
     isTemporary: true,
-    note: 'Tài khoản tạm thời · chỉ Member, không cấp Admin/quyền duyệt',
-  },
-  {
-    email: 'filmfata03@gmail.com',
-    displayName: 'Tuấn',
-    sheetAlias: 'Tuấn',
-    isTemporary: true,
-    note: 'Tài khoản tạm thời · chỉ Member, không cấp Admin/quyền duyệt',
+    note: 'Gmail dự kiến tạm thời · chỉ Member, không cấp Admin/quyền duyệt',
   },
   {
     email: 'filmfata04@gmail.com',
+    originalName: 'Mỵ',
     displayName: 'Mỵ',
     sheetAlias: 'Mỵ',
     isTemporary: true,
-    note: 'Tài khoản tạm thời · chỉ Member, không cấp Admin/quyền duyệt',
+    note: 'Gmail dự kiến tạm thời · chỉ Member, không cấp Admin/quyền duyệt',
+  },
+  {
+    email: 'filmfata03@gmail.com',
+    originalName: 'Khả Tuệ',
+    displayName: 'Tuấn',
+    sheetAlias: 'Khả Tuệ',
+    isTemporary: true,
+    note: 'Khả Tuệ (tên gọi: Tuấn) · Gmail dự kiến tạm thời, không cấp Admin/quyền duyệt',
+  },
+  {
+    email: 'filmfata01@gmail.com',
+    originalName: 'Sư Minh Hạnh',
+    displayName: 'Sư Phụ',
+    sheetAlias: 'Sư Minh Hạnh',
+    isTemporary: true,
+    note: 'Sư Minh Hạnh (tên gọi: Sư Phụ) · Gmail dự kiến tạm thời, không cấp Admin/quyền duyệt',
+  },
+  {
+    email: 'filmfata05@gmail.com',
+    originalName: 'Sư Pháp Tín',
+    displayName: 'Sư Pháp Tín',
+    sheetAlias: 'Sư Pháp Tín',
+    isTemporary: true,
+    note: 'Gmail dự kiến tạm thời · chỉ Member, không cấp Admin/quyền duyệt',
   },
 ];
 
@@ -69,10 +90,33 @@ export function getSafeInviteDefaults(account: ExpectedAccountSpec): {
   return {
     displayName: account.displayName,
     email: account.email.toLowerCase(),
-    sheetAlias: account.sheetAlias,
+    sheetAlias: account.originalName,
     role: 'member',
     canApprove: false,
   };
+}
+
+export function formatStandardMemberLabel(spec: ExpectedAccountSpec): string {
+  return spec.originalName !== spec.displayName
+    ? `${spec.originalName} (${spec.displayName})`
+    : spec.displayName;
+}
+
+/**
+ * Matches a signed-in member profile to one of the 6 standardized project people.
+ * - Requires exact sheetAlias == spec.originalName (Admin-confirmed pairing)
+ * - Or expectedEmail when sheetAlias is unset (never matches Admin email by displayName similarity)
+ */
+export function doesMemberMatchProjectPerson(
+  member: Pick<ProjectMember, 'email' | 'sheetAlias'>,
+  spec: Pick<ExpectedAccountSpec, 'email' | 'originalName'>
+): boolean {
+  const sa = normalizeTextKey(member.sheetAlias);
+  const orig = normalizeTextKey(spec.originalName);
+  if (sa) {
+    return sa === orig;
+  }
+  return normalizeTextKey(member.email) === normalizeTextKey(spec.email);
 }
 
 export function doesPersonMatchAlias(
@@ -83,7 +127,7 @@ export function doesPersonMatchAlias(
   if (!target) return false;
   const dn = normalizeTextKey(person.displayName);
   const sa = normalizeTextKey(person.sheetAlias);
-  return target === dn || target === sa;
+  return target === sa || target === dn;
 }
 
 export type ExpectedAccountSignInStatus =
@@ -126,6 +170,7 @@ export interface MemberMappingPreview {
   tasksUnlinkedUidCount: number;
   tasksWithTextButNoUidCount: number;
   tasksNoAssigneeAtAllCount: number;
+  collectiveGroupTaskCodes: string[];
   accountRows: ExpectedAccountPreviewRow[];
   aliasRows: TaskAliasPreviewRow[];
 }
@@ -136,13 +181,16 @@ export function buildMemberMappingPreview(
   invites: MemberInvite[],
   tasks: TaskItem[]
 ): MemberMappingPreview {
-  const activeTasks = tasks.filter((t) => !t.archivedAt);
-  const officialTasks = activeTasks.filter((t) => t.isTestRecord === false);
-  const scopeTasks = officialTasks.length > 0 ? officialTasks : activeTasks;
-  const scopeLabel =
-    officialTasks.length > 0
-      ? `${officialTasks.length} công việc chính thức`
-      : `${activeTasks.length} công việc đang hoạt động`;
+  // Always exclude B1 test records from official project member statistics
+  const activeNonTestTasks = tasks.filter(
+    (t) => !t.archivedAt && !isB1TestTask(t)
+  );
+  const officialTasks = activeNonTestTasks.filter(
+    (t) => t.isTestRecord === false
+  );
+  const scopeTasks =
+    officialTasks.length > 0 ? officialTasks : activeNonTestTasks;
+  const scopeLabel = `${scopeTasks.length} công việc chính thức`;
 
   const memberByEmail = new Map<string, ProjectMember>();
   for (const m of members) {
@@ -157,7 +205,10 @@ export function buildMemberMappingPreview(
   const accountRows: ExpectedAccountPreviewRow[] = expectedAccounts.map(
     (account) => {
       const emailKey = normalizeTextKey(account.email);
-      const matchedMember = memberByEmail.get(emailKey) ?? null;
+      const pairedMember =
+        members.find((m) => doesMemberMatchProjectPerson(m, account)) ?? null;
+      const matchedByEmail = memberByEmail.get(emailKey) ?? null;
+      const matchedMember = pairedMember ?? matchedByEmail;
       const matchedInvite = inviteByEmail.get(emailKey) ?? null;
 
       const signInStatus: ExpectedAccountSignInStatus = matchedMember
@@ -166,12 +217,10 @@ export function buildMemberMappingPreview(
         ? 'invited_pending'
         : 'not_invited';
 
+      // Match tasks by exact originalName stored on the 20 tasks (e.g. "Khả Tuệ", "Sư Minh Hạnh")
       const matchingTasks = scopeTasks.filter((t) =>
-        t.assignees.some((a) =>
-          doesPersonMatchAlias(
-            { displayName: account.displayName, sheetAlias: account.sheetAlias },
-            a
-          )
+        t.assignees.some(
+          (a) => normalizeTextKey(a) === normalizeTextKey(account.originalName)
         )
       );
 
@@ -210,12 +259,23 @@ export function buildMemberMappingPreview(
     }
   );
 
-  // Build alias map preserving first appearance order
+  // Separate collective group label ("Nhóm") from the 6 personal assignees
+  const collectiveGroupTaskCodes = scopeTasks
+    .filter((t) =>
+      t.assignees.some(
+        (a) => normalizeTextKey(a) === normalizeTextKey(COLLECTIVE_GROUP_LABEL)
+      )
+    )
+    .map((t) => t.displayCode);
+
   const aliasMap = new Map<string, { displayAlias: string; tasks: TaskItem[] }>();
   for (const task of scopeTasks) {
     for (const rawAlias of task.assignees) {
       const trimmed = rawAlias.trim();
       if (!trimmed) continue;
+      if (normalizeTextKey(trimmed) === normalizeTextKey(COLLECTIVE_GROUP_LABEL)) {
+        continue;
+      }
       const key = normalizeTextKey(trimmed);
       const existing = aliasMap.get(key);
       if (existing) {
@@ -230,9 +290,20 @@ export function buildMemberMappingPreview(
 
   const aliasRows: TaskAliasPreviewRow[] = Array.from(aliasMap.values()).map(
     ({ displayAlias, tasks: aliasTasks }) => {
-      const matchedMembers = members.filter((m) =>
-        doesPersonMatchAlias(m, displayAlias)
-      );
+      const expectedAccount =
+        expectedAccounts.find(
+          (acc) =>
+            normalizeTextKey(acc.originalName) === normalizeTextKey(displayAlias)
+        ) ?? null;
+
+      // Match signed-in members strictly via doesMemberMatchProjectPerson when this is one of the 6 people,
+      // avoiding false match by displayName (e.g. "Sư phụ" vs "Sư Minh Hạnh")
+      const matchedMembers = expectedAccount
+        ? members.filter((m) => doesMemberMatchProjectPerson(m, expectedAccount))
+        : members.filter((m) =>
+            normalizeTextKey(m.sheetAlias) === normalizeTextKey(displayAlias)
+          );
+
       const activeMatchedUids = new Set(
         matchedMembers.filter((m) => m.isActive).map((m) => m.uid)
       );
@@ -243,13 +314,12 @@ export function buildMemberMappingPreview(
       const matchedPendingInvites = invites.filter(
         (inv) =>
           !matchedEmails.has(normalizeTextKey(inv.email)) &&
-          doesPersonMatchAlias(inv, displayAlias)
+          (normalizeTextKey(inv.sheetAlias) === normalizeTextKey(displayAlias) ||
+            (expectedAccount
+              ? normalizeTextKey(inv.email) ===
+                normalizeTextKey(expectedAccount.email)
+              : false))
       );
-
-      const expectedAccount =
-        expectedAccounts.find((acc) =>
-          doesPersonMatchAlias(acc, displayAlias)
-        ) ?? null;
 
       const linkedTaskCount = aliasTasks.filter((t) =>
         t.assigneeUids.some((uid) => activeMatchedUids.has(uid))
@@ -267,10 +337,10 @@ export function buildMemberMappingPreview(
         matchedMembers.some((m) => m.isActive)
       ) {
         linkStatus = 'linked';
-        statusLabel = 'Đã liên kết UID';
+        statusLabel = 'Đã liên kết tài khoản';
       } else if (matchedMembers.some((m) => m.isActive)) {
         linkStatus = 'ready_to_link';
-        statusLabel = 'Đã đăng nhập · chờ Admin xác nhận từng việc';
+        statusLabel = 'Đã đăng nhập · chờ xác nhận trên công việc';
       }
 
       return {
@@ -311,6 +381,7 @@ export function buildMemberMappingPreview(
     tasksUnlinkedUidCount,
     tasksWithTextButNoUidCount,
     tasksNoAssigneeAtAllCount,
+    collectiveGroupTaskCodes,
     accountRows,
     aliasRows,
   };

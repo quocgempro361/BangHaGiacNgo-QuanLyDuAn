@@ -58,7 +58,7 @@ export const AuthGate: React.FC<AuthGateProps> = ({
               Từ Băng Hà Đến Giác Ngộ (TBHGN)
             </h1>
             <p className="text-xs text-slate-500">
-              Hệ thống quản lý tiến độ dự án sách · Giai đoạn B1
+              Hệ thống quản lý tiến độ biên soạn sách
             </p>
           </div>
         </div>
@@ -76,7 +76,7 @@ export const AuthGate: React.FC<AuthGateProps> = ({
         ) : !authEmail ? (
           <div className="space-y-4">
             <p className="text-sm text-slate-600 leading-relaxed">
-              Vui lòng đăng nhập bằng tài khoản Google đã được quản trị viên phê duyệt để truy cập dữ liệu dự án.
+              Vui lòng đăng nhập bằng tài khoản Google để truy cập tiến độ dự án.
             </p>
             <button
               type="button"
