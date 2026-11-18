@@ -2,13 +2,15 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   Archive,
+  ArrowLeftRight,
+  BookOpen,
   Calendar,
   Check,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
   ExternalLink,
-  FileText,
+  FileCheck2,
   FolderOpen,
   History,
   Link2Off,
@@ -44,12 +46,18 @@ import {
   computeParentProgress,
   formatDateTime,
   formatShortDate,
+  getDocumentDisplayLabel,
+  getDocumentSourceLabel,
   getEffectiveCategory,
   getOfficialMemberDisplayName,
+  hasDuplicateUrlInGroup,
   isB1TestTask,
+  isGenericDocumentLabel,
   isTaskOverdue,
+  MAX_LINKS_PER_GROUP,
   resolveTaskAssignees,
   REVIEW_FLAG_LABELS,
+  validateHttpUrl,
 } from '../utils/taskHelpers';
 import { isReplacedTemporaryAccountEmail } from '../utils/memberMapping';
 import { StatusBadge } from './StatusBadge';
@@ -95,18 +103,6 @@ function resolveActorName(
   }
   const clean = (fallbackName ?? '').trim();
   return clean || 'Thành viên';
-}
-
-function getLinkHostLabel(url: string | null): string {
-  if (!url) return 'Chưa có liên kết';
-  try {
-    const host = new URL(url).hostname.replace(/^www\./, '');
-    if (host.includes('drive.google.com')) return 'Google Drive';
-    if (host.includes('docs.google.com')) return 'Google Docs';
-    return host;
-  } catch {
-    return 'Liên kết ngoài';
-  }
 }
 
 function normalizeLinksKey(links: DocumentLink[]): string {
@@ -156,9 +152,17 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const [notes, setNotes] = useState('');
   const [referenceLinks, setReferenceLinks] = useState<DocumentLink[]>([]);
   const [resultLinks, setResultLinks] = useState<DocumentLink[]>([]);
-  const [newUrlLabel, setNewUrlLabel] = useState('');
-  const [newUrlValue, setNewUrlValue] = useState('');
-  const [newUrlType, setNewUrlType] = useState<'result' | 'reference'>('result');
+  const [addingGroup, setAddingGroup] = useState<'reference' | 'result' | null>(
+    null
+  );
+  const [draftLinkLabel, setDraftLinkLabel] = useState('');
+  const [draftLinkUrl, setDraftLinkUrl] = useState('');
+  const [draftLinkError, setDraftLinkError] = useState<string | null>(null);
+  const [focusLinkId, setFocusLinkId] = useState<string | null>(null);
+  const [linkRowErrors, setLinkRowErrors] = useState<Record<string, string>>({});
+  const [touchedLinkLabelIds, setTouchedLinkLabelIds] = useState<
+    Record<string, boolean>
+  >({});
 
   const [commentText, setCommentText] = useState('');
   const [postingComment, setPostingComment] = useState(false);
@@ -179,6 +183,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     useState<PendingNavigationAction | null>(null);
 
   const adminMenuRef = useRef<HTMLDivElement | null>(null);
+  const linkInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const syncDraftFromTask = (source: TaskItem) => {
     setDisplayCode(source.displayCode);
@@ -194,9 +199,13 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     setReferenceLinks(source.referenceLinks);
     setResultLinks(source.resultLinks);
     setLoadedVersion(source.version);
-    setNewUrlLabel('');
-    setNewUrlValue('');
-    setNewUrlType('result');
+    setAddingGroup(null);
+    setDraftLinkLabel('');
+    setDraftLinkUrl('');
+    setDraftLinkError(null);
+    setFocusLinkId(null);
+    setLinkRowErrors({});
+    setTouchedLinkLabelIds({});
   };
 
   // Reset full drawer state when opening a different task
@@ -295,7 +304,12 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     ) {
       return true;
     }
-    if (newUrlValue.trim() !== '') return true;
+    if (
+      addingGroup !== null &&
+      (draftLinkLabel.trim() !== '' || draftLinkUrl.trim() !== '')
+    ) {
+      return true;
+    }
 
     if (isManager) {
       if (displayCode.trim() !== task.displayCode) return true;
@@ -316,7 +330,9 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     notes,
     resultLinks,
     referenceLinks,
-    newUrlValue,
+    addingGroup,
+    draftLinkLabel,
+    draftLinkUrl,
     displayCode,
     title,
     categoryId,
@@ -404,8 +420,21 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     notes,
     referenceLinks,
     resultLinks,
-    newUrlValue,
+    addingGroup,
+    draftLinkLabel,
+    draftLinkUrl,
   ]);
+
+  // Auto-focus target link title input when clicking quick-rename in View Mode
+  useEffect(() => {
+    if (!isEditing || !focusLinkId) return;
+    const inputEl = linkInputRefs.current[focusLinkId];
+    if (inputEl) {
+      inputEl.focus();
+      inputEl.select();
+    }
+    setFocusLinkId(null);
+  }, [isEditing, focusLinkId]);
 
   // Escape key hierarchy: Admin menu -> Unsaved prompt -> Close / Guard
   useEffect(() => {
@@ -472,6 +501,37 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     setIsEditing(true);
   };
 
+  const startEditingToAddLink = (group: 'reference' | 'result') => {
+    if (!canEdit) return;
+    syncDraftFromTask(task);
+    setSaveFeedback(null);
+    setConflictError(null);
+    setPendingAction(null);
+    setShowAdminMenu(false);
+    setActiveTab('info');
+    setIsEditing(true);
+    setAddingGroup(group);
+  };
+
+  const startEditingAndFocusLink = (linkId: string) => {
+    if (!canEdit) return;
+    syncDraftFromTask(task);
+    setSaveFeedback(null);
+    setConflictError(null);
+    setPendingAction(null);
+    setShowAdminMenu(false);
+    setActiveTab('info');
+    setIsEditing(true);
+    setFocusLinkId(linkId);
+  };
+
+  const openInlineAddGroup = (group: 'reference' | 'result') => {
+    setAddingGroup(group);
+    setDraftLinkLabel('');
+    setDraftLinkUrl('');
+    setDraftLinkError(null);
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canEdit || saving || !isDirty) return;
@@ -482,7 +542,79 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
       return;
     }
 
+    // Validate all existing/edited link rows before committing
+    const nextRowErrors: Record<string, string> = {};
+    for (const lnk of [...referenceLinks, ...resultLinks]) {
+      if (touchedLinkLabelIds[lnk.id] && !lnk.label.trim()) {
+        nextRowErrors[lnk.id] = 'Vui lòng nhập tên tài liệu.';
+        continue;
+      }
+      if (lnk.url && lnk.url.trim()) {
+        const urlRes = validateHttpUrl(lnk.url);
+        if (!urlRes.ok) {
+          nextRowErrors[lnk.id] = urlRes.error;
+        }
+      }
+    }
+    if (Object.keys(nextRowErrors).length > 0) {
+      setLinkRowErrors(nextRowErrors);
+      return;
+    }
+    setLinkRowErrors({});
+
+    // Validate & absorb an open inline add-link draft if user filled it without clicking "Thêm"
+    let nextReferenceLinks = referenceLinks.map((l) => ({
+      ...l,
+      label: l.label.trim(),
+      url: l.url ? l.url.trim() : null,
+    }));
+    let nextResultLinks = resultLinks.map((l) => ({
+      ...l,
+      label: l.label.trim(),
+      url: l.url ? l.url.trim() : null,
+    }));
+
+    const hasPendingDraftInput =
+      addingGroup !== null &&
+      (draftLinkLabel.trim() !== '' || draftLinkUrl.trim() !== '');
+    let absorbedPendingGroup: 'reference' | 'result' | null = null;
+
+    if (hasPendingDraftInput && addingGroup) {
+      const cleanLabel = draftLinkLabel.trim();
+      if (!cleanLabel) {
+        setDraftLinkError('Vui lòng nhập tên tài liệu trước khi lưu.');
+        return;
+      }
+      const urlCheck = validateHttpUrl(draftLinkUrl);
+      if (!urlCheck.ok) {
+        setDraftLinkError(urlCheck.error);
+        return;
+      }
+      const targetList =
+        addingGroup === 'reference' ? nextReferenceLinks : nextResultLinks;
+      if (targetList.length >= MAX_LINKS_PER_GROUP) {
+        setDraftLinkError(
+          `Mỗi nhóm tối đa ${MAX_LINKS_PER_GROUP} liên kết.`
+        );
+        return;
+      }
+      const pendingItem: DocumentLink = {
+        id: `lnk_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        label: cleanLabel,
+        url: urlCheck.normalizedUrl,
+        type: addingGroup === 'reference' ? 'reference' : 'result',
+        needsUrlExtraction: false,
+      };
+      if (addingGroup === 'reference') {
+        nextReferenceLinks = [...nextReferenceLinks, pendingItem];
+      } else {
+        nextResultLinks = [...nextResultLinks, pendingItem];
+      }
+      absorbedPendingGroup = addingGroup;
+    }
+
     setTitleError(null);
+    setDraftLinkError(null);
     setConflictError(null);
     setSaveFeedback(null);
     setSaving(true);
@@ -506,24 +638,6 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
       }
       if (nextStatus === null && !updatedFlags.includes('missing_status')) {
         updatedFlags.push('missing_status');
-      }
-
-      const pendingTrimmedUrl = newUrlValue.trim();
-      let nextReferenceLinks = referenceLinks;
-      let nextResultLinks = resultLinks;
-      if (pendingTrimmedUrl) {
-        const pendingItem: DocumentLink = {
-          id: `lnk_${Date.now()}`,
-          label: newUrlLabel.trim() || 'Mở tài liệu',
-          url: pendingTrimmedUrl,
-          type: newUrlType === 'result' ? 'google_drive_link' : 'reference',
-          needsUrlExtraction: false,
-        };
-        if (newUrlType === 'reference') {
-          nextReferenceLinks = [...referenceLinks, pendingItem];
-        } else {
-          nextResultLinks = [...resultLinks, pendingItem];
-        }
       }
 
       const selectedCat = categories.find((c) => c.id === categoryId);
@@ -560,12 +674,14 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
         setConflictError(msg);
         setSaveFeedback({ type: 'error', text: msg });
       } else {
-        if (pendingTrimmedUrl) {
-          setReferenceLinks(nextReferenceLinks);
-          setResultLinks(nextResultLinks);
-          setNewUrlLabel('');
-          setNewUrlValue('');
+        setReferenceLinks(nextReferenceLinks);
+        setResultLinks(nextResultLinks);
+        if (absorbedPendingGroup) {
+          setAddingGroup(null);
+          setDraftLinkLabel('');
+          setDraftLinkUrl('');
         }
+        setTouchedLinkLabelIds({});
         const nextVer = loadedVersion + 1;
         setLoadedVersion(nextVer);
         setIsEditing(false);
@@ -592,6 +708,15 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     patch: { label?: string; url?: string },
     group: 'reference' | 'result'
   ) => {
+    if (patch.label !== undefined) {
+      setTouchedLinkLabelIds((prev) => ({ ...prev, [linkId]: true }));
+    }
+    setLinkRowErrors((prev) => {
+      if (!prev[linkId]) return prev;
+      const next = { ...prev };
+      delete next[linkId];
+      return next;
+    });
     const updater = (prev: DocumentLink[]) =>
       prev.map((l) => {
         if (l.id !== linkId) return l;
@@ -617,6 +742,12 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     linkId: string,
     group: 'reference' | 'result'
   ) => {
+    setLinkRowErrors((prev) => {
+      if (!prev[linkId]) return prev;
+      const next = { ...prev };
+      delete next[linkId];
+      return next;
+    });
     if (group === 'reference') {
       setReferenceLinks((prev) => prev.filter((l) => l.id !== linkId));
     } else {
@@ -624,22 +755,82 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     }
   };
 
-  const handleAddLink = () => {
-    if (!newUrlValue.trim()) return;
+  const handleMoveLink = (
+    linkId: string,
+    fromGroup: 'reference' | 'result'
+  ) => {
+    const sourceList = fromGroup === 'reference' ? referenceLinks : resultLinks;
+    const targetList = fromGroup === 'reference' ? resultLinks : referenceLinks;
+    const targetItem = sourceList.find((l) => l.id === linkId);
+    if (!targetItem) return;
+
+    if (targetList.length >= MAX_LINKS_PER_GROUP) {
+      setLinkRowErrors((prev) => ({
+        ...prev,
+        [linkId]: `Nhóm đích đã đạt giới hạn ${MAX_LINKS_PER_GROUP} liên kết.`,
+      }));
+      return;
+    }
+
+    const toGroup = fromGroup === 'reference' ? 'result' : 'reference';
+    const movedItem: DocumentLink = {
+      ...targetItem,
+      type:
+        toGroup === 'reference'
+          ? 'reference'
+          : targetItem.type === 'google_drive_link'
+          ? 'google_drive_link'
+          : 'result',
+    };
+
+    if (fromGroup === 'reference') {
+      setReferenceLinks((prev) => prev.filter((l) => l.id !== linkId));
+      setResultLinks((prev) => [...prev, movedItem]);
+    } else {
+      setResultLinks((prev) => prev.filter((l) => l.id !== linkId));
+      setReferenceLinks((prev) => [...prev, movedItem]);
+    }
+    setLinkRowErrors((prev) => {
+      if (!prev[linkId]) return prev;
+      const next = { ...prev };
+      delete next[linkId];
+      return next;
+    });
+  };
+
+  const handleAddGroupLink = (group: 'reference' | 'result') => {
+    const targetList = group === 'reference' ? referenceLinks : resultLinks;
+    if (targetList.length >= MAX_LINKS_PER_GROUP) {
+      setDraftLinkError(`Mỗi nhóm tối đa ${MAX_LINKS_PER_GROUP} liên kết.`);
+      return;
+    }
+    const cleanLabel = draftLinkLabel.trim();
+    if (!cleanLabel) {
+      setDraftLinkError('Vui lòng nhập tên tài liệu.');
+      return;
+    }
+    const urlCheck = validateHttpUrl(draftLinkUrl);
+    if (!urlCheck.ok) {
+      setDraftLinkError(urlCheck.error);
+      return;
+    }
+
     const item: DocumentLink = {
-      id: `lnk_${Date.now()}`,
-      label: newUrlLabel.trim() || 'Mở tài liệu',
-      url: newUrlValue.trim(),
-      type: newUrlType === 'result' ? 'google_drive_link' : 'reference',
+      id: `lnk_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      label: cleanLabel,
+      url: urlCheck.normalizedUrl,
+      type: group === 'reference' ? 'reference' : 'result',
       needsUrlExtraction: false,
     };
-    if (newUrlType === 'reference') {
+    if (group === 'reference') {
       setReferenceLinks((prev) => [...prev, item]);
     } else {
       setResultLinks((prev) => [...prev, item]);
     }
-    setNewUrlLabel('');
-    setNewUrlValue('');
+    setDraftLinkLabel('');
+    setDraftLinkUrl('');
+    setDraftLinkError(null);
+    setAddingGroup(null);
   };
 
   const handleArchiveConfirmed = async () => {
@@ -685,54 +876,85 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const renderReadOnlyLinksList = (
     links: DocumentLink[],
     emptyLabel: string,
-    accent: 'result' | 'reference'
+    group: 'reference' | 'result'
   ) => {
     if (links.length === 0) {
-      return <p className="text-xs text-[#8A94A3]">{emptyLabel}</p>;
+      return (
+        <p className="text-xs text-[#8A94A3] pl-0.5">{emptyLabel}</p>
+      );
     }
+
+    const iconBadgeClass =
+      group === 'reference'
+        ? 'bg-lam-sang-soft text-lam-sang-ink'
+        : 'bg-thanh-ngoc-soft text-thanh-ngoc-ink';
+    const hoverBorderClass =
+      group === 'reference'
+        ? 'hover:border-lam-sang/55'
+        : 'hover:border-thanh-ngoc/55';
+    const GroupIcon = group === 'reference' ? BookOpen : FileCheck2;
 
     return (
       <div className="space-y-1.5">
-        {links.map((lnk) =>
-          lnk.url ? (
-            <a
+        {links.map((lnk) => {
+          const displayLabel = getDocumentDisplayLabel(lnk);
+          const sourceLabel = getDocumentSourceLabel(lnk.url);
+
+          return lnk.url ? (
+            <div
               key={lnk.id}
-              href={lnk.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="group flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl bg-white border border-[#E7E1D4] hover:border-lam-sang/55 hover:bg-[#FAF8F3] transition-colors min-h-[44px]"
+              className={`flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-white border border-[#E7E1D4] ${hoverBorderClass} hover:bg-[#FAF8F3]/75 transition-colors min-h-[44px]`}
             >
-              <div className="min-w-0 flex items-center gap-2.5">
+              <a
+                href={lnk.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`${displayLabel.text} (${sourceLabel})`}
+                className="group flex-1 min-w-0 flex items-center gap-2.5 py-0.5 focus-visible:outline-2 focus-visible:outline-lam-sang rounded-lg"
+              >
                 <span
-                  className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
-                    accent === 'result'
-                      ? 'bg-minh-kim-soft text-minh-kim-ink'
-                      : 'bg-lam-sang-soft text-lam-sang-ink'
-                  }`}
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${iconBadgeClass}`}
                   aria-hidden="true"
                 >
-                  <FileText className="w-3.5 h-3.5" />
+                  <GroupIcon className="w-3.5 h-3.5" />
                 </span>
-                <div className="min-w-0">
-                  <div className="text-[13px] font-medium text-huyen-lam group-hover:text-lam-tri-tue truncate">
-                    {lnk.label}
+                <div className="min-w-0 flex-1">
+                  <div
+                    className={`text-[13px] truncate ${
+                      displayLabel.isPlaceholder
+                        ? 'text-[#6E7889] italic font-normal group-hover:text-lam-tri-tue'
+                        : 'font-medium text-huyen-lam group-hover:text-lam-tri-tue'
+                    }`}
+                  >
+                    {displayLabel.text}
                   </div>
                   <div className="text-[11px] text-[#7D8796] truncate">
-                    {getLinkHostLabel(lnk.url)}
+                    {sourceLabel}
                   </div>
                 </div>
-              </div>
-              <span className="inline-flex items-center gap-1 text-xs font-semibold text-lam-tri-tue group-hover:text-huyen-lam shrink-0">
-                <span>Mở</span>
-                <ExternalLink className="w-3.5 h-3.5 shrink-0" />
-              </span>
-            </a>
+                <ExternalLink
+                  className="w-3.5 h-3.5 text-[#8A94A3] group-hover:text-lam-tri-tue shrink-0 transition-colors"
+                  aria-hidden="true"
+                />
+              </a>
+
+              {displayLabel.isPlaceholder && canEdit && (
+                <button
+                  type="button"
+                  onClick={() => startEditingAndFocusLink(lnk.id)}
+                  title="Đặt tên rõ ràng cho tài liệu này"
+                  className="shrink-0 px-2 h-[30px] rounded-lg text-[11.5px] font-medium text-lam-tri-tue hover:bg-lam-sang-soft transition-colors whitespace-nowrap"
+                >
+                  Đổi tên
+                </button>
+              )}
+            </div>
           ) : (
             <div
               key={lnk.id}
-              className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl bg-[#FAF8F3] border border-[#EBE5D9] min-h-[44px]"
+              className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-[#FAF8F3] border border-[#EBE5D9] min-h-[44px]"
             >
-              <div className="min-w-0 flex items-center gap-2.5">
+              <div className="min-w-0 flex items-center gap-2.5 flex-1">
                 <span
                   className="w-7 h-7 rounded-lg bg-[#EFEAE0] text-[#7D8796] flex items-center justify-center shrink-0"
                   aria-hidden="true"
@@ -740,82 +962,291 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   <Link2Off className="w-3.5 h-3.5" />
                 </span>
                 <div className="min-w-0">
-                  <div className="text-[13px] font-medium text-huyen-lam truncate">
-                    {lnk.label}
+                  <div
+                    className={`text-[13px] truncate ${
+                      displayLabel.isPlaceholder
+                        ? 'text-[#6E7889] italic'
+                        : 'font-medium text-huyen-lam'
+                    }`}
+                  >
+                    {displayLabel.text}
                   </div>
                   <div className="text-[11px] text-minh-kim-ink">
                     Chưa gắn đường dẫn
                   </div>
                 </div>
               </div>
+              {displayLabel.isPlaceholder && canEdit && (
+                <button
+                  type="button"
+                  onClick={() => startEditingAndFocusLink(lnk.id)}
+                  className="shrink-0 px-2 h-[30px] rounded-lg text-[11.5px] font-medium text-lam-tri-tue hover:bg-lam-sang-soft transition-colors whitespace-nowrap"
+                >
+                  Đổi tên
+                </button>
+              )}
             </div>
-          )
+          );
+        })}
+      </div>
+    );
+  };
+
+  const renderInlineAddLinkForm = (group: 'reference' | 'result') => {
+    if (addingGroup !== group) return null;
+    const existingGroupLinks =
+      group === 'reference' ? referenceLinks : resultLinks;
+    const isDupDraftUrl = hasDuplicateUrlInGroup(
+      existingGroupLinks,
+      draftLinkUrl
+    );
+    const isReference = group === 'reference';
+
+    return (
+      <div
+        className={`p-3 rounded-xl bg-white border space-y-2.5 ${
+          isReference ? 'border-lam-sang/45' : 'border-thanh-ngoc/45'
+        }`}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <span
+            className={`text-xs font-semibold ${
+              isReference ? 'text-lam-sang-ink' : 'text-thanh-ngoc-ink'
+            }`}
+          >
+            {isReference
+              ? 'Thêm tài liệu tham khảo'
+              : 'Thêm kết quả nghiên cứu'}
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              setAddingGroup(null);
+              setDraftLinkLabel('');
+              setDraftLinkUrl('');
+              setDraftLinkError(null);
+            }}
+            aria-label="Đóng khung thêm liên kết"
+            className="w-7 h-7 flex items-center justify-center rounded-md text-[#7D8796] hover:text-huyen-lam hover:bg-[#F3EFE6]"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        <div className="space-y-2">
+          <div>
+            <label
+              htmlFor={`add-link-label-${group}`}
+              className="block text-[11.5px] font-medium text-[#434F63] mb-1"
+            >
+              Tên tài liệu <span className="text-chu-sa">*</span>
+            </label>
+            <input
+              id={`add-link-label-${group}`}
+              type="text"
+              autoFocus
+              value={draftLinkLabel}
+              onChange={(e) => {
+                setDraftLinkLabel(e.target.value);
+                if (draftLinkError) setDraftLinkError(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleAddGroupLink(group);
+                }
+              }}
+              placeholder={
+                isReference
+                  ? 'Ví dụ: Kinh Kim Cang — bản đối chiếu Hán Việt'
+                  : 'Ví dụ: Bản thảo chương 2 (lần 1)'
+              }
+              className="w-full h-[36px] px-2.5 text-xs bg-[#FAF8F3]/60 border border-[#DFD8CA] rounded-lg text-huyen-lam placeholder:text-[#969EAE] focus:outline-none focus:ring-2 focus:ring-lam-sang/25 focus:border-lam-sang focus:bg-white"
+            />
+          </div>
+
+          <div>
+            <label
+              htmlFor={`add-link-url-${group}`}
+              className="block text-[11.5px] font-medium text-[#434F63] mb-1"
+            >
+              Đường dẫn (URL) <span className="text-chu-sa">*</span>
+            </label>
+            <input
+              id={`add-link-url-${group}`}
+              type="url"
+              value={draftLinkUrl}
+              onChange={(e) => {
+                setDraftLinkUrl(e.target.value);
+                if (draftLinkError) setDraftLinkError(null);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleAddGroupLink(group);
+                }
+              }}
+              placeholder="https://drive.google.com/..."
+              className="w-full h-[36px] px-2.5 text-xs font-mono-tabular bg-[#FAF8F3]/60 border border-[#DFD8CA] rounded-lg text-huyen-lam placeholder:text-[#969EAE] focus:outline-none focus:ring-2 focus:ring-lam-sang/25 focus:border-lam-sang focus:bg-white"
+            />
+          </div>
+        </div>
+
+        {isDupDraftUrl && (
+          <p className="text-[11.5px] text-minh-kim-ink flex items-center gap-1.5">
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+            <span>
+              Đường dẫn này đã có trong nhóm. Bạn vẫn có thể giữ nếu muốn lưu
+              riêng.
+            </span>
+          </p>
         )}
+
+        {draftLinkError && (
+          <p
+            role="alert"
+            className="text-[11.5px] font-medium text-chu-sa flex items-center gap-1.5"
+          >
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+            <span>{draftLinkError}</span>
+          </p>
+        )}
+
+        <div className="flex items-center justify-end gap-2 pt-0.5">
+          <button
+            type="button"
+            onClick={() => {
+              setAddingGroup(null);
+              setDraftLinkLabel('');
+              setDraftLinkUrl('');
+              setDraftLinkError(null);
+            }}
+            className="px-3 h-[32px] text-xs font-medium text-[#5E697A] hover:bg-[#EFEAE0] rounded-lg transition-colors"
+          >
+            Hủy
+          </button>
+          <button
+            type="button"
+            onClick={() => handleAddGroupLink(group)}
+            className="inline-flex items-center gap-1 px-3 h-[32px] text-xs font-semibold bg-huyen-lam text-trang-nga hover:bg-lam-tri-tue rounded-lg transition-colors"
+          >
+            <Plus className="w-3.5 h-3.5 shrink-0" />
+            <span>Thêm</span>
+          </button>
+        </div>
       </div>
     );
   };
 
   const renderEditableLinksGroup = (
     links: DocumentLink[],
-    group: 'result' | 'reference',
+    group: 'reference' | 'result',
     emptyLabel: string
   ) => {
+    const moveTargetLabel =
+      group === 'reference'
+        ? 'Chuyển sang Kết quả'
+        : 'Chuyển sang Tham khảo';
+
     if (links.length === 0) {
-      return <p className="text-xs text-[#8A94A3]">{emptyLabel}</p>;
+      return addingGroup === group ? null : (
+        <p className="text-xs text-[#8A94A3] pl-0.5">{emptyLabel}</p>
+      );
     }
 
     return (
       <div className="space-y-2">
-        {links.map((lnk) => (
-          <div
-            key={lnk.id}
-            className="p-2.5 rounded-xl bg-[#FAF8F3] border border-[#E5DFD2] space-y-2"
-          >
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={lnk.label}
-                onChange={(e) =>
-                  handleUpdateLink(lnk.id, { label: e.target.value }, group)
-                }
-                placeholder="Tên tài liệu"
-                aria-label="Tên tài liệu"
-                className="flex-1 min-w-0 h-[34px] px-2.5 text-xs font-medium bg-white border border-[#DFD8CA] rounded-lg text-huyen-lam focus:outline-none focus:ring-2 focus:ring-lam-sang/25 focus:border-lam-sang"
-              />
-              {lnk.url && (
-                <a
-                  href={lnk.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title="Mở liên kết trong tab mới"
-                  aria-label={`Mở ${lnk.label}`}
-                  className="w-[34px] h-[34px] flex items-center justify-center rounded-lg bg-white border border-[#DFD8CA] text-lam-tri-tue hover:bg-lam-sang-soft shrink-0"
+        {links.map((lnk) => {
+          const isPlaceholder = isGenericDocumentLabel(lnk.label);
+          const inputLabelValue = isPlaceholder ? '' : lnk.label;
+          const displayForAria = getDocumentDisplayLabel(lnk).text;
+          const rowError = linkRowErrors[lnk.id];
+          const isDup = hasDuplicateUrlInGroup(links, lnk.url, lnk.id);
+
+          return (
+            <div
+              key={lnk.id}
+              className={`p-2.5 rounded-xl bg-[#FAF8F3] border space-y-2 ${
+                rowError ? 'border-chu-sa-border' : 'border-[#E5DFD2]'
+              }`}
+            >
+              <div className="flex items-center gap-1.5">
+                <input
+                  ref={(el) => {
+                    linkInputRefs.current[lnk.id] = el;
+                  }}
+                  type="text"
+                  value={inputLabelValue}
+                  onChange={(e) =>
+                    handleUpdateLink(lnk.id, { label: e.target.value }, group)
+                  }
+                  placeholder={
+                    isPlaceholder
+                      ? 'Tài liệu chưa đặt tên — nhập tên rõ ràng'
+                      : 'Tên tài liệu'
+                  }
+                  aria-label="Tên tài liệu"
+                  className="flex-1 min-w-0 h-[34px] px-2.5 text-xs font-medium bg-white border border-[#DFD8CA] rounded-lg text-huyen-lam placeholder:text-[#969EAE] focus:outline-none focus:ring-2 focus:ring-lam-sang/25 focus:border-lam-sang"
+                />
+                {lnk.url && (
+                  <a
+                    href={lnk.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Mở liên kết trong tab mới"
+                    aria-label={`Mở ${displayForAria}`}
+                    className="w-[34px] h-[34px] flex items-center justify-center rounded-lg bg-white border border-[#DFD8CA] text-lam-tri-tue hover:bg-lam-sang-soft shrink-0"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                )}
+                <button
+                  type="button"
+                  onClick={() => handleMoveLink(lnk.id, group)}
+                  title={moveTargetLabel}
+                  aria-label={`${moveTargetLabel}: ${displayForAria}`}
+                  className="w-[34px] h-[34px] flex items-center justify-center rounded-lg bg-white border border-[#DFD8CA] text-[#5E697A] hover:text-huyen-lam hover:bg-[#EFEAE0] shrink-0 transition-colors"
                 >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </a>
+                  <ArrowLeftRight className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveLink(lnk.id, group)}
+                  title="Xóa liên kết này"
+                  aria-label={`Xóa ${displayForAria}`}
+                  className="w-[34px] h-[34px] flex items-center justify-center rounded-lg bg-white border border-[#DFD8CA] text-[#7D8796] hover:text-chu-sa hover:border-chu-sa-border hover:bg-chu-sa-soft shrink-0 transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <input
+                type="url"
+                value={lnk.url ?? ''}
+                onChange={(e) =>
+                  handleUpdateLink(lnk.id, { url: e.target.value }, group)
+                }
+                placeholder="https://drive.google.com/..."
+                aria-label={`Đường dẫn ${displayForAria}`}
+                className="w-full h-[34px] px-2.5 text-xs font-mono-tabular bg-white border border-[#DFD8CA] rounded-lg text-huyen-lam placeholder:text-[#969EAE] focus:outline-none focus:ring-2 focus:ring-lam-sang/25 focus:border-lam-sang"
+              />
+              {isDup && !rowError && (
+                <p className="text-[11px] text-minh-kim-ink flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3 shrink-0" />
+                  <span>Đường dẫn trùng với một mục khác trong nhóm này.</span>
+                </p>
               )}
-              <button
-                type="button"
-                onClick={() => handleRemoveLink(lnk.id, group)}
-                title="Xóa liên kết này"
-                aria-label={`Xóa ${lnk.label}`}
-                className="w-[34px] h-[34px] flex items-center justify-center rounded-lg bg-white border border-[#DFD8CA] text-[#7D8796] hover:text-chu-sa hover:border-chu-sa-border hover:bg-chu-sa-soft shrink-0 transition-colors"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
+              {rowError && (
+                <p
+                  role="alert"
+                  className="text-[11px] font-medium text-chu-sa flex items-center gap-1"
+                >
+                  <AlertTriangle className="w-3 h-3 shrink-0" />
+                  <span>{rowError}</span>
+                </p>
+              )}
             </div>
-            <input
-              type="url"
-              value={lnk.url ?? ''}
-              onChange={(e) =>
-                handleUpdateLink(lnk.id, { url: e.target.value }, group)
-              }
-              placeholder="https://drive.google.com/..."
-              aria-label={`Đường dẫn ${lnk.label}`}
-              className="w-full h-[34px] px-2.5 text-xs font-mono-tabular bg-white border border-[#DFD8CA] rounded-lg text-huyen-lam placeholder:text-[#969EAE] focus:outline-none focus:ring-2 focus:ring-lam-sang/25 focus:border-lam-sang"
-            />
-          </div>
-        ))}
+          );
+        })}
       </div>
     );
   };
@@ -1212,32 +1643,98 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
 
               {/* B. Tài liệu & Kết quả */}
               <section
-                className="pt-4 border-t border-[#ECE6DA] space-y-3.5"
+                className="pt-4 border-t border-[#ECE6DA] space-y-4"
                 aria-label="Tài liệu và Kết quả"
               >
                 <h3 className="text-[11.5px] font-semibold text-[#667182] tracking-[0.01em]">
                   Tài liệu &amp; Kết quả
                 </h3>
 
-                <div className="space-y-1.5">
-                  <div className="text-xs font-medium text-huyen-lam">
-                    Kết quả nghiên cứu
-                  </div>
-                  {renderReadOnlyLinksList(
-                    task.resultLinks,
-                    'Chưa có liên kết kết quả nghiên cứu.',
-                    'result'
-                  )}
-                </div>
+                {/* Nhóm 1: Tài liệu cần đọc / tham khảo (Đầu vào) */}
+                <div className="space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex items-start gap-2">
+                      <BookOpen
+                        className="w-4 h-4 text-lam-sang-ink shrink-0 mt-0.5"
+                        aria-hidden="true"
+                      />
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[13px] font-semibold text-huyen-lam">
+                            Tài liệu cần đọc / tham khảo
+                          </span>
+                          {task.referenceLinks.length > 0 && (
+                            <span className="text-[11px] font-mono-tabular font-medium text-lam-sang-ink">
+                              {task.referenceLinks.length} tài liệu
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11.5px] text-[#737D8E]">
+                          Nguồn tài liệu để thực hiện công việc
+                        </p>
+                      </div>
+                    </div>
 
-                <div className="space-y-1.5">
-                  <div className="text-xs font-medium text-huyen-lam/85">
-                    Tài liệu tham khảo
+                    {canEdit && (
+                      <button
+                        type="button"
+                        onClick={() => startEditingToAddLink('reference')}
+                        className="shrink-0 inline-flex items-center gap-1 px-2 h-[30px] rounded-lg text-xs font-medium text-lam-sang-ink hover:bg-lam-sang-soft transition-colors whitespace-nowrap"
+                      >
+                        <Plus className="w-3.5 h-3.5 shrink-0" />
+                        <span>Thêm tài liệu</span>
+                      </button>
+                    )}
                   </div>
+
                   {renderReadOnlyLinksList(
                     task.referenceLinks,
                     'Chưa có tài liệu tham khảo.',
                     'reference'
+                  )}
+                </div>
+
+                {/* Nhóm 2: Kết quả nghiên cứu (Đầu ra) */}
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex items-start gap-2">
+                      <FileCheck2
+                        className="w-4 h-4 text-thanh-ngoc-ink shrink-0 mt-0.5"
+                        aria-hidden="true"
+                      />
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[13px] font-semibold text-huyen-lam">
+                            Kết quả nghiên cứu
+                          </span>
+                          {task.resultLinks.length > 0 && (
+                            <span className="text-[11px] font-mono-tabular font-medium text-thanh-ngoc-ink">
+                              {task.resultLinks.length} kết quả
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11.5px] text-[#737D8E]">
+                          Bản thảo, báo cáo và sản phẩm đã tạo ra
+                        </p>
+                      </div>
+                    </div>
+
+                    {canEdit && (
+                      <button
+                        type="button"
+                        onClick={() => startEditingToAddLink('result')}
+                        className="shrink-0 inline-flex items-center gap-1 px-2 h-[30px] rounded-lg text-xs font-medium text-thanh-ngoc-ink hover:bg-thanh-ngoc-soft transition-colors whitespace-nowrap"
+                      >
+                        <Plus className="w-3.5 h-3.5 shrink-0" />
+                        <span>Thêm kết quả</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {renderReadOnlyLinksList(
+                    task.resultLinks,
+                    'Chưa có kết quả nghiên cứu.',
+                    'result'
                   )}
                 </div>
               </section>
@@ -1582,83 +2079,103 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                 )}
               </section>
 
-              {/* B. Tài liệu & Kết quả (Edit Mode: edit/delete/add) */}
+              {/* B. Tài liệu & Kết quả (Edit Mode: two clear groups + inline add/edit/move/delete) */}
               <section
-                className="pt-4 border-t border-[#ECE6DA] space-y-3"
+                className="pt-4 border-t border-[#ECE6DA] space-y-4"
                 aria-label="Tài liệu và Kết quả"
               >
                 <h3 className="text-[11.5px] font-semibold text-[#667182] tracking-[0.01em]">
                   Tài liệu &amp; Kết quả
                 </h3>
 
-                <div className="space-y-1.5">
-                  <div className="text-xs font-medium text-huyen-lam">
-                    Kết quả nghiên cứu
-                  </div>
-                  {renderEditableLinksGroup(
-                    resultLinks,
-                    'result',
-                    'Chưa có liên kết kết quả nghiên cứu.'
-                  )}
-                </div>
+                {/* Nhóm 1: Tài liệu cần đọc / tham khảo (Đầu vào) */}
+                <div className="space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex items-start gap-2">
+                      <BookOpen
+                        className="w-4 h-4 text-lam-sang-ink shrink-0 mt-0.5"
+                        aria-hidden="true"
+                      />
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[13px] font-semibold text-huyen-lam">
+                            Tài liệu cần đọc / tham khảo
+                          </span>
+                          {referenceLinks.length > 0 && (
+                            <span className="text-[11px] font-mono-tabular font-medium text-lam-sang-ink">
+                              {referenceLinks.length} tài liệu
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11.5px] text-[#737D8E]">
+                          Nguồn tài liệu để thực hiện công việc
+                        </p>
+                      </div>
+                    </div>
 
-                <div className="space-y-1.5">
-                  <div className="text-xs font-medium text-huyen-lam/85">
-                    Tài liệu tham khảo
+                    {addingGroup !== 'reference' && (
+                      <button
+                        type="button"
+                        onClick={() => openInlineAddGroup('reference')}
+                        className="shrink-0 inline-flex items-center gap-1 px-2.5 h-[30px] rounded-lg text-xs font-medium text-lam-sang-ink bg-lam-sang-soft/75 hover:bg-lam-sang-soft transition-colors whitespace-nowrap"
+                      >
+                        <Plus className="w-3.5 h-3.5 shrink-0" />
+                        <span>Thêm tài liệu</span>
+                      </button>
+                    )}
                   </div>
+
                   {renderEditableLinksGroup(
                     referenceLinks,
                     'reference',
                     'Chưa có tài liệu tham khảo.'
                   )}
+                  {renderInlineAddLinkForm('reference')}
                 </div>
 
-                {/* Add new link bar */}
-                <div className="pt-1.5 space-y-2">
-                  <div className="text-[11.5px] font-medium text-[#5E697A]">
-                    Thêm liên kết mới
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
-                    <select
-                      aria-label="Loại liên kết"
-                      value={newUrlType}
-                      onChange={(e) =>
-                        setNewUrlType(e.target.value as 'result' | 'reference')
-                      }
-                      className="sm:col-span-3 h-[36px] px-2.5 text-xs bg-white border border-[#DFD8CA] rounded-xl text-huyen-lam focus:outline-none focus:ring-2 focus:ring-lam-sang/25 focus:border-lam-sang"
-                    >
-                      <option value="result">Kết quả</option>
-                      <option value="reference">Tham khảo</option>
-                    </select>
-                    <input
-                      type="text"
-                      value={newUrlLabel}
-                      onChange={(e) => setNewUrlLabel(e.target.value)}
-                      placeholder="Nhãn tài liệu"
-                      aria-label="Nhãn liên kết mới"
-                      className="sm:col-span-4 h-[36px] px-2.5 text-xs bg-white border border-[#DFD8CA] rounded-xl text-huyen-lam placeholder:text-[#969EAE] focus:outline-none focus:ring-2 focus:ring-lam-sang/25 focus:border-lam-sang"
-                    />
-                    <input
-                      type="url"
-                      value={newUrlValue}
-                      onChange={(e) => setNewUrlValue(e.target.value)}
-                      placeholder="https://drive.google.com/..."
-                      aria-label="URL liên kết mới"
-                      className="sm:col-span-5 h-[36px] px-2.5 text-xs font-mono-tabular bg-white border border-[#DFD8CA] rounded-xl text-huyen-lam placeholder:text-[#969EAE] focus:outline-none focus:ring-2 focus:ring-lam-sang/25 focus:border-lam-sang"
-                    />
-                  </div>
-                  {newUrlValue.trim() && (
-                    <div className="flex justify-end">
+                {/* Nhóm 2: Kết quả nghiên cứu (Đầu ra) */}
+                <div className="space-y-2 pt-2 border-t border-[#F0EAE0]">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex items-start gap-2">
+                      <FileCheck2
+                        className="w-4 h-4 text-thanh-ngoc-ink shrink-0 mt-0.5"
+                        aria-hidden="true"
+                      />
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[13px] font-semibold text-huyen-lam">
+                            Kết quả nghiên cứu
+                          </span>
+                          {resultLinks.length > 0 && (
+                            <span className="text-[11px] font-mono-tabular font-medium text-thanh-ngoc-ink">
+                              {resultLinks.length} kết quả
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11.5px] text-[#737D8E]">
+                          Bản thảo, báo cáo và sản phẩm đã tạo ra
+                        </p>
+                      </div>
+                    </div>
+
+                    {addingGroup !== 'result' && (
                       <button
                         type="button"
-                        onClick={handleAddLink}
-                        className="inline-flex items-center gap-1 px-3 h-[34px] text-xs font-semibold bg-[#EFEAE0] hover:bg-[#E6DFD2] text-huyen-lam rounded-lg transition-colors"
+                        onClick={() => openInlineAddGroup('result')}
+                        className="shrink-0 inline-flex items-center gap-1 px-2.5 h-[30px] rounded-lg text-xs font-medium text-thanh-ngoc-ink bg-thanh-ngoc-soft/75 hover:bg-thanh-ngoc-soft transition-colors whitespace-nowrap"
                       >
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Thêm vào danh sách</span>
+                        <Plus className="w-3.5 h-3.5 shrink-0" />
+                        <span>Thêm kết quả</span>
                       </button>
-                    </div>
+                    )}
+                  </div>
+
+                  {renderEditableLinksGroup(
+                    resultLinks,
+                    'result',
+                    'Chưa có kết quả nghiên cứu.'
                   )}
+                  {renderInlineAddLinkForm('result')}
                 </div>
               </section>
 

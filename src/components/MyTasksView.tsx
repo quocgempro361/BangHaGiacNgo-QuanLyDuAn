@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   AlertTriangle,
   ArrowRight,
+  BookOpen,
   Check,
+  ChevronDown,
   ExternalLink,
+  FileCheck2,
   Info,
   Users,
   X,
@@ -14,6 +17,8 @@ import {
   canUserApproveTask,
   canUserEditTask,
   formatShortDate,
+  getDocumentDisplayLabel,
+  getDocumentSourceLabel,
   getEffectiveCategory,
   getOfficialMemberDisplayName,
   isB1TestTask,
@@ -56,6 +61,32 @@ export const MyTasksView: React.FC<MyTasksViewProps> = ({
     taskId: string;
     message: string;
   } | null>(null);
+  const [openLinkMenu, setOpenLinkMenu] = useState<{
+    taskId: string;
+    group: 'reference' | 'result';
+  } | null>(null);
+
+  useEffect(() => {
+    if (!openLinkMenu) return;
+    const handlePointerDown = (e: PointerEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && target.closest('[data-link-popover-root]')) {
+        return;
+      }
+      setOpenLinkMenu(null);
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setOpenLinkMenu(null);
+      }
+    };
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [openLinkMenu]);
 
   const activeTasks = tasks.filter((t) => !t.archivedAt && !isB1TestTask(t));
 
@@ -147,17 +178,133 @@ export const MyTasksView: React.FC<MyTasksViewProps> = ({
       task.status === 'Hoàn thành' && !canApproveThisTask;
     const effCat = getEffectiveCategory(task, activeTasks, categories);
     const overdue = isTaskOverdue(task);
-    const validDriveLinks = task.resultLinks
-      .concat(task.referenceLinks)
-      .filter((l) => Boolean(l.url));
+    const validRefLinks = task.referenceLinks.filter((l) => Boolean(l.url));
+    const validResultLinks = task.resultLinks.filter((l) => Boolean(l.url));
     const isSavingThisNextStep = savingNextStepId === task.id;
     const isSavingThisStatus = savingStatusId === task.id;
     const taskErr = quickError?.taskId === task.id ? quickError.message : null;
+    const hasOpenPopover = openLinkMenu?.taskId === task.id;
+
+    const renderGroupLinkTrigger = (
+      links: typeof validRefLinks,
+      group: 'reference' | 'result'
+    ) => {
+      if (links.length === 0) return null;
+      const isRef = group === 'reference';
+      const Icon = isRef ? BookOpen : FileCheck2;
+      const colorClass = isRef
+        ? 'text-lam-sang-ink hover:text-huyen-lam'
+        : 'text-thanh-ngoc-ink hover:text-huyen-lam';
+      const text = isRef
+        ? `${links.length} tham khảo`
+        : `${links.length} kết quả`;
+      const heading = isRef
+        ? 'Tài liệu cần đọc / tham khảo'
+        : 'Kết quả nghiên cứu';
+
+      if (links.length === 1) {
+        const lnk = links[0];
+        const display = getDocumentDisplayLabel(lnk);
+        const source = getDocumentSourceLabel(lnk.url);
+        return (
+          <a
+            href={lnk.url ?? '#'}
+            target="_blank"
+            rel="noopener noreferrer"
+            title={`${display.text} (${source})`}
+            aria-label={`${heading}: ${display.text}`}
+            className={`inline-flex items-center gap-1 text-xs font-semibold hover:underline shrink-0 min-h-[36px] ${colorClass}`}
+          >
+            <Icon className="w-3.5 h-3.5 shrink-0" />
+            <span className="tabular-nums">{text}</span>
+          </a>
+        );
+      }
+
+      const isOpen =
+        openLinkMenu?.taskId === task.id && openLinkMenu.group === group;
+
+      return (
+        <div className="relative inline-flex items-center" data-link-popover-root>
+          <button
+            type="button"
+            onClick={() =>
+              setOpenLinkMenu((prev) =>
+                prev?.taskId === task.id && prev.group === group
+                  ? null
+                  : { taskId: task.id, group }
+              )
+            }
+            aria-expanded={isOpen}
+            aria-haspopup="menu"
+            className={`inline-flex items-center gap-1 text-xs font-semibold rounded px-1.5 py-1 hover:bg-[#F3EFE6] shrink-0 min-h-[36px] transition-colors ${colorClass}`}
+          >
+            <Icon className="w-3.5 h-3.5 shrink-0" />
+            <span className="tabular-nums">{text}</span>
+            <ChevronDown
+              className={`w-3 h-3 shrink-0 transition-transform ${
+                isOpen ? 'rotate-180' : ''
+              }`}
+            />
+          </button>
+
+          {isOpen && (
+            <div
+              role="menu"
+              aria-label={heading}
+              className="absolute right-0 top-full mt-1 z-30 w-[264px] max-w-[calc(100vw-2.5rem)] bg-white border border-nga-xam rounded-xl shadow-[0_14px_32px_-8px_rgba(20,36,63,0.22)] p-1.5 space-y-0.5"
+            >
+              <div className="px-2.5 py-1 flex items-center gap-1.5 text-[11px] font-semibold text-[#5E697A] border-b border-[#EFEAE0] mb-0.5">
+                <Icon
+                  className={`w-3.5 h-3.5 shrink-0 ${
+                    isRef ? 'text-lam-sang-ink' : 'text-thanh-ngoc-ink'
+                  }`}
+                />
+                <span>{heading}</span>
+              </div>
+              {links.map((lnk) => {
+                const display = getDocumentDisplayLabel(lnk);
+                const source = getDocumentSourceLabel(lnk.url);
+                return (
+                  <a
+                    key={lnk.id}
+                    role="menuitem"
+                    href={lnk.url ?? '#'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setOpenLinkMenu(null)}
+                    className="flex items-center justify-between gap-2 px-2.5 py-2 rounded-lg hover:bg-nga-thien transition-colors group"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div
+                        className={`text-xs truncate ${
+                          display.isPlaceholder
+                            ? 'text-[#6E7889] italic'
+                            : 'font-medium text-huyen-lam group-hover:text-lam-tri-tue'
+                        }`}
+                      >
+                        {display.text}
+                      </div>
+                      <div className="text-[11px] text-[#7D8796] truncate">
+                        {source}
+                      </div>
+                    </div>
+                    <ExternalLink className="w-3.5 h-3.5 text-[#8A94A3] shrink-0" />
+                  </a>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      );
+    };
 
     return (
       <div
         key={task.id}
-        className="bg-white border border-nga-xam rounded-xl p-3.5 sm:p-4 space-y-3"
+        className={`relative bg-white border border-nga-xam rounded-xl p-3.5 sm:p-4 space-y-3 ${
+          hasOpenPopover ? 'z-20' : ''
+        }`}
       >
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2.5">
           <button
@@ -307,16 +454,11 @@ export const MyTasksView: React.FC<MyTasksViewProps> = ({
             </div>
           )}
 
-          {validDriveLinks.length > 0 && (
-            <a
-              href={validDriveLinks[0].url ?? '#'}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-lam-tri-tue hover:text-huyen-lam hover:underline shrink-0 min-h-[36px]"
-            >
-              <ExternalLink className="w-3.5 h-3.5 shrink-0" />
-              <span>Mở tài liệu</span>
-            </a>
+          {(validRefLinks.length > 0 || validResultLinks.length > 0) && (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 shrink-0">
+              {renderGroupLinkTrigger(validRefLinks, 'reference')}
+              {renderGroupLinkTrigger(validResultLinks, 'result')}
+            </div>
           )}
         </div>
       </div>

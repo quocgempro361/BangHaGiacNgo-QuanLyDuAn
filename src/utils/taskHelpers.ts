@@ -1,5 +1,6 @@
 import {
   CategoryItem,
+  DocumentLink,
   ProjectMember,
   ReviewFlag,
   TaskItem,
@@ -420,6 +421,114 @@ export function resolveTaskAssignees(
   };
 }
 
+export const MAX_LINKS_PER_GROUP = 20;
+
+const GENERIC_DOCUMENT_LABELS = new Set([
+  '',
+  'mở tài liệu',
+  'tài liệu',
+  'link',
+  'url',
+  'tài liệu chưa đặt tên',
+]);
+
+export function isGenericDocumentLabel(
+  label: string | null | undefined
+): boolean {
+  const normalized = (label ?? '').trim().toLowerCase();
+  return GENERIC_DOCUMENT_LABELS.has(normalized);
+}
+
+export function getDocumentDisplayLabel(
+  link: Pick<DocumentLink, 'label'>
+): { text: string; isPlaceholder: boolean } {
+  const trimmed = (link.label ?? '').trim();
+  if (isGenericDocumentLabel(trimmed)) {
+    return { text: 'Tài liệu chưa đặt tên', isPlaceholder: true };
+  }
+  return { text: trimmed, isPlaceholder: false };
+}
+
+export function getDocumentSourceLabel(
+  url: string | null | undefined
+): string {
+  const trimmed = (url ?? '').trim();
+  if (!trimmed) return 'Chưa gắn đường dẫn';
+  try {
+    const parsed = new URL(trimmed);
+    const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
+    const path = parsed.pathname.toLowerCase();
+    if (host === 'docs.google.com') {
+      if (path.startsWith('/document')) return 'Google Docs';
+      if (path.startsWith('/spreadsheets')) return 'Google Sheets';
+      if (path.startsWith('/presentation')) return 'Google Slides';
+      if (path.startsWith('/forms')) return 'Google Forms';
+      return 'Google Docs';
+    }
+    if (host === 'drive.google.com') {
+      return 'Google Drive';
+    }
+    return host || 'Liên kết ngoài';
+  } catch {
+    return 'Liên kết ngoài';
+  }
+}
+
+export function validateHttpUrl(
+  rawUrl: string
+): { ok: true; normalizedUrl: string } | { ok: false; error: string } {
+  const trimmed = rawUrl.trim();
+  if (!trimmed) {
+    return { ok: false, error: 'Vui lòng nhập đường dẫn (URL).' };
+  }
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return {
+        ok: false,
+        error: 'Đường dẫn phải bắt đầu bằng http:// hoặc https://.',
+      };
+    }
+    if (
+      !parsed.hostname ||
+      (!parsed.hostname.includes('.') && parsed.hostname !== 'localhost')
+    ) {
+      return { ok: false, error: 'Tên miền trong đường dẫn không hợp lệ.' };
+    }
+    return { ok: true, normalizedUrl: trimmed };
+  } catch {
+    return {
+      ok: false,
+      error: 'Đường dẫn chưa đúng định dạng URL (ví dụ: https://drive.google.com/...).',
+    };
+  }
+}
+
+function normalizeLinkUrlForComparison(url: string | null | undefined): string {
+  const trimmed = (url ?? '').trim();
+  if (!trimmed) return '';
+  try {
+    const parsed = new URL(trimmed);
+    return `${parsed.protocol.toLowerCase()}//${parsed.host.toLowerCase()}${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return trimmed.toLowerCase();
+  }
+}
+
+export function hasDuplicateUrlInGroup(
+  links: DocumentLink[],
+  candidateUrl: string | null | undefined,
+  excludeLinkId?: string
+): boolean {
+  const target = normalizeLinkUrlForComparison(candidateUrl);
+  if (!target) return false;
+  return links.some(
+    (l) =>
+      l.id !== excludeLinkId &&
+      normalizeLinkUrlForComparison(l.url) === target
+  );
+}
+
 export function exportTasksToCSV(
   tasks: TaskItem[],
   categories: CategoryItem[] = [],
@@ -454,7 +563,9 @@ export function exportTasksToCSV(
     links
       .map((l) => {
         if (!l.url) return `${l.label} [Chưa có URL]`;
-        return l.label === 'Mở tài liệu' ? l.url : `${l.label}: ${l.url}`;
+        return isGenericDocumentLabel(l.label)
+          ? l.url
+          : `${l.label.trim()}: ${l.url}`;
       })
       .join('; ');
 

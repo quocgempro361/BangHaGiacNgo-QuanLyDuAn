@@ -3,12 +3,14 @@ import {
   AlertCircle,
   Archive,
   ArrowUp,
+  BookOpen,
   ChevronDown,
   ChevronRight,
   ChevronsDownUp,
   ChevronsUpDown,
   CornerDownRight,
   ExternalLink,
+  FileCheck2,
   Link2Off,
   ListChecks,
   Plus,
@@ -23,6 +25,8 @@ import {
   canUserCreateSubtask,
   computeParentProgress,
   formatShortDate,
+  getDocumentDisplayLabel,
+  getDocumentSourceLabel,
   getEffectiveCategory,
   getOfficialMemberDisplayName,
   isB1TestTask,
@@ -129,6 +133,10 @@ export const TasksView: React.FC<TasksViewProps> = ({
   const [showStickyColumnHeader, setShowStickyColumnHeader] = useState(false);
   const [stickyTop, setStickyTop] = useState(0);
   const [stickyFilterOpen, setStickyFilterOpen] = useState(false);
+  const [openLinkMenu, setOpenLinkMenu] = useState<{
+    taskId: string;
+    group: 'reference' | 'result';
+  } | null>(null);
 
   const sortedCategories = useMemo(
     () => [...categories].sort((a, b) => a.sortOrder - b.sortOrder),
@@ -469,6 +477,28 @@ export const TasksView: React.FC<TasksViewProps> = ({
     };
   }, [stickyFilterOpen]);
 
+  useEffect(() => {
+    if (!openLinkMenu) return;
+    const handlePointerDown = (e: PointerEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && target.closest('[data-link-popover-root]')) {
+        return;
+      }
+      setOpenLinkMenu(null);
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setOpenLinkMenu(null);
+      }
+    };
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [openLinkMenu]);
+
   const scrollToTop = () => {
     const prefersReduced =
       typeof window !== 'undefined' &&
@@ -631,30 +661,156 @@ export const TasksView: React.FC<TasksViewProps> = ({
     );
   };
 
-  const renderDriveLinkAction = (task: TaskItem) => {
-    const validLinks = task.resultLinks.filter((l) => Boolean(l.url));
+  const renderSingleGroupLinkTrigger = (
+    task: TaskItem,
+    group: 'reference' | 'result'
+  ) => {
+    const rawLinks =
+      group === 'reference' ? task.referenceLinks : task.resultLinks;
+    const validLinks = rawLinks.filter((l) => Boolean(l.url));
     if (validLinks.length === 0) return null;
-    const primary = validLinks[0];
+
+    const isReference = group === 'reference';
+    const Icon = isReference ? BookOpen : FileCheck2;
+    const labelText = isReference
+      ? `${validLinks.length} tham khảo`
+      : `${validLinks.length} kết quả`;
+    const colorClass = isReference
+      ? 'text-lam-sang-ink hover:text-huyen-lam decoration-lam-sang/45'
+      : 'text-thanh-ngoc-ink hover:text-huyen-lam decoration-thanh-ngoc/45';
+    const menuHeading = isReference
+      ? 'Tài liệu cần đọc / tham khảo'
+      : 'Kết quả nghiên cứu';
+
+    if (validLinks.length === 1) {
+      const primary = validLinks[0];
+      const primaryDisplay = getDocumentDisplayLabel(primary);
+      const sourceLabel = getDocumentSourceLabel(primary.url);
+      return (
+        <a
+          key={`${task.id}_${group}`}
+          href={primary.url ?? '#'}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          title={`${primaryDisplay.text} (${sourceLabel})`}
+          aria-label={`${menuHeading}: ${primaryDisplay.text}`}
+          className={`inline-flex items-center gap-1 text-xs font-medium hover:underline underline-offset-2 whitespace-nowrap shrink-0 transition-colors ${colorClass}`}
+        >
+          <Icon className="w-3.5 h-3.5 shrink-0 opacity-90" />
+          <span className="tabular-nums">{labelText}</span>
+        </a>
+      );
+    }
+
+    const isOpen =
+      openLinkMenu?.taskId === task.id && openLinkMenu.group === group;
+
     return (
-      <a
-        href={primary.url ?? '#'}
-        target="_blank"
-        rel="noopener noreferrer"
-        onClick={(e) => e.stopPropagation()}
-        title={
-          validLinks.length > 1
-            ? `${primary.label} (+${validLinks.length - 1} tài liệu khác)`
-            : primary.label
-        }
-        className="inline-flex items-center gap-1 text-xs font-medium text-lam-sang-ink hover:text-huyen-lam hover:underline decoration-lam-sang/50 underline-offset-2 whitespace-nowrap shrink-0 transition-colors"
+      <div
+        key={`${task.id}_${group}`}
+        className="relative inline-flex items-center"
+        data-link-popover-root
       >
-        <ExternalLink className="w-3 h-3 shrink-0 opacity-85" />
-        <span>
-          {validLinks.length > 1
-            ? `${validLinks.length} tài liệu KQ`
-            : 'Tài liệu KQ'}
-        </span>
-      </a>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setOpenLinkMenu((prev) =>
+              prev?.taskId === task.id && prev.group === group
+                ? null
+                : { taskId: task.id, group }
+            );
+          }}
+          aria-expanded={isOpen}
+          aria-haspopup="menu"
+          aria-label={`Mở danh sách ${validLinks.length} ${
+            isReference ? 'tài liệu tham khảo' : 'kết quả nghiên cứu'
+          }`}
+          className={`inline-flex items-center gap-1 text-xs font-medium rounded px-1 -mx-1 py-0.5 hover:bg-[#F3EFE6] whitespace-nowrap shrink-0 transition-colors ${colorClass}`}
+        >
+          <Icon className="w-3.5 h-3.5 shrink-0 opacity-90" />
+          <span className="tabular-nums">{labelText}</span>
+          <ChevronDown
+            className={`w-3 h-3 shrink-0 transition-transform duration-150 ${
+              isOpen ? 'rotate-180' : ''
+            }`}
+          />
+        </button>
+
+        {isOpen && (
+          <div
+            role="menu"
+            aria-label={menuHeading}
+            onClick={(e) => e.stopPropagation()}
+            className="absolute left-0 top-full mt-1.5 z-40 w-[264px] sm:w-[296px] max-w-[calc(100vw-2.5rem)] bg-trang-nga border border-[#DFD8CA] rounded-xl shadow-[0_14px_32px_-8px_rgba(20,36,63,0.24)] p-1.5 space-y-0.5"
+          >
+            <div className="px-2.5 py-1 flex items-center gap-1.5 text-[11px] font-semibold text-[#5E697A] border-b border-[#EFEAE0] mb-0.5">
+              <Icon
+                className={`w-3.5 h-3.5 shrink-0 ${
+                  isReference ? 'text-lam-sang-ink' : 'text-thanh-ngoc-ink'
+                }`}
+              />
+              <span>{menuHeading}</span>
+            </div>
+            {validLinks.map((lnk) => {
+              const display = getDocumentDisplayLabel(lnk);
+              const source = getDocumentSourceLabel(lnk.url);
+              return (
+                <a
+                  key={lnk.id}
+                  role="menuitem"
+                  href={lnk.url ?? '#'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpenLinkMenu(null);
+                  }}
+                  className="flex items-center justify-between gap-2.5 px-2.5 py-2 rounded-lg hover:bg-[#FAF8F3] transition-colors group"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div
+                      className={`text-xs truncate ${
+                        display.isPlaceholder
+                          ? 'text-[#6E7889] italic group-hover:text-lam-tri-tue'
+                          : 'font-medium text-huyen-lam group-hover:text-lam-tri-tue'
+                      }`}
+                    >
+                      {display.text}
+                    </div>
+                    <div className="text-[11px] text-[#7D8796] truncate">
+                      {source}
+                    </div>
+                  </div>
+                  <ExternalLink
+                    className="w-3.5 h-3.5 text-[#8A94A3] group-hover:text-lam-tri-tue shrink-0"
+                    aria-hidden="true"
+                  />
+                </a>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderTaskLinkActions = (task: TaskItem) => {
+    const refTrigger = renderSingleGroupLinkTrigger(task, 'reference');
+    const resTrigger = renderSingleGroupLinkTrigger(task, 'result');
+    if (!refTrigger && !resTrigger) return null;
+
+    return (
+      <span className="inline-flex flex-wrap items-center gap-x-2.5 gap-y-1">
+        {refTrigger}
+        {refTrigger && resTrigger && (
+          <span className="text-[#D4CCB9] select-none" aria-hidden="true">
+            ·
+          </span>
+        )}
+        {resTrigger}
+      </span>
     );
   };
 
@@ -1263,20 +1419,25 @@ export const TasksView: React.FC<TasksViewProps> = ({
                 effCat.category,
                 effCat.color
               );
-              const parentDriveNode = renderDriveLinkAction(parent);
+              const parentLinksNode = renderTaskLinkActions(parent);
               const isParentDone =
                 progress.total > 0 && progress.completed === progress.total;
+              const hasOpenPopoverInGroup =
+                openLinkMenu?.taskId === parent.id ||
+                children.some((c) => c.id === openLinkMenu?.taskId);
 
               return (
                 <section
                   key={parent.id}
                   aria-label={`Nhóm công việc ${parent.displayCode}: ${parent.title}`}
-                  className="bg-trang-nga border border-[#E5DFD2] hover:border-[#CFC6B4] rounded-2xl overflow-hidden shadow-[0_1px_3px_rgba(20,36,63,0.03),0_6px_18px_-14px_rgba(20,36,63,0.12)] transition-[border-color,box-shadow] duration-150"
+                  className={`relative bg-trang-nga border border-[#E5DFD2] hover:border-[#CFC6B4] rounded-2xl shadow-[0_1px_3px_rgba(20,36,63,0.03),0_6px_18px_-14px_rgba(20,36,63,0.12)] transition-[border-color,box-shadow] duration-150 ${
+                    hasOpenPopoverInGroup ? 'z-20' : ''
+                  }`}
                 >
                   {/* Subtle Top Category Hairline for Editorial Rhythm across 9 Groups */}
                   <div
                     aria-hidden="true"
-                    className="h-[2.5px] w-full"
+                    className="h-[2.5px] w-full rounded-t-[15px]"
                     style={{
                       background: `linear-gradient(90deg, ${catTheme.accent} 0%, ${catTheme.accent}4D 42%, transparent 88%)`,
                     }}
@@ -1285,7 +1446,9 @@ export const TasksView: React.FC<TasksViewProps> = ({
                   {/* Parent Row */}
                   <div
                     onClick={() => onSelectTask(parent.id)}
-                    className="px-3.5 py-3.5 sm:px-5 sm:py-4 bg-trang-nga hover:bg-[#FCFBF8] transition-colors cursor-pointer"
+                    className={`px-3.5 py-3.5 sm:px-5 sm:py-4 bg-trang-nga hover:bg-[#FCFBF8] transition-colors cursor-pointer ${
+                      isExpanded ? '' : 'rounded-b-2xl'
+                    }`}
                   >
                     <div className={DESKTOP_GRID_COLS}>
                       {/* Column 1: Chevron + Quiet Archival Code + Dominant Editorial Title + Clean Metadata */}
@@ -1429,7 +1592,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
                               </>
                             )}
 
-                            {parentDriveNode && (
+                            {parentLinksNode && (
                               <>
                                 <span
                                   className="text-[#D4CCB9] select-none"
@@ -1437,7 +1600,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
                                 >
                                   ·
                                 </span>
-                                {parentDriveNode}
+                                {parentLinksNode}
                               </>
                             )}
 
@@ -1539,15 +1702,15 @@ export const TasksView: React.FC<TasksViewProps> = ({
 
                   {/* Nested Child Rows (Warm Linen Well, Hairline Separators) */}
                   {isExpanded && (
-                    <div className="border-t border-[#ECE7DA] bg-[#FAF8F2]/85 divide-y divide-[#EFEAE0]">
+                    <div className="border-t border-[#ECE7DA] bg-[#FAF8F2]/85 divide-y divide-[#EFEAE0] rounded-b-2xl">
                       {children.map((child) => {
-                        const childDriveNode = renderDriveLinkAction(child);
+                        const childLinksNode = renderTaskLinkActions(child);
 
                         return (
                           <div
                             key={child.id}
                             onClick={() => onSelectTask(child.id)}
-                            className="px-3.5 py-2.5 sm:px-5 sm:py-3 hover:bg-trang-nga transition-colors cursor-pointer"
+                            className="px-3.5 py-2.5 sm:px-5 sm:py-3 hover:bg-trang-nga transition-colors cursor-pointer last:rounded-b-2xl"
                           >
                             <div className={DESKTOP_GRID_COLS}>
                               {/* Column 1: Indented Tree Connector + Clean Code + Readable Child Title */}
@@ -1608,14 +1771,14 @@ export const TasksView: React.FC<TasksViewProps> = ({
                                     </div>
                                   </div>
 
-                                  {(childDriveNode ||
+                                  {(childLinksNode ||
                                     child.reviewFlags.length > 0 ||
                                     child.archivedAt) && (
                                     <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs leading-5">
-                                      {childDriveNode}
+                                      {childLinksNode}
                                       {child.reviewFlags.length > 0 && (
                                         <>
-                                          {childDriveNode && (
+                                          {childLinksNode && (
                                             <span
                                               className="text-[#D4CCB9] select-none"
                                               aria-hidden="true"
@@ -1631,7 +1794,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
                                       )}
                                       {child.archivedAt && (
                                         <>
-                                          {(childDriveNode ||
+                                          {(childLinksNode ||
                                             child.reviewFlags.length > 0) && (
                                             <span
                                               className="text-[#D4CCB9] select-none"

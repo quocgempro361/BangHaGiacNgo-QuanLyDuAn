@@ -30,12 +30,18 @@ import {
   canUserEditTask,
   computeParentProgress,
   exportTasksToCSV,
+  getDocumentDisplayLabel,
+  getDocumentSourceLabel,
   getEffectiveCategory,
   getOfficialMemberDisplayName,
+  hasDuplicateUrlInGroup,
   isB1TestTask,
+  isGenericDocumentLabel,
   isTaskManagerRole,
   resolveTaskAssignees,
+  validateHttpUrl,
 } from './src/utils/taskHelpers';
+import { SEED_TASKS } from './src/data/seedTasks';
 import { buildCreateTaskPayloads, DEFAULT_TBHGN_CATEGORIES } from './src/services/firestoreService';
 import {
   buildOfficialImportPlan,
@@ -2044,6 +2050,153 @@ test('Case 10: Single official Project Display Name source, standardized task as
   assert.equal(newTaskModalText.includes('customAssigneeNote'), false);
   assert.equal(membersViewText.includes('Đổi tên hiển thị'), true);
 });
+
+test('Case 11: Reference vs Result link helpers, validation, duplicate detection, and UI source guards', () => {
+  // 1. Display label normalization (preserves custom names, neutralizes generic legacy placeholders)
+  assert.equal(isGenericDocumentLabel('Mở tài liệu'), true);
+  assert.equal(isGenericDocumentLabel('  tài liệu  '), true);
+  assert.equal(isGenericDocumentLabel(''), true);
+  assert.equal(isGenericDocumentLabel('Bản thảo chương 3'), false);
+
+  assert.deepEqual(getDocumentDisplayLabel({ label: 'Mở tài liệu' }), {
+    text: 'Tài liệu chưa đặt tên',
+    isPlaceholder: true,
+  });
+  assert.deepEqual(
+    getDocumentDisplayLabel({ label: 'Kinh Kim Cang đối chiếu' }),
+    {
+      text: 'Kinh Kim Cang đối chiếu',
+      isPlaceholder: false,
+    }
+  );
+
+  // 2. Source label detection
+  assert.equal(
+    getDocumentSourceLabel('https://docs.google.com/document/d/abc123/edit'),
+    'Google Docs'
+  );
+  assert.equal(
+    getDocumentSourceLabel('https://docs.google.com/spreadsheets/d/xyz/edit'),
+    'Google Sheets'
+  );
+  assert.equal(
+    getDocumentSourceLabel('https://docs.google.com/presentation/d/p1/edit'),
+    'Google Slides'
+  );
+  assert.equal(
+    getDocumentSourceLabel('https://docs.google.com/forms/d/f1/viewform'),
+    'Google Forms'
+  );
+  assert.equal(
+    getDocumentSourceLabel('https://drive.google.com/drive/folders/123'),
+    'Google Drive'
+  );
+  assert.equal(
+    getDocumentSourceLabel('https://www.buddhistlibrary.org/texts/1'),
+    'buddhistlibrary.org'
+  );
+  assert.equal(getDocumentSourceLabel(null), 'Chưa gắn đường dẫn');
+
+  // 3. URL validation (http/https only)
+  assert.deepEqual(
+    validateHttpUrl('  https://drive.google.com/file/d/123/view  '),
+    {
+      ok: true,
+      normalizedUrl: 'https://drive.google.com/file/d/123/view',
+    }
+  );
+  assert.equal(validateHttpUrl('').ok, false);
+  assert.equal(validateHttpUrl('javascript:alert(1)').ok, false);
+  assert.equal(validateHttpUrl('ftp://example.com/file.pdf').ok, false);
+  assert.equal(validateHttpUrl('not-a-valid-url').ok, false);
+
+  // 4. Duplicate URL detection strictly within same group
+  const groupLinks = [
+    {
+      id: 'lnk_1',
+      label: 'Tài liệu 1',
+      url: 'https://drive.google.com/file/d/abc/view',
+      type: 'reference' as const,
+    },
+  ];
+  assert.equal(
+    hasDuplicateUrlInGroup(
+      groupLinks,
+      'HTTPS://Drive.Google.com/file/d/abc/view'
+    ),
+    true
+  );
+  assert.equal(
+    hasDuplicateUrlInGroup(
+      groupLinks,
+      'https://drive.google.com/file/d/abc/view',
+      'lnk_1'
+    ),
+    false
+  );
+  assert.equal(
+    hasDuplicateUrlInGroup(
+      groupLinks,
+      'https://drive.google.com/file/d/different/view'
+    ),
+    false
+  );
+
+  // 5. UI source guards for clear Input/Output separation and zero generic fallback strings
+  const tasksViewText = fs.readFileSync(
+    path.join(rootDir, 'src/components/TasksView.tsx'),
+    'utf8'
+  );
+
+  assert.equal(drawerText.includes('Tài liệu cần đọc / tham khảo'), true);
+  assert.equal(
+    drawerText.includes('Nguồn tài liệu để thực hiện công việc'),
+    true
+  );
+  assert.equal(drawerText.includes('Kết quả nghiên cứu'), true);
+  assert.equal(
+    drawerText.includes('Bản thảo, báo cáo và sản phẩm đã tạo ra'),
+    true
+  );
+  assert.equal(drawerText.includes('Chuyển sang Kết quả'), true);
+  assert.equal(drawerText.includes('Chuyển sang Tham khảo'), true);
+
+  for (const [name, src] of [
+    ['TaskDetailDrawer', drawerText],
+    ['TasksView', tasksViewText],
+    ['MyTasksView', myTasksText],
+  ] as const) {
+    assert.equal(
+      src.includes('Tài liệu KQ'),
+      false,
+      `${name} must not display "Tài liệu KQ"`
+    );
+    assert.equal(
+      src.includes('Mở tài liệu'),
+      false,
+      `${name} must not display "Mở tài liệu"`
+    );
+    assert.equal(
+      src.includes('Kết quả hiện tại'),
+      false,
+      `${name} must not display "Kết quả hiện tại"`
+    );
+  }
+
+  assert.equal(tasksViewText.includes('tham khảo'), true);
+  assert.equal(tasksViewText.includes('kết quả'), true);
+  assert.equal(myTasksText.includes('tham khảo'), true);
+  assert.equal(myTasksText.includes('kết quả'), true);
+
+  // 6. Official 20 seed tasks & 13 preserved resultLinks URLs remain untouched
+  assert.equal(SEED_TASKS.length, 20);
+  const preservedResultUrls = SEED_TASKS.reduce(
+    (sum, t) => sum + t.resultLinks.filter((l) => Boolean(l.url)).length,
+    0
+  );
+  assert.equal(preservedResultUrls, 13);
+});
+
 
 
 
