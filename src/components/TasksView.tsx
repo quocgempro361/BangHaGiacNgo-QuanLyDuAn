@@ -1,7 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
   Archive,
+  ArrowUp,
   ChevronDown,
   ChevronRight,
   ChevronsDownUp,
@@ -13,6 +14,7 @@ import {
   Plus,
   RotateCcw,
   Search,
+  SlidersHorizontal,
   X,
 } from 'lucide-react';
 import { CategoryItem, ProjectMember, TaskItem } from '../types/project';
@@ -84,7 +86,7 @@ function getCategoryVisualTheme(
 }
 
 const DESKTOP_GRID_COLS =
-  'lg:grid lg:grid-cols-[minmax(0,1fr)_136px_174px_206px_98px] lg:items-center lg:gap-4';
+  'lg:grid lg:grid-cols-[minmax(0,2.35fr)_122px_minmax(0,1fr)_minmax(0,1.1fr)_90px] xl:grid-cols-[minmax(0,1fr)_136px_174px_206px_98px] lg:items-center lg:gap-3 xl:gap-4';
 
 export const TasksView: React.FC<TasksViewProps> = ({
   tasks,
@@ -114,6 +116,13 @@ export const TasksView: React.FC<TasksViewProps> = ({
     tbhgn_4: true,
     tbhgn_5: true,
   });
+
+  const filterBarRef = useRef<HTMLDivElement | null>(null);
+  const columnHeaderRef = useRef<HTMLDivElement | null>(null);
+  const stickyPopoverRef = useRef<HTMLDivElement | null>(null);
+  const [showStickyBar, setShowStickyBar] = useState(false);
+  const [showStickyColumnHeader, setShowStickyColumnHeader] = useState(false);
+  const [stickyFilterOpen, setStickyFilterOpen] = useState(false);
 
   const sortedCategories = useMemo(
     () => [...categories].sort((a, b) => a.sortOrder - b.sortOrder),
@@ -319,6 +328,149 @@ export const TasksView: React.FC<TasksViewProps> = ({
     setReviewOnly(false);
   };
 
+  useEffect(() => {
+    let rafId = 0;
+
+    const evaluateStickyState = () => {
+      rafId = 0;
+      const filterEl = filterBarRef.current;
+      if (!filterEl || window.scrollY < 40) {
+        setShowStickyBar(false);
+        setShowStickyColumnHeader(false);
+        return;
+      }
+
+      const filterBottom = filterEl.getBoundingClientRect().bottom;
+      setShowStickyBar((prev) => {
+        if (!prev && filterBottom <= 56) return true;
+        if (prev && filterBottom > 66) return false;
+        return prev;
+      });
+
+      const isDesktop = window.innerWidth >= 1024;
+      const headerEl = columnHeaderRef.current;
+      if (!isDesktop || !headerEl) {
+        setShowStickyColumnHeader(false);
+        return;
+      }
+      const headerTop = headerEl.getBoundingClientRect().top;
+      setShowStickyColumnHeader((prev) => {
+        if (filterBottom > 66) return false;
+        if (!prev && headerTop <= 104) return true;
+        if (prev && headerTop > 114) return false;
+        return prev;
+      });
+    };
+
+    const handleScrollOrResize = () => {
+      if (!rafId) {
+        rafId = window.requestAnimationFrame(evaluateStickyState);
+      }
+    };
+
+    evaluateStickyState();
+    window.addEventListener('scroll', handleScrollOrResize, { passive: true });
+    window.addEventListener('resize', handleScrollOrResize, { passive: true });
+    return () => {
+      if (rafId) window.cancelAnimationFrame(rafId);
+      window.removeEventListener('scroll', handleScrollOrResize);
+      window.removeEventListener('resize', handleScrollOrResize);
+    };
+  }, [filteredTree.length]);
+
+  useEffect(() => {
+    if (!showStickyBar) {
+      setStickyFilterOpen(false);
+    }
+  }, [showStickyBar]);
+
+  useEffect(() => {
+    if (!stickyFilterOpen) return;
+    const handlePointerDown = (e: PointerEvent) => {
+      if (
+        stickyPopoverRef.current &&
+        !stickyPopoverRef.current.contains(e.target as Node)
+      ) {
+        setStickyFilterOpen(false);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setStickyFilterOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [stickyFilterOpen]);
+
+  const scrollToTop = () => {
+    const prefersReduced =
+      typeof window !== 'undefined' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    window.scrollTo({ top: 0, behavior: prefersReduced ? 'auto' : 'smooth' });
+  };
+
+  const activeFilterChips = useMemo(() => {
+    const chips: Array<{
+      key: string;
+      label: string;
+      toneClass: string;
+      onRemove: () => void;
+    }> = [];
+
+    if (statusFilter !== 'all') {
+      chips.push({
+        key: 'status',
+        label:
+          statusFilter === '__unset__'
+            ? 'TT: Cần rà soát'
+            : `TT: ${statusFilter}`,
+        toneClass:
+          'bg-lam-sang-soft border-lam-sang/40 text-lam-sang-ink hover:bg-lam-sang/15',
+        onRemove: () => setStatusFilter('all'),
+      });
+    }
+
+    if (categoryFilter !== 'all') {
+      const catLabel =
+        categoryFilter === '__uncategorized__'
+          ? 'Chưa phân hạng mục'
+          : categories.find((c) => c.id === categoryFilter)?.name ??
+            categoryFilter;
+      chips.push({
+        key: 'category',
+        label: `HM: ${catLabel}`,
+        toneClass:
+          'bg-thanh-ngoc-soft border-thanh-ngoc/40 text-thanh-ngoc-ink hover:bg-thanh-ngoc/15',
+        onRemove: () => setCategoryFilter('all'),
+      });
+    }
+
+    if (assigneeFilter !== 'all') {
+      const assigneeLabel =
+        assigneeFilter === '__unassigned__'
+          ? 'Chưa phân công'
+          : assigneeFilter === '__unlinked_uid__'
+          ? 'Chưa gắn TK'
+          : assigneeFilter;
+      chips.push({
+        key: 'assignee',
+        label: `PT: ${assigneeLabel}`,
+        toneClass:
+          'bg-minh-kim-soft border-minh-kim-border text-minh-kim-ink hover:bg-minh-kim/15',
+        onRemove: () => setAssigneeFilter('all'),
+      });
+    }
+
+    return chips;
+  }, [statusFilter, categoryFilter, assigneeFilter, categories]);
+
+  const activeDropdownFilterCount = activeFilterChips.length;
+
   const renderAssigneeCell = (task: TaskItem) => {
     if (task.assignees.length === 0 && task.assigneeUids.length === 0) {
       return (
@@ -407,6 +559,343 @@ export const TasksView: React.FC<TasksViewProps> = ({
 
   return (
     <div className="space-y-4">
+      {/* Sticky Compact Toolbar + Desktop Sticky Column Header (activates on scroll past main filter) */}
+      <div
+        aria-hidden={!showStickyBar}
+        className={`fixed top-[52px] left-0 lg:left-60 right-0 z-20 transition-[opacity,transform] duration-200 ease-out ${
+          showStickyBar
+            ? 'opacity-100 translate-y-0 pointer-events-auto visible'
+            : 'opacity-0 -translate-y-2 pointer-events-none invisible'
+        }`}
+      >
+        <div
+          ref={stickyPopoverRef}
+          className="bg-trang-nga/95 backdrop-blur-md border-b border-slate-200/90 shadow-[0_4px_16px_rgba(20,36,63,0.07)]"
+        >
+          <div className="max-w-6xl mx-auto px-3 sm:px-6 relative">
+            {/* Compact Toolbar Row: 48px mobile / 52px desktop */}
+            <div className="h-[48px] lg:h-[52px] flex items-center gap-1 sm:gap-2">
+              {/* 1. Compact Search */}
+              <div className="relative flex-1 min-w-0 lg:flex-initial lg:w-56 xl:w-64">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2 sm:left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  tabIndex={showStickyBar ? 0 : -1}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Tìm mã, tên, phụ trách..."
+                  aria-label="Tìm kiếm nhanh công việc"
+                  className="w-full h-[36px] pl-7 pr-6 sm:pl-8 sm:pr-7 text-xs sm:text-[13px] bg-nen-sang border border-slate-200 rounded-lg text-huyen-lam placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-lam-sang/40 focus:border-lam-sang focus:bg-white transition-colors"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    tabIndex={showStickyBar ? 0 : -1}
+                    onClick={() => setSearchQuery('')}
+                    aria-label="Xóa từ khóa tìm kiếm"
+                    className="absolute right-0.5 top-1/2 -translate-y-1/2 w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center rounded text-slate-400 hover:text-huyen-lam"
+                  >
+                    <X className="w-3.5 h-3.5 shrink-0" />
+                  </button>
+                )}
+              </div>
+
+              {/* 2. Open Filter Popover Button */}
+              <button
+                type="button"
+                tabIndex={showStickyBar ? 0 : -1}
+                onClick={() => setStickyFilterOpen((v) => !v)}
+                aria-expanded={stickyFilterOpen}
+                aria-label="Mở bộ lọc nhanh"
+                className={`inline-flex items-center justify-center gap-1 sm:gap-1.5 h-[36px] min-w-[36px] sm:min-w-[40px] px-2 sm:px-3 text-xs font-medium rounded-lg border transition-colors whitespace-nowrap shrink-0 ${
+                  stickyFilterOpen || activeDropdownFilterCount > 0
+                    ? 'bg-lam-sang-soft border-lam-sang/45 text-lam-sang-ink font-semibold'
+                    : 'bg-white border-slate-200 text-huyen-lam hover:bg-nen-sang'
+                }`}
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5 shrink-0" />
+                <span>Lọc</span>
+                {activeDropdownFilterCount > 0 && (
+                  <span className="font-mono-tabular text-[11px] font-bold px-1.5 py-0.5 rounded bg-lam-sang text-white leading-none">
+                    {activeDropdownFilterCount}
+                  </span>
+                )}
+              </button>
+
+              {/* 3. Active Filter Chips (Desktop inline) */}
+              {activeFilterChips.length > 0 && (
+                <div className="hidden lg:flex flex-1 min-w-0 items-center gap-1.5 overflow-x-auto">
+                  {activeFilterChips.map((chip) => (
+                    <button
+                      key={chip.key}
+                      type="button"
+                      tabIndex={showStickyBar ? 0 : -1}
+                      onClick={chip.onRemove}
+                      title={`Bỏ lọc: ${chip.label}`}
+                      className={`inline-flex items-center gap-1 h-[30px] px-2 text-[11px] font-medium rounded-md border transition-colors whitespace-nowrap shrink-0 max-w-[170px] ${chip.toneClass}`}
+                    >
+                      <span className="truncate">{chip.label}</span>
+                      <X className="w-3 h-3 shrink-0" />
+                    </button>
+                  ))}
+                  {hasActiveFilter && (
+                    <button
+                      type="button"
+                      tabIndex={showStickyBar ? 0 : -1}
+                      onClick={resetFilters}
+                      className="inline-flex items-center gap-1 h-[30px] px-2 text-[11px] font-semibold text-chu-sa hover:bg-chu-sa-soft rounded-md transition-colors whitespace-nowrap shrink-0"
+                    >
+                      <RotateCcw className="w-3 h-3 shrink-0" />
+                      <span>Xóa lọc</span>
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Spacer on desktop when no chips */}
+              {activeFilterChips.length === 0 && (
+                <div className="hidden lg:block flex-1" />
+              )}
+
+              {/* 4. Cần rà soát toggle */}
+              <button
+                type="button"
+                tabIndex={showStickyBar ? 0 : -1}
+                onClick={() => setReviewOnly((v) => !v)}
+                aria-pressed={reviewOnly}
+                aria-label="Lọc việc cần rà soát"
+                title={`Cần rà soát${reviewFlagCount > 0 ? ` (${reviewFlagCount})` : ''}`}
+                className={`inline-flex items-center justify-center gap-1.5 h-[36px] w-9 sm:w-auto sm:min-w-[40px] px-0 sm:px-2.5 text-xs font-medium rounded-lg border transition-colors whitespace-nowrap shrink-0 ${
+                  reviewOnly
+                    ? 'bg-huyen-lam border-huyen-lam text-kim-quang font-semibold'
+                    : 'bg-white border-slate-200 text-huyen-lam hover:bg-nen-sang'
+                }`}
+              >
+                <AlertCircle
+                  className={`w-3.5 h-3.5 shrink-0 ${
+                    reviewOnly ? 'text-kim-quang' : 'text-minh-kim-ink'
+                  }`}
+                />
+                <span className="hidden sm:inline">Cần rà soát</span>
+              </button>
+
+              {/* 5. Expand / Collapse All */}
+              {parentsWithVisibleChildren.length > 0 && !hasActiveFilter && (
+                <button
+                  type="button"
+                  tabIndex={showStickyBar ? 0 : -1}
+                  onClick={toggleExpandAll}
+                  aria-label={
+                    allExpanded ? 'Thu gọn việc con' : 'Mở tất cả việc con'
+                  }
+                  title={
+                    allExpanded ? 'Thu gọn việc con' : 'Mở tất cả việc con'
+                  }
+                  className="inline-flex items-center justify-center gap-1.5 h-[36px] w-9 sm:w-auto sm:min-w-[40px] px-0 sm:px-2.5 text-xs font-medium rounded-lg border border-slate-200 bg-white text-huyen-lam hover:bg-nen-sang transition-colors whitespace-nowrap shrink-0"
+                >
+                  {allExpanded ? (
+                    <>
+                      <ChevronsDownUp className="w-3.5 h-3.5 shrink-0 text-slate-500" />
+                      <span className="hidden md:inline">Thu gọn</span>
+                    </>
+                  ) : (
+                    <>
+                      <ChevronsUpDown className="w-3.5 h-3.5 shrink-0 text-lam-sang" />
+                      <span className="hidden md:inline">Mở con</span>
+                    </>
+                  )}
+                </button>
+              )}
+
+              {/* 6. Visible Count */}
+              <div
+                className="font-mono-tabular text-[11px] sm:text-xs font-semibold text-huyen-lam px-0.5 sm:px-2 whitespace-nowrap shrink-0 tabular-nums"
+                title={`Đang xem ${visibleTotalCount} trên ${visiblePool.length} công việc`}
+              >
+                <span className={hasActiveFilter ? 'text-lam-sang-ink' : ''}>
+                  {visibleTotalCount}/{visiblePool.length}
+                </span>
+                <span className="hidden xl:inline text-slate-500 font-normal">
+                  {' '}
+                  việc
+                </span>
+              </div>
+
+              {/* 7. Scroll to Top */}
+              <button
+                type="button"
+                tabIndex={showStickyBar ? 0 : -1}
+                onClick={scrollToTop}
+                aria-label="Lên đầu trang"
+                title="Lên đầu trang"
+                className="inline-flex items-center justify-center gap-1 h-[36px] w-9 sm:w-auto sm:min-w-[40px] px-0 sm:px-2.5 text-xs font-medium rounded-lg bg-huyen-lam text-trang-nga hover:bg-lam-tri-tue transition-colors whitespace-nowrap shrink-0"
+              >
+                <ArrowUp className="w-3.5 h-3.5 shrink-0 text-kim-quang" />
+                <span className="hidden xl:inline">Đầu trang</span>
+              </button>
+            </div>
+
+            {/* Mobile/Tablet Active Filter Chips Strip (only rendered when dropdown filters active) */}
+            {(activeFilterChips.length > 0 || (hasActiveFilter && searchQuery.trim() !== '')) && (
+              <div className="lg:hidden flex items-center gap-1.5 pb-1.5 overflow-x-auto">
+                {activeFilterChips.map((chip) => (
+                  <button
+                    key={chip.key}
+                    type="button"
+                    tabIndex={showStickyBar ? 0 : -1}
+                    onClick={chip.onRemove}
+                    className={`inline-flex items-center gap-1 h-[26px] px-2 text-[11px] font-medium rounded-md border whitespace-nowrap shrink-0 ${chip.toneClass}`}
+                  >
+                    <span>{chip.label}</span>
+                    <X className="w-3 h-3 shrink-0" />
+                  </button>
+                ))}
+                {hasActiveFilter && (
+                  <button
+                    type="button"
+                    tabIndex={showStickyBar ? 0 : -1}
+                    onClick={resetFilters}
+                    className="inline-flex items-center gap-1 h-[26px] px-2 text-[11px] font-semibold text-chu-sa bg-chu-sa-soft border border-chu-sa-border rounded-md whitespace-nowrap shrink-0"
+                  >
+                    <RotateCcw className="w-3 h-3 shrink-0" />
+                    <span>Xóa lọc</span>
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Quick Filter Popover anchored to sticky bar */}
+            {stickyFilterOpen && (
+              <div className="absolute left-3 right-3 sm:left-6 sm:right-auto sm:w-[460px] top-full mt-1.5 bg-trang-nga border border-slate-200 rounded-xl shadow-lg p-3.5 space-y-3 z-30">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-semibold text-huyen-lam">
+                    Lọc nhanh danh sách
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setStickyFilterOpen(false)}
+                    aria-label="Đóng bộ lọc nhanh"
+                    className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-huyen-lam hover:bg-slate-100"
+                  >
+                    <X className="w-4 h-4 shrink-0" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                      Trạng thái
+                    </label>
+                    <select
+                      aria-label="Lọc nhanh theo trạng thái"
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value)}
+                      className="w-full px-2.5 py-2 text-xs rounded-lg border border-slate-200 bg-white text-huyen-lam focus:outline-none focus:ring-2 focus:ring-lam-sang/40 min-h-[38px]"
+                    >
+                      <option value="all">Tất cả</option>
+                      {ALL_STATUSES.map((st) => (
+                        <option key={st} value={st}>
+                          {st}
+                        </option>
+                      ))}
+                      <option value="__unset__">Chưa có trạng thái</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                      Hạng mục
+                    </label>
+                    <select
+                      aria-label="Lọc nhanh theo hạng mục"
+                      value={categoryFilter}
+                      onChange={(e) => setCategoryFilter(e.target.value)}
+                      className="w-full px-2.5 py-2 text-xs rounded-lg border border-slate-200 bg-white text-huyen-lam focus:outline-none focus:ring-2 focus:ring-lam-sang/40 min-h-[38px]"
+                    >
+                      <option value="all">Tất cả</option>
+                      {sortedCategories.map((cat) => (
+                        <option key={cat.id} value={cat.id}>
+                          {cat.name}
+                        </option>
+                      ))}
+                      <option value="__uncategorized__">Chưa phân</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                      Phụ trách
+                    </label>
+                    <select
+                      aria-label="Lọc nhanh theo người phụ trách"
+                      value={assigneeFilter}
+                      onChange={(e) => setAssigneeFilter(e.target.value)}
+                      className="w-full px-2.5 py-2 text-xs rounded-lg border border-slate-200 bg-white text-huyen-lam focus:outline-none focus:ring-2 focus:ring-lam-sang/40 min-h-[38px]"
+                    >
+                      <option value="all">Tất cả</option>
+                      <option value="__unassigned__">Chưa phân công</option>
+                      {isManager && (
+                        <option value="__unlinked_uid__">
+                          Chưa gắn TK ({unlinkedUidCount})
+                        </option>
+                      )}
+                      {assigneeOptions.map((person) => (
+                        <option key={person} value={person}>
+                          {person}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-1 border-t border-slate-100">
+                  {hasActiveFilter ? (
+                    <button
+                      type="button"
+                      onClick={resetFilters}
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-chu-sa hover:underline"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5 shrink-0" />
+                      <span>Xóa toàn bộ lọc</span>
+                    </button>
+                  ) : (
+                    <span className="text-[11px] text-slate-400">
+                      Đang hiển thị toàn bộ danh sách
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setStickyFilterOpen(false)}
+                    className="px-3 py-1.5 text-xs font-semibold bg-huyen-lam text-trang-nga rounded-lg hover:bg-lam-tri-tue min-h-[34px]"
+                  >
+                    Xong
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Desktop Sticky Column Header (only on lg+ after scrolling past table header) */}
+            {showStickyColumnHeader && filteredTree.length > 0 && (
+              <div className="hidden lg:block pb-1.5">
+                <div className="px-[13px]">
+                  <div
+                    className={`${DESKTOP_GRID_COLS} px-4 py-2 bg-nen-sang border border-slate-200/90 rounded-lg text-xs font-semibold text-slate-600`}
+                  >
+                    <div className="pl-[46px] text-huyen-lam">
+                      Công việc &amp; Hạng mục
+                    </div>
+                    <div className="text-huyen-lam">Trạng thái</div>
+                    <div>Người phụ trách</div>
+                    <div>Bước tiếp theo</div>
+                    <div className="text-right">Hạn xử lý</div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Screen Header */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
         <div className="min-w-0">
@@ -467,7 +956,10 @@ export const TasksView: React.FC<TasksViewProps> = ({
       </div>
 
       {/* Luminous Search & Filter Bar */}
-      <div className="bg-trang-nga border border-slate-200/90 rounded-2xl p-3 sm:p-4 space-y-3 shadow-[0_1px_2px_rgba(20,36,63,0.03)]">
+      <div
+        ref={filterBarRef}
+        className="bg-trang-nga border border-slate-200/90 rounded-2xl p-3 sm:p-4 space-y-3 shadow-[0_1px_2px_rgba(20,36,63,0.03)]"
+      >
         <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
           <div className="relative flex-1 min-w-0">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -609,7 +1101,10 @@ export const TasksView: React.FC<TasksViewProps> = ({
         {/* Desktop Crisp Architectural Column Header */}
         {filteredTree.length > 0 && (
           <div
-            className={`hidden ${DESKTOP_GRID_COLS} px-4 py-2.5 bg-trang-nga border border-slate-200/85 border-b-2 border-b-huyen-lam/20 rounded-xl text-xs font-semibold text-slate-600`}
+            ref={columnHeaderRef}
+            className={`hidden ${DESKTOP_GRID_COLS} px-4 py-2.5 bg-trang-nga border border-slate-200/85 border-b-2 border-b-huyen-lam/20 rounded-xl text-xs font-semibold text-slate-600 transition-opacity duration-150 ${
+              showStickyColumnHeader ? 'lg:opacity-0' : 'lg:opacity-100'
+            }`}
           >
             <div className="pl-[46px] text-huyen-lam">Công việc &amp; Hạng mục</div>
             <div className="text-huyen-lam">Trạng thái</div>
