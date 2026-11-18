@@ -56,32 +56,32 @@ function getCategoryVisualTheme(
   if (categoryId === 'cat_outline' || nameKey.includes('đề cương')) {
     return {
       accent: '#477FAE',
-      text: '#285780',
-      softBg: '#EFF6FB',
-      softBorder: '#CEE1F2',
+      text: '#23527A',
+      softBg: '#F1F6FB',
+      softBorder: '#D2E2F0',
     };
   }
   if (categoryId === 'cat_foundation' || nameKey.includes('nền tảng')) {
     return {
       accent: '#328578',
-      text: '#1F5E54',
-      softBg: '#EEF7F5',
-      softBorder: '#C7E3DE',
+      text: '#1D5950',
+      softBg: '#EFF7F5',
+      softBorder: '#C9E2DD',
     };
   }
   if (categoryId === 'cat_research' || nameKey.includes('truy nguồn')) {
     return {
       accent: '#C9A14B',
-      text: '#78530E',
-      softBg: '#FBF6E8',
-      softBorder: '#E7D5A3',
+      text: '#7A5410',
+      softBg: '#FCF7EA',
+      softBorder: '#E7D5A7',
     };
   }
   return {
     accent: fallbackColor || '#477FAE',
     text: '#14243F',
-    softBg: '#F4F6F9',
-    softBorder: '#DCE3EC',
+    softBg: '#F5F2EA',
+    softBorder: '#E2DCCE',
   };
 }
 
@@ -474,7 +474,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
   const renderAssigneeCell = (task: TaskItem) => {
     if (task.assignees.length === 0 && task.assigneeUids.length === 0) {
       return (
-        <span className="text-[13px] text-slate-400 italic">
+        <span className="text-[12.5px] text-[#8E96A3]">
           Chưa phân công
         </span>
       );
@@ -494,7 +494,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
           <span
             title="Chưa liên kết tài khoản Google (UID)"
             aria-label="Chưa liên kết tài khoản Google"
-            className="inline-flex items-center text-slate-400 shrink-0"
+            className="inline-flex items-center text-[#BEB6A7] hover:text-huyen-lam transition-colors shrink-0"
           >
             <Link2Off className="w-3.5 h-3.5 shrink-0" />
           </span>
@@ -507,7 +507,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
     if (!task.dueDate) {
       return (
         <span
-          className={`text-[13px] font-mono-tabular text-slate-300 select-none ${
+          className={`text-[13px] font-mono-tabular text-[#D6D0C4] select-none ${
             alignRight ? 'block text-right' : ''
           }`}
         >
@@ -518,10 +518,10 @@ export const TasksView: React.FC<TasksViewProps> = ({
     const overdue = isTaskOverdue(task);
     return (
       <span
-        className={`text-[13px] font-mono-tabular whitespace-nowrap ${
+        className={`text-[12.5px] font-mono-tabular whitespace-nowrap ${
           alignRight ? 'block text-right' : ''
         } ${
-          overdue ? 'text-chu-sa font-semibold' : 'text-slate-600'
+          overdue ? 'text-chu-sa font-semibold' : 'text-[#525F73]'
         }`}
         title={overdue ? 'Quá hạn xử lý' : undefined}
       >
@@ -545,9 +545,9 @@ export const TasksView: React.FC<TasksViewProps> = ({
             ? `${primary.label} (+${validLinks.length - 1} tài liệu khác)`
             : primary.label
         }
-        className="inline-flex items-center gap-1.5 text-xs font-medium text-lam-sang-ink hover:text-huyen-lam hover:underline whitespace-nowrap shrink-0"
+        className="inline-flex items-center gap-1 text-xs font-medium text-lam-sang-ink hover:text-huyen-lam hover:underline decoration-lam-sang/50 underline-offset-2 whitespace-nowrap shrink-0 transition-colors"
       >
-        <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+        <ExternalLink className="w-3 h-3 shrink-0 opacity-85" />
         <span>
           {validLinks.length > 1
             ? `${validLinks.length} tài liệu KQ`
@@ -558,7 +558,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 sm:space-y-5">
       {/* Sticky Compact Toolbar + Desktop Sticky Column Header (activates on scroll past main filter) */}
       <div
         aria-hidden={!showStickyBar}
@@ -570,14 +570,14 @@ export const TasksView: React.FC<TasksViewProps> = ({
       >
         <div
           ref={stickyPopoverRef}
-          className="bg-trang-nga/95 backdrop-blur-md border-b border-slate-200/90 shadow-[0_4px_16px_rgba(20,36,63,0.07)]"
+          className="bg-trang-nga/95 backdrop-blur-md border-b border-[#E5DFD2] shadow-[0_6px_20px_-8px_rgba(20,36,63,0.1)]"
         >
           <div className="max-w-6xl mx-auto px-3 sm:px-6 relative">
             {/* Compact Toolbar Row: 48px mobile / 52px desktop */}
             <div className="h-[48px] lg:h-[52px] flex items-center gap-1 sm:gap-2">
               {/* 1. Compact Search */}
               <div className="relative flex-1 min-w-0 lg:flex-initial lg:w-56 xl:w-64">
-                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2 sm:left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <Search className="w-3.5 h-3.5 text-[#8A94A3] absolute left-2 sm:left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type="text"
                   tabIndex={showStickyBar ? 0 : -1}
@@ -585,7 +585,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Tìm mã, tên, phụ trách..."
                   aria-label="Tìm kiếm nhanh công việc"
-                  className="w-full h-[36px] pl-7 pr-6 sm:pl-8 sm:pr-7 text-xs sm:text-[13px] bg-nen-sang border border-slate-200 rounded-lg text-huyen-lam placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-lam-sang/40 focus:border-lam-sang focus:bg-white transition-colors"
+                  className="w-full h-[36px] pl-7 pr-6 sm:pl-8 sm:pr-7 text-xs sm:text-[13px] bg-[#FAF8F3] border border-[#E2DCD0] rounded-lg text-huyen-lam placeholder:text-[#8E96A3] focus:outline-none focus:ring-2 focus:ring-lam-sang/30 focus:border-lam-sang focus:bg-white transition-colors"
                 />
                 {searchQuery && (
                   <button
@@ -593,7 +593,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
                     tabIndex={showStickyBar ? 0 : -1}
                     onClick={() => setSearchQuery('')}
                     aria-label="Xóa từ khóa tìm kiếm"
-                    className="absolute right-0.5 top-1/2 -translate-y-1/2 w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center rounded text-slate-400 hover:text-huyen-lam"
+                    className="absolute right-0.5 top-1/2 -translate-y-1/2 w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center rounded text-[#7D8796] hover:text-huyen-lam"
                   >
                     <X className="w-3.5 h-3.5 shrink-0" />
                   </button>
@@ -610,7 +610,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
                 className={`inline-flex items-center justify-center gap-1 sm:gap-1.5 h-[36px] min-w-[36px] sm:min-w-[40px] px-2 sm:px-3 text-xs font-medium rounded-lg border transition-colors whitespace-nowrap shrink-0 ${
                   stickyFilterOpen || activeDropdownFilterCount > 0
                     ? 'bg-lam-sang-soft border-lam-sang/45 text-lam-sang-ink font-semibold'
-                    : 'bg-white border-slate-200 text-huyen-lam hover:bg-nen-sang'
+                    : 'bg-white border-[#E2DCD0] text-huyen-lam hover:bg-[#FAF8F3]'
                 }`}
               >
                 <SlidersHorizontal className="w-3.5 h-3.5 shrink-0" />
@@ -668,7 +668,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
                 className={`inline-flex items-center justify-center gap-1.5 h-[36px] w-9 sm:w-auto sm:min-w-[40px] px-0 sm:px-2.5 text-xs font-medium rounded-lg border transition-colors whitespace-nowrap shrink-0 ${
                   reviewOnly
                     ? 'bg-huyen-lam border-huyen-lam text-kim-quang font-semibold'
-                    : 'bg-white border-slate-200 text-huyen-lam hover:bg-nen-sang'
+                    : 'bg-white border-[#E2DCD0] text-huyen-lam hover:bg-[#FAF8F3]'
                 }`}
               >
                 <AlertCircle
@@ -691,11 +691,11 @@ export const TasksView: React.FC<TasksViewProps> = ({
                   title={
                     allExpanded ? 'Thu gọn việc con' : 'Mở tất cả việc con'
                   }
-                  className="inline-flex items-center justify-center gap-1.5 h-[36px] w-9 sm:w-auto sm:min-w-[40px] px-0 sm:px-2.5 text-xs font-medium rounded-lg border border-slate-200 bg-white text-huyen-lam hover:bg-nen-sang transition-colors whitespace-nowrap shrink-0"
+                  className="inline-flex items-center justify-center gap-1.5 h-[36px] w-9 sm:w-auto sm:min-w-[40px] px-0 sm:px-2.5 text-xs font-medium rounded-lg border border-[#E2DCD0] bg-white text-huyen-lam hover:bg-[#FAF8F3] transition-colors whitespace-nowrap shrink-0"
                 >
                   {allExpanded ? (
                     <>
-                      <ChevronsDownUp className="w-3.5 h-3.5 shrink-0 text-slate-500" />
+                      <ChevronsDownUp className="w-3.5 h-3.5 shrink-0 text-[#667285]" />
                       <span className="hidden md:inline">Thu gọn</span>
                     </>
                   ) : (
@@ -715,7 +715,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
                 <span className={hasActiveFilter ? 'text-lam-sang-ink' : ''}>
                   {visibleTotalCount}/{visiblePool.length}
                 </span>
-                <span className="hidden xl:inline text-slate-500 font-normal">
+                <span className="hidden xl:inline text-[#6A7485] font-normal">
                   {' '}
                   việc
                 </span>
@@ -766,7 +766,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
 
             {/* Quick Filter Popover anchored to sticky bar */}
             {stickyFilterOpen && (
-              <div className="absolute left-3 right-3 sm:left-6 sm:right-auto sm:w-[460px] top-full mt-1.5 bg-trang-nga border border-slate-200 rounded-xl shadow-lg p-3.5 space-y-3 z-30">
+              <div className="absolute left-3 right-3 sm:left-6 sm:right-auto sm:w-[460px] top-full mt-1.5 bg-trang-nga border border-[#DFD8C8] rounded-2xl shadow-[0_14px_34px_-10px_rgba(20,36,63,0.16)] p-4 space-y-3 z-30">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs font-semibold text-huyen-lam">
                     Lọc nhanh danh sách
@@ -775,7 +775,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
                     type="button"
                     onClick={() => setStickyFilterOpen(false)}
                     aria-label="Đóng bộ lọc nhanh"
-                    className="w-7 h-7 flex items-center justify-center rounded-md text-slate-400 hover:text-huyen-lam hover:bg-slate-100"
+                    className="w-7 h-7 flex items-center justify-center rounded-md text-[#7D8796] hover:text-huyen-lam hover:bg-[#F3EFE6]"
                   >
                     <X className="w-4 h-4 shrink-0" />
                   </button>
@@ -783,14 +783,14 @@ export const TasksView: React.FC<TasksViewProps> = ({
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <div>
-                    <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                    <label className="block text-[11px] font-medium text-[#606B7D] mb-1">
                       Trạng thái
                     </label>
                     <select
                       aria-label="Lọc nhanh theo trạng thái"
                       value={statusFilter}
                       onChange={(e) => setStatusFilter(e.target.value)}
-                      className="w-full px-2.5 py-2 text-xs rounded-lg border border-slate-200 bg-white text-huyen-lam focus:outline-none focus:ring-2 focus:ring-lam-sang/40 min-h-[38px]"
+                      className="w-full px-2.5 py-2 text-xs rounded-lg border border-[#E2DCD0] bg-white text-huyen-lam focus:outline-none focus:ring-2 focus:ring-lam-sang/30 min-h-[38px]"
                     >
                       <option value="all">Tất cả</option>
                       {ALL_STATUSES.map((st) => (
@@ -803,14 +803,14 @@ export const TasksView: React.FC<TasksViewProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                    <label className="block text-[11px] font-medium text-[#606B7D] mb-1">
                       Hạng mục
                     </label>
                     <select
                       aria-label="Lọc nhanh theo hạng mục"
                       value={categoryFilter}
                       onChange={(e) => setCategoryFilter(e.target.value)}
-                      className="w-full px-2.5 py-2 text-xs rounded-lg border border-slate-200 bg-white text-huyen-lam focus:outline-none focus:ring-2 focus:ring-lam-sang/40 min-h-[38px]"
+                      className="w-full px-2.5 py-2 text-xs rounded-lg border border-[#E2DCD0] bg-white text-huyen-lam focus:outline-none focus:ring-2 focus:ring-lam-sang/30 min-h-[38px]"
                     >
                       <option value="all">Tất cả</option>
                       {sortedCategories.map((cat) => (
@@ -823,14 +823,14 @@ export const TasksView: React.FC<TasksViewProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                    <label className="block text-[11px] font-medium text-[#606B7D] mb-1">
                       Phụ trách
                     </label>
                     <select
                       aria-label="Lọc nhanh theo người phụ trách"
                       value={assigneeFilter}
                       onChange={(e) => setAssigneeFilter(e.target.value)}
-                      className="w-full px-2.5 py-2 text-xs rounded-lg border border-slate-200 bg-white text-huyen-lam focus:outline-none focus:ring-2 focus:ring-lam-sang/40 min-h-[38px]"
+                      className="w-full px-2.5 py-2 text-xs rounded-lg border border-[#E2DCD0] bg-white text-huyen-lam focus:outline-none focus:ring-2 focus:ring-lam-sang/30 min-h-[38px]"
                     >
                       <option value="all">Tất cả</option>
                       <option value="__unassigned__">Chưa phân công</option>
@@ -848,7 +848,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between pt-1 border-t border-slate-100">
+                <div className="flex items-center justify-between pt-2 border-t border-[#EFEAE0]">
                   {hasActiveFilter ? (
                     <button
                       type="button"
@@ -859,14 +859,14 @@ export const TasksView: React.FC<TasksViewProps> = ({
                       <span>Xóa toàn bộ lọc</span>
                     </button>
                   ) : (
-                    <span className="text-[11px] text-slate-400">
+                    <span className="text-[11px] text-[#838C9A]">
                       Đang hiển thị toàn bộ danh sách
                     </span>
                   )}
                   <button
                     type="button"
                     onClick={() => setStickyFilterOpen(false)}
-                    className="px-3 py-1.5 text-xs font-semibold bg-huyen-lam text-trang-nga rounded-lg hover:bg-lam-tri-tue min-h-[34px]"
+                    className="px-3.5 py-1.5 text-xs font-semibold bg-huyen-lam text-trang-nga rounded-lg hover:bg-lam-tri-tue min-h-[34px]"
                   >
                     Xong
                   </button>
@@ -876,19 +876,17 @@ export const TasksView: React.FC<TasksViewProps> = ({
 
             {/* Desktop Sticky Column Header (only on lg+ after scrolling past table header) */}
             {showStickyColumnHeader && filteredTree.length > 0 && (
-              <div className="hidden lg:block pb-1.5">
-                <div className="px-[13px]">
-                  <div
-                    className={`${DESKTOP_GRID_COLS} px-4 py-2 bg-nen-sang border border-slate-200/90 rounded-lg text-xs font-semibold text-slate-600`}
-                  >
-                    <div className="pl-[46px] text-huyen-lam">
-                      Công việc &amp; Hạng mục
-                    </div>
-                    <div className="text-huyen-lam">Trạng thái</div>
-                    <div>Người phụ trách</div>
-                    <div>Bước tiếp theo</div>
-                    <div className="text-right">Hạn xử lý</div>
+              <div className="hidden lg:block pb-2">
+                <div
+                  className={`${DESKTOP_GRID_COLS} px-5 py-2 bg-[#F4F0E6]/95 border border-[#E2DCD0] rounded-xl text-[11.5px] font-semibold tracking-[0.015em] text-[#5B6678]`}
+                >
+                  <div className="pl-[46px] text-huyen-lam">
+                    Công việc &amp; Hạng mục
                   </div>
+                  <div className="text-huyen-lam">Trạng thái</div>
+                  <div>Người phụ trách</div>
+                  <div>Bước tiếp theo</div>
+                  <div className="text-right">Hạn xử lý</div>
                 </div>
               </div>
             )}
@@ -900,19 +898,22 @@ export const TasksView: React.FC<TasksViewProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2.5">
-            <h1 className="text-xl sm:text-2xl font-bold text-huyen-lam tracking-tight">
+            <h1 className="text-[22px] sm:text-[26px] font-bold text-huyen-lam tracking-[-0.02em] leading-tight">
               Danh sách công việc
             </h1>
             <span
-              className="hidden sm:inline-block h-[2px] w-5 bg-chu-sa/75 rounded-full"
+              className="hidden sm:inline-block h-[2px] w-6 bg-chu-sa/75 rounded-full"
               aria-hidden="true"
             />
           </div>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1 tabular-nums">
+          <p className="text-xs sm:text-[13.5px] text-[#5E697A] mt-1 tabular-nums">
             <span className="font-semibold text-huyen-lam">
               {parentTasks.length}
             </span>{' '}
-            đầu việc cha ·{' '}
+            đầu việc cha{' '}
+            <span className="text-[#C8C0B0] mx-1" aria-hidden="true">
+              ·
+            </span>{' '}
             <span className="font-semibold text-huyen-lam">
               {visiblePool.length}
             </span>{' '}
@@ -926,11 +927,11 @@ export const TasksView: React.FC<TasksViewProps> = ({
             <button
               type="button"
               onClick={toggleExpandAll}
-              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-200 bg-trang-nga text-huyen-lam text-xs sm:text-[13px] font-medium hover:bg-nen-sang hover:border-slate-300 transition-colors whitespace-nowrap min-h-[42px]"
+              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl border border-[#DDD6C7] bg-trang-nga text-huyen-lam text-xs sm:text-[13px] font-medium hover:bg-[#F4F0E6] hover:border-[#CCC3B0] transition-colors whitespace-nowrap min-h-[42px]"
             >
               {allExpanded ? (
                 <>
-                  <ChevronsDownUp className="w-4 h-4 shrink-0 text-slate-500" />
+                  <ChevronsDownUp className="w-4 h-4 shrink-0 text-[#667285]" />
                   <span>Thu gọn việc con</span>
                 </>
               ) : (
@@ -946,7 +947,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
             <button
               type="button"
               onClick={() => onOpenNewTask(null)}
-              className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-huyen-lam text-trang-nga text-sm font-semibold hover:bg-lam-tri-tue transition-colors whitespace-nowrap shrink-0 min-h-[42px]"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-huyen-lam text-trang-nga text-sm font-semibold hover:bg-lam-tri-tue shadow-[0_1px_2px_rgba(20,36,63,0.14)] transition-colors whitespace-nowrap shrink-0 min-h-[42px]"
             >
               <Plus className="w-4 h-4 shrink-0 text-kim-quang" />
               <span>{isManager ? 'Thêm đầu việc' : 'Thêm việc con'}</span>
@@ -955,28 +956,28 @@ export const TasksView: React.FC<TasksViewProps> = ({
         </div>
       </div>
 
-      {/* Luminous Search & Filter Bar */}
+      {/* Luminous Warm Search & Filter Bar */}
       <div
         ref={filterBarRef}
-        className="bg-trang-nga border border-slate-200/90 rounded-2xl p-3 sm:p-4 space-y-3 shadow-[0_1px_2px_rgba(20,36,63,0.03)]"
+        className="bg-trang-nga border border-[#E5DFD2] rounded-2xl p-3 sm:p-4 space-y-3 shadow-[0_1px_3px_rgba(20,36,63,0.03)]"
       >
         <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
           <div className="relative flex-1 min-w-0">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <Search className="w-4 h-4 text-[#8A94A3] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Tìm theo mã, tên việc, người phụ trách, bước tiếp theo..."
               aria-label="Tìm kiếm công việc"
-              className="w-full pl-10 pr-10 py-2 text-sm bg-nen-sang border border-slate-200 rounded-xl text-huyen-lam placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-lam-sang/40 focus:border-lam-sang focus:bg-white min-h-[42px] transition-colors"
+              className="w-full pl-10 pr-10 py-2 text-sm bg-[#FAF8F3] border border-[#E2DCD0] rounded-xl text-huyen-lam placeholder:text-[#8E96A3] focus:outline-none focus:ring-2 focus:ring-lam-sang/30 focus:border-lam-sang focus:bg-white min-h-[42px] transition-colors"
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
                 aria-label="Xóa từ khóa tìm kiếm"
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-lg text-slate-400 hover:text-huyen-lam hover:bg-slate-200/60 transition-colors"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-lg text-[#7D8796] hover:text-huyen-lam hover:bg-[#EFEAE0] transition-colors"
               >
                 <X className="w-4 h-4 shrink-0" />
               </button>
@@ -984,7 +985,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
           </div>
 
           <div className="flex items-center justify-between sm:justify-end gap-2.5 shrink-0">
-            <div className="text-xs sm:text-[13px] text-slate-500 tabular-nums whitespace-nowrap px-1">
+            <div className="text-xs sm:text-[13px] text-[#606B7D] tabular-nums whitespace-nowrap px-1">
               Đang xem{' '}
               <span
                 className={`font-mono-tabular font-semibold ${
@@ -1014,10 +1015,10 @@ export const TasksView: React.FC<TasksViewProps> = ({
             aria-label="Lọc theo trạng thái"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className={`w-full px-3 py-2 text-[13px] rounded-xl border focus:outline-none focus:ring-2 focus:ring-lam-sang/40 min-h-[42px] transition-colors ${
+            className={`w-full px-3 py-2 text-[13px] rounded-xl border focus:outline-none focus:ring-2 focus:ring-lam-sang/30 min-h-[42px] transition-colors ${
               statusFilter !== 'all'
                 ? 'bg-lam-sang-soft border-lam-sang/40 text-huyen-lam font-medium'
-                : 'bg-white border-slate-200 text-huyen-lam'
+                : 'bg-white border-[#E2DCD0] text-huyen-lam hover:border-[#CFC7B7]'
             }`}
           >
             <option value="all">Tất cả trạng thái</option>
@@ -1033,10 +1034,10 @@ export const TasksView: React.FC<TasksViewProps> = ({
             aria-label="Lọc theo hạng mục"
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
-            className={`w-full px-3 py-2 text-[13px] rounded-xl border focus:outline-none focus:ring-2 focus:ring-lam-sang/40 min-h-[42px] transition-colors ${
+            className={`w-full px-3 py-2 text-[13px] rounded-xl border focus:outline-none focus:ring-2 focus:ring-lam-sang/30 min-h-[42px] transition-colors ${
               categoryFilter !== 'all'
                 ? 'bg-thanh-ngoc-soft border-thanh-ngoc/40 text-huyen-lam font-medium'
-                : 'bg-white border-slate-200 text-huyen-lam'
+                : 'bg-white border-[#E2DCD0] text-huyen-lam hover:border-[#CFC7B7]'
             }`}
           >
             <option value="all">Tất cả hạng mục</option>
@@ -1053,10 +1054,10 @@ export const TasksView: React.FC<TasksViewProps> = ({
             aria-label="Lọc theo người phụ trách"
             value={assigneeFilter}
             onChange={(e) => setAssigneeFilter(e.target.value)}
-            className={`w-full px-3 py-2 text-[13px] rounded-xl border focus:outline-none focus:ring-2 focus:ring-lam-sang/40 min-h-[42px] transition-colors ${
+            className={`w-full px-3 py-2 text-[13px] rounded-xl border focus:outline-none focus:ring-2 focus:ring-lam-sang/30 min-h-[42px] transition-colors ${
               assigneeFilter !== 'all'
                 ? 'bg-minh-kim-soft border-minh-kim-border text-huyen-lam font-medium'
-                : 'bg-white border-slate-200 text-huyen-lam'
+                : 'bg-white border-[#E2DCD0] text-huyen-lam hover:border-[#CFC7B7]'
             }`}
           >
             <option value="all">Tất cả người phụ trách</option>
@@ -1080,7 +1081,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
             className={`w-full inline-flex items-center justify-center gap-2 px-3 py-2 text-[13px] font-medium rounded-xl border transition-colors min-h-[42px] whitespace-nowrap ${
               reviewOnly
                 ? 'bg-huyen-lam border-huyen-lam text-kim-quang font-semibold'
-                : 'bg-white border-slate-200 text-huyen-lam hover:bg-nen-sang'
+                : 'bg-white border-[#E2DCD0] text-huyen-lam hover:bg-[#FAF8F3] hover:border-[#CFC7B7]'
             }`}
           >
             <AlertCircle
@@ -1096,13 +1097,13 @@ export const TasksView: React.FC<TasksViewProps> = ({
         </div>
       </div>
 
-      {/* Serene Luminous Hybrid Workspace Container */}
-      <div className="bg-nen-sang border border-slate-200/80 rounded-2xl p-1.5 sm:p-3 space-y-2.5">
-        {/* Desktop Crisp Architectural Column Header */}
+      {/* Modern Zen Editorial Card-Table Hybrid Workspace */}
+      <div className="space-y-3">
+        {/* Desktop Editorial Column Header */}
         {filteredTree.length > 0 && (
           <div
             ref={columnHeaderRef}
-            className={`hidden ${DESKTOP_GRID_COLS} px-4 py-2.5 bg-trang-nga border border-slate-200/85 border-b-2 border-b-huyen-lam/20 rounded-xl text-xs font-semibold text-slate-600 transition-opacity duration-150 ${
+            className={`hidden ${DESKTOP_GRID_COLS} px-5 py-2.5 bg-[#F4F0E6]/85 border border-[#E5DFD2] rounded-xl text-[11.5px] font-semibold tracking-[0.015em] text-[#5B6678] transition-opacity duration-150 ${
               showStickyColumnHeader ? 'lg:opacity-0' : 'lg:opacity-100'
             }`}
           >
@@ -1116,8 +1117,8 @@ export const TasksView: React.FC<TasksViewProps> = ({
 
         {/* Group Cards */}
         {filteredTree.length === 0 ? (
-          <div className="bg-trang-nga border border-slate-200/80 rounded-xl px-4 py-12 text-center space-y-3">
-            <p className="text-sm text-slate-500">
+          <div className="bg-trang-nga border border-[#E5DFD2] rounded-2xl px-4 py-14 text-center space-y-3 shadow-[0_1px_3px_rgba(20,36,63,0.03)]">
+            <p className="text-sm text-[#606B7D]">
               {tasks.filter((t) => !isB1TestTask(t)).length === 0
                 ? 'Chưa có công việc nào trên hệ thống.'
                 : 'Không tìm thấy công việc nào khớp với điều kiện lọc hiện tại.'}
@@ -1126,7 +1127,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
               <button
                 type="button"
                 onClick={resetFilters}
-                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-huyen-lam text-trang-nga rounded-lg hover:bg-lam-tri-tue transition-colors min-h-[42px]"
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-huyen-lam text-trang-nga rounded-xl hover:bg-lam-tri-tue transition-colors min-h-[42px]"
               >
                 <RotateCcw className="w-4 h-4 shrink-0 text-kim-quang" />
                 <span>Đặt lại toàn bộ bộ lọc</span>
@@ -1161,24 +1162,33 @@ export const TasksView: React.FC<TasksViewProps> = ({
                 <section
                   key={parent.id}
                   aria-label={`Nhóm công việc ${parent.displayCode}: ${parent.title}`}
-                  className="bg-trang-nga border border-slate-200/90 hover:border-slate-300/90 rounded-xl overflow-hidden shadow-[0_1px_2px_rgba(20,36,63,0.03)] transition-colors"
+                  className="bg-trang-nga border border-[#E5DFD2] hover:border-[#CFC6B4] rounded-2xl overflow-hidden shadow-[0_1px_3px_rgba(20,36,63,0.03),0_6px_18px_-14px_rgba(20,36,63,0.12)] transition-[border-color,box-shadow] duration-150"
                 >
+                  {/* Subtle Top Category Hairline for Editorial Rhythm across 9 Groups */}
+                  <div
+                    aria-hidden="true"
+                    className="h-[2.5px] w-full"
+                    style={{
+                      background: `linear-gradient(90deg, ${catTheme.accent} 0%, ${catTheme.accent}4D 42%, transparent 88%)`,
+                    }}
+                  />
+
                   {/* Parent Row */}
                   <div
                     onClick={() => onSelectTask(parent.id)}
-                    className="px-3 py-3.5 sm:px-4 sm:py-4 bg-trang-nga hover:bg-slate-50/75 transition-colors cursor-pointer"
+                    className="px-3.5 py-3.5 sm:px-5 sm:py-4 bg-trang-nga hover:bg-[#FCFBF8] transition-colors cursor-pointer"
                   >
                     <div className={DESKTOP_GRID_COLS}>
-                      {/* Column 1: Chevron + Tinted Code Seal + Dominant Parent Title + Unified Meta */}
+                      {/* Column 1: Chevron + Quiet Archival Code + Dominant Editorial Title + Clean Metadata */}
                       <div className="flex items-start gap-2.5 min-w-0">
                         <div
                           className={`shrink-0 pt-0.5 ${
                             hasChildren
                               ? 'w-9 flex items-start justify-center'
-                              : 'hidden lg:flex lg:w-9 lg:items-start lg:justify-center'
+                              : 'hidden lg:block lg:w-9'
                           }`}
                         >
-                          {hasChildren ? (
+                          {hasChildren && (
                             <button
                               type="button"
                               onClick={(e) => {
@@ -1191,7 +1201,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
                                   ? `Thu gọn việc con của ${parent.displayCode}`
                                   : `Mở rộng việc con của ${parent.displayCode}`
                               }
-                              className="w-10 h-10 -my-1.5 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-huyen-lam transition-colors"
+                              className="w-10 h-10 -my-1.5 flex items-center justify-center rounded-lg text-[#687385] hover:bg-[#F3EFE6] hover:text-huyen-lam transition-colors"
                             >
                               {isExpanded ? (
                                 <ChevronDown className="w-4 h-4 shrink-0" />
@@ -1199,30 +1209,23 @@ export const TasksView: React.FC<TasksViewProps> = ({
                                 <ChevronRight className="w-4 h-4 shrink-0" />
                               )}
                             </button>
-                          ) : (
-                            <span
-                              aria-hidden="true"
-                              className="w-9 h-7 inline-flex items-center justify-center text-slate-300"
-                            >
-                              ·
-                            </span>
                           )}
                         </div>
 
                         <div className="flex-1 min-w-0">
-                          {/* Mobile (< sm) Top Row: Airy Category-Tinted Code Seal + StatusBadge */}
+                          {/* Mobile (< sm) Top Row: Quiet Code Seal + Soft StatusBadge */}
                           <div className="flex sm:hidden items-center justify-between gap-2 mb-1.5">
                             <span
                               style={{
                                 backgroundColor: catTheme.softBg,
                                 color: catTheme.text,
-                                borderColor: catTheme.softBorder,
+                                borderColor: `${catTheme.accent}33`,
                               }}
-                              className="font-mono-tabular text-xs font-bold min-w-[28px] h-6 px-2 inline-flex items-center justify-center rounded-md border shrink-0"
+                              className="font-mono-tabular text-[11.5px] font-bold min-w-[28px] h-6 px-2 inline-flex items-center justify-center rounded-md border shrink-0"
                             >
                               {parent.displayCode}
                             </span>
-                            <StatusBadge status={parent.status} compact />
+                            <StatusBadge status={parent.status} compact soft />
                           </div>
 
                           <div className="flex items-start justify-between gap-2.5">
@@ -1239,13 +1242,13 @@ export const TasksView: React.FC<TasksViewProps> = ({
                                   style={{
                                     backgroundColor: catTheme.softBg,
                                     color: catTheme.text,
-                                    borderColor: catTheme.softBorder,
+                                    borderColor: `${catTheme.accent}33`,
                                   }}
-                                  className="hidden sm:inline-flex font-mono-tabular text-xs font-bold min-w-[28px] h-[26px] px-2 items-center justify-center rounded-md border shrink-0 mt-0.5"
+                                  className="hidden sm:inline-flex font-mono-tabular text-[11.5px] font-bold min-w-[30px] h-[25px] px-2 items-center justify-center rounded-md border shrink-0 mt-0.5"
                                 >
                                   {parent.displayCode}
                                 </span>
-                                <span className="text-[15.5px] sm:text-base font-semibold text-huyen-lam group-hover:text-lam-sang-ink group-hover:underline leading-[1.4] break-words">
+                                <span className="text-[15.5px] sm:text-[16px] font-semibold tracking-[-0.01em] text-huyen-lam group-hover:text-lam-tri-tue group-hover:underline decoration-minh-kim/75 underline-offset-4 leading-[1.42] break-words transition-colors">
                                   {parent.title}
                                 </span>
                               </div>
@@ -1253,18 +1256,18 @@ export const TasksView: React.FC<TasksViewProps> = ({
 
                             {/* Tablet (sm..md) StatusBadge */}
                             <div className="hidden sm:block lg:hidden shrink-0 pt-0.5">
-                              <StatusBadge status={parent.status} compact />
+                              <StatusBadge status={parent.status} compact soft />
                             </div>
                           </div>
 
-                          {/* Unified Parent Metadata Line */}
-                          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs leading-5">
+                          {/* Unified Unboxed Editorial Metadata Line */}
+                          <div className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs leading-5">
                             <span
                               style={{ color: catTheme.text }}
                               className="inline-flex items-center gap-1.5 font-medium"
                             >
                               <span
-                                className="w-2 h-2 rounded-[2px] shrink-0"
+                                className="w-1.5 h-1.5 rounded-[2px] shrink-0"
                                 style={{ backgroundColor: catTheme.accent }}
                                 aria-hidden="true"
                               />
@@ -1274,55 +1277,89 @@ export const TasksView: React.FC<TasksViewProps> = ({
                             </span>
 
                             {totalChildrenInParent > 0 && (
-                              <span className="inline-flex items-center gap-1.5 text-slate-600">
-                                <ListChecks
-                                  className="w-3.5 h-3.5 shrink-0"
-                                  style={{
-                                    color: isParentDone
-                                      ? '#328578'
-                                      : catTheme.accent,
-                                  }}
-                                />
+                              <>
                                 <span
-                                  className={`font-mono-tabular font-semibold ${
-                                    isParentDone
-                                      ? 'text-thanh-ngoc-ink'
-                                      : 'text-huyen-lam'
-                                  }`}
-                                >
-                                  {progress.completed}/{progress.total}
-                                </span>
-                                <span
+                                  className="text-[#D4CCB9] select-none"
                                   aria-hidden="true"
-                                  className="w-10 h-1.5 rounded-full bg-slate-200 overflow-hidden inline-block"
                                 >
-                                  <span
-                                    className="block h-full rounded-full transition-all"
+                                  ·
+                                </span>
+                                <span className="inline-flex items-center gap-1.5 text-[#5E697A]">
+                                  <ListChecks
+                                    className="w-3.5 h-3.5 shrink-0"
                                     style={{
-                                      width: `${progress.percentage}%`,
-                                      backgroundColor: isParentDone
+                                      color: isParentDone
                                         ? '#328578'
                                         : catTheme.accent,
                                     }}
                                   />
+                                  <span
+                                    className={`font-mono-tabular font-semibold ${
+                                      isParentDone
+                                        ? 'text-thanh-ngoc-ink'
+                                        : 'text-huyen-lam'
+                                    }`}
+                                  >
+                                    {progress.completed}/{progress.total}
+                                  </span>
+                                  <span
+                                    aria-hidden="true"
+                                    className="w-11 h-1 rounded-full bg-[#EAE5D9] overflow-hidden inline-block"
+                                  >
+                                    <span
+                                      className="block h-full rounded-full transition-all"
+                                      style={{
+                                        width: `${progress.percentage}%`,
+                                        backgroundColor: isParentDone
+                                          ? '#328578'
+                                          : catTheme.accent,
+                                      }}
+                                    />
+                                  </span>
                                 </span>
-                              </span>
+                              </>
                             )}
 
-                            {parentDriveNode}
+                            {parentDriveNode && (
+                              <>
+                                <span
+                                  className="text-[#D4CCB9] select-none"
+                                  aria-hidden="true"
+                                >
+                                  ·
+                                </span>
+                                {parentDriveNode}
+                              </>
+                            )}
 
                             {parent.reviewFlags.length > 0 && (
-                              <span className="inline-flex items-center gap-1.5 font-medium text-minh-kim-ink">
-                                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                                <span>Cần rà soát</span>
-                              </span>
+                              <>
+                                <span
+                                  className="text-[#D4CCB9] select-none"
+                                  aria-hidden="true"
+                                >
+                                  ·
+                                </span>
+                                <span className="inline-flex items-center gap-1 font-medium text-minh-kim-ink">
+                                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                  <span>Cần rà soát</span>
+                                </span>
+                              </>
                             )}
 
                             {parent.archivedAt && (
-                              <span className="inline-flex items-center gap-1.5 text-slate-500">
-                                <Archive className="w-3.5 h-3.5 shrink-0" />
-                                <span>Đã lưu trữ</span>
-                              </span>
+                              <>
+                                <span
+                                  className="text-[#D4CCB9] select-none"
+                                  aria-hidden="true"
+                                >
+                                  ·
+                                </span>
+                                <span className="inline-flex items-center gap-1 text-[#6E7785]">
+                                  <Archive className="w-3.5 h-3.5 shrink-0" />
+                                  <span>Đã lưu trữ</span>
+                                </span>
+                              </>
                             )}
                           </div>
                         </div>
@@ -1333,7 +1370,8 @@ export const TasksView: React.FC<TasksViewProps> = ({
                         <StatusBadge
                           status={parent.status}
                           compact
-                          className="min-w-[110px]"
+                          soft
+                          className="min-w-[108px]"
                         />
                       </div>
 
@@ -1344,15 +1382,15 @@ export const TasksView: React.FC<TasksViewProps> = ({
 
                       {/* Desktop Column 4: Next Step */}
                       <div
-                        className="hidden lg:block min-w-0 text-[13px] leading-snug"
+                        className="hidden lg:block min-w-0 text-[13px] leading-[1.45]"
                         title={parent.nextStep ?? ''}
                       >
                         {parent.nextStep ? (
-                          <span className="line-clamp-2 break-words text-slate-600">
+                          <span className="line-clamp-2 break-words text-[#4D596B]">
                             {parent.nextStep}
                           </span>
                         ) : (
-                          <span className="text-slate-300 select-none">—</span>
+                          <span className="text-[#D6D0C4] select-none">—</span>
                         )}
                       </div>
 
@@ -1364,7 +1402,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
 
                     {/* Mobile (< lg) Parent Meta */}
                     <div
-                      className={`lg:hidden mt-2.5 pt-2 border-t border-slate-100 space-y-1.5 ${
+                      className={`lg:hidden mt-2.5 pt-2 border-t border-[#EFEAE0] space-y-1.5 ${
                         hasChildren ? 'pl-11' : ''
                       }`}
                     >
@@ -1373,15 +1411,15 @@ export const TasksView: React.FC<TasksViewProps> = ({
                           {renderAssigneeCell(parent)}
                         </div>
                         {parent.dueDate && (
-                          <div className="shrink-0 text-xs text-slate-500 flex items-center gap-1">
+                          <div className="shrink-0 text-xs text-[#6E7785] flex items-center gap-1">
                             <span>Hạn:</span>
                             {renderDueDateCell(parent, false)}
                           </div>
                         )}
                       </div>
                       {parent.nextStep && (
-                        <div className="text-[13px] text-slate-600 leading-snug break-words">
-                          <span className="text-slate-400 font-medium">
+                        <div className="text-[13px] text-[#4D596B] leading-[1.45] break-words">
+                          <span className="text-[#8A94A3] font-medium">
                             Tiếp theo:{' '}
                           </span>
                           {parent.nextStep}
@@ -1390,9 +1428,9 @@ export const TasksView: React.FC<TasksViewProps> = ({
                     </div>
                   </div>
 
-                  {/* Nested Child Rows (Light, Airy, Minimal Borders) */}
+                  {/* Nested Child Rows (Warm Linen Well, Hairline Separators) */}
                   {isExpanded && (
-                    <div className="border-t border-slate-200/75 bg-slate-50/70 divide-y divide-slate-200/55">
+                    <div className="border-t border-[#ECE7DA] bg-[#FAF8F2]/85 divide-y divide-[#EFEAE0]">
                       {children.map((child) => {
                         const childDriveNode = renderDriveLinkAction(child);
 
@@ -1400,29 +1438,33 @@ export const TasksView: React.FC<TasksViewProps> = ({
                           <div
                             key={child.id}
                             onClick={() => onSelectTask(child.id)}
-                            className="px-3 py-2.5 sm:px-4 sm:py-3 hover:bg-white/90 transition-colors cursor-pointer"
+                            className="px-3.5 py-2.5 sm:px-5 sm:py-3 hover:bg-trang-nga transition-colors cursor-pointer"
                           >
                             <div className={DESKTOP_GRID_COLS}>
                               {/* Column 1: Indented Tree Connector + Clean Code + Readable Child Title */}
                               <div className="flex items-start gap-2.5 min-w-0">
                                 <div className="shrink-0 w-9 sm:w-12 flex items-start justify-end pr-0.5 pt-1">
                                   <CornerDownRight
-                                    className="w-3.5 h-3.5 shrink-0 opacity-65"
+                                    className="w-3.5 h-3.5 shrink-0 opacity-50"
                                     style={{ color: catTheme.accent }}
                                     aria-hidden="true"
                                   />
                                 </div>
 
                                 <div className="flex-1 min-w-0">
-                                  {/* Mobile (< sm) Top Strip: Child Code + Status */}
+                                  {/* Mobile (< sm) Top Strip: Child Code + Soft Status */}
                                   <div className="flex sm:hidden items-center justify-between gap-2 mb-1">
                                     <span
                                       style={{ color: catTheme.text }}
-                                      className="font-mono-tabular text-xs font-semibold shrink-0"
+                                      className="font-mono-tabular text-[11.5px] font-semibold opacity-90 shrink-0"
                                     >
                                       {child.displayCode}
                                     </span>
-                                    <StatusBadge status={child.status} compact />
+                                    <StatusBadge
+                                      status={child.status}
+                                      compact
+                                      soft
+                                    />
                                   </div>
 
                                   <div className="flex items-start justify-between gap-2.5">
@@ -1437,11 +1479,11 @@ export const TasksView: React.FC<TasksViewProps> = ({
                                       <div className="flex items-baseline gap-2">
                                         <span
                                           style={{ color: catTheme.text }}
-                                          className="hidden sm:inline-block font-mono-tabular text-xs font-semibold shrink-0"
+                                          className="hidden sm:inline-block font-mono-tabular text-[11.5px] font-semibold opacity-85 shrink-0"
                                         >
                                           {child.displayCode}
                                         </span>
-                                        <span className="text-sm font-medium text-slate-800 group-hover:text-lam-sang-ink group-hover:underline leading-[1.42] break-words">
+                                        <span className="text-[13.75px] sm:text-[14px] font-medium text-[#1E2E4A] group-hover:text-lam-tri-tue group-hover:underline decoration-minh-kim/65 underline-offset-4 leading-[1.45] break-words transition-colors">
                                           {child.title}
                                         </span>
                                       </div>
@@ -1449,26 +1491,51 @@ export const TasksView: React.FC<TasksViewProps> = ({
 
                                     {/* Tablet (sm..md) StatusBadge */}
                                     <div className="hidden sm:block lg:hidden shrink-0 pt-0.5">
-                                      <StatusBadge status={child.status} compact />
+                                      <StatusBadge
+                                        status={child.status}
+                                        compact
+                                        soft
+                                      />
                                     </div>
                                   </div>
 
                                   {(childDriveNode ||
                                     child.reviewFlags.length > 0 ||
                                     child.archivedAt) && (
-                                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs leading-5">
+                                    <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs leading-5">
                                       {childDriveNode}
                                       {child.reviewFlags.length > 0 && (
-                                        <span className="inline-flex items-center gap-1.5 font-medium text-minh-kim-ink">
-                                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                                          <span>Cần rà soát</span>
-                                        </span>
+                                        <>
+                                          {childDriveNode && (
+                                            <span
+                                              className="text-[#D4CCB9] select-none"
+                                              aria-hidden="true"
+                                            >
+                                              ·
+                                            </span>
+                                          )}
+                                          <span className="inline-flex items-center gap-1 font-medium text-minh-kim-ink">
+                                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                            <span>Cần rà soát</span>
+                                          </span>
+                                        </>
                                       )}
                                       {child.archivedAt && (
-                                        <span className="inline-flex items-center gap-1.5 text-slate-500">
-                                          <Archive className="w-3.5 h-3.5 shrink-0" />
-                                          <span>Đã lưu trữ</span>
-                                        </span>
+                                        <>
+                                          {(childDriveNode ||
+                                            child.reviewFlags.length > 0) && (
+                                            <span
+                                              className="text-[#D4CCB9] select-none"
+                                              aria-hidden="true"
+                                            >
+                                              ·
+                                            </span>
+                                          )}
+                                          <span className="inline-flex items-center gap-1 text-[#6E7785]">
+                                            <Archive className="w-3.5 h-3.5 shrink-0" />
+                                            <span>Đã lưu trữ</span>
+                                          </span>
+                                        </>
                                       )}
                                     </div>
                                   )}
@@ -1480,7 +1547,8 @@ export const TasksView: React.FC<TasksViewProps> = ({
                                 <StatusBadge
                                   status={child.status}
                                   compact
-                                  className="min-w-[110px]"
+                                  soft
+                                  className="min-w-[108px]"
                                 />
                               </div>
 
@@ -1491,15 +1559,15 @@ export const TasksView: React.FC<TasksViewProps> = ({
 
                               {/* Desktop Column 4: Child Next Step */}
                               <div
-                                className="hidden lg:block min-w-0 text-[13px] leading-snug"
+                                className="hidden lg:block min-w-0 text-[13px] leading-[1.45]"
                                 title={child.nextStep ?? ''}
                               >
                                 {child.nextStep ? (
-                                  <span className="line-clamp-2 break-words text-slate-600">
+                                  <span className="line-clamp-2 break-words text-[#4D596B]">
                                     {child.nextStep}
                                   </span>
                                 ) : (
-                                  <span className="text-slate-300 select-none">
+                                  <span className="text-[#D6D0C4] select-none">
                                     —
                                   </span>
                                 )}
@@ -1518,15 +1586,15 @@ export const TasksView: React.FC<TasksViewProps> = ({
                                   {renderAssigneeCell(child)}
                                 </div>
                                 {child.dueDate && (
-                                  <div className="shrink-0 text-xs text-slate-500 flex items-center gap-1">
+                                  <div className="shrink-0 text-xs text-[#6E7785] flex items-center gap-1">
                                     <span>Hạn:</span>
                                     {renderDueDateCell(child, false)}
                                   </div>
                                 )}
                               </div>
                               {child.nextStep && (
-                                <div className="text-[13px] text-slate-600 leading-snug break-words">
-                                  <span className="text-slate-400 font-medium">
+                                <div className="text-[13px] text-[#4D596B] leading-[1.45] break-words">
+                                  <span className="text-[#8A94A3] font-medium">
                                     Tiếp theo:{' '}
                                   </span>
                                   {child.nextStep}
@@ -1546,7 +1614,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
       </div>
 
       {/* Footer Summary & Archive Toggle */}
-      <div className="pt-1 flex flex-wrap items-center justify-between gap-2 text-xs sm:text-[13px] text-slate-500">
+      <div className="pt-1 flex flex-wrap items-center justify-between gap-2 text-xs sm:text-[13px] text-[#606B7D]">
         <span className="tabular-nums">
           Hiển thị{' '}
           <strong className="font-semibold text-huyen-lam">
@@ -1558,7 +1626,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
         <button
           type="button"
           onClick={() => setShowArchived((v) => !v)}
-          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-slate-600 hover:text-huyen-lam hover:bg-slate-100 transition-colors min-h-[40px]"
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-[#5E697A] hover:text-huyen-lam hover:bg-[#EFEAE0] transition-colors min-h-[40px]"
         >
           <Archive className="w-3.5 h-3.5 shrink-0" />
           <span>
