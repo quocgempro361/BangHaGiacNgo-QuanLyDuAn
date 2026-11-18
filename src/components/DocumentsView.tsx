@@ -71,6 +71,9 @@ type EditorModalState =
       hadPlaceholderLabel: boolean;
     };
 
+const DOCUMENT_LIST_GRID_COLS =
+  'lg:grid lg:grid-cols-[minmax(0,1.8fr)_minmax(0,1fr)_196px] lg:items-center lg:gap-4 xl:gap-5';
+
 export const DocumentsView: React.FC<DocumentsViewProps> = ({
   tasks,
   categories,
@@ -516,12 +519,12 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
 
   return (
     <div className="space-y-4 sm:space-y-5">
-      {/* Page Header — Distinguished Modern Zen Lockup */}
+      {/* Page Header — Warm Modern Zen Editorial Lockup */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
         <div className="flex items-start gap-3 min-w-0">
           <div
             aria-hidden="true"
-            className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-huyen-lam text-kim-quang flex items-center justify-center shrink-0 shadow-[0_2px_8px_rgba(20,36,63,0.14)]"
+            className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-huyen-lam text-kim-quang flex items-center justify-center shrink-0 ring-1 ring-minh-kim/30 shadow-[0_3px_10px_-2px_rgba(20,36,63,0.18)]"
           >
             <Library className="w-5 h-5" />
           </div>
@@ -531,11 +534,11 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                 Tài liệu dự án
               </h1>
               <span
-                className="hidden sm:inline-block h-[2.5px] w-7 bg-minh-kim rounded-full"
+                className="hidden sm:inline-block h-[2px] w-7 bg-minh-kim/85 rounded-full"
                 aria-hidden="true"
               />
             </div>
-            <p className="text-xs sm:text-[13.5px] text-[#556173] mt-0.5 leading-snug">
+            <p className="text-xs sm:text-[13.5px] text-[#606773] mt-0.5 leading-snug">
               Tập trung tài liệu tham khảo (đầu vào) và kết quả nghiên cứu (đầu
               ra) từ các công việc
             </p>
@@ -546,17 +549,17 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
           <button
             type="button"
             onClick={onNavigateToTasks}
-            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl border border-[#DAD3C4] bg-white text-huyen-lam text-xs sm:text-[13px] font-medium hover:bg-nen-sang hover:border-lam-sang/45 transition-colors whitespace-nowrap min-h-[42px]"
+            className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl border border-[#DFD8C8] bg-trang-nga text-huyen-lam text-xs sm:text-[13px] font-medium hover:bg-[#F5F1E8] hover:border-[#CCC3B0] transition-colors whitespace-nowrap min-h-[42px]"
           >
             <span>Danh sách công việc</span>
-            <ArrowRight className="w-3.5 h-3.5 shrink-0 text-[#5E697A]" />
+            <ArrowRight className="w-3.5 h-3.5 shrink-0 text-[#687180]" />
           </button>
 
           {editableTasks.length > 0 && (
             <button
               type="button"
               onClick={() => openAddModal()}
-              className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-huyen-lam text-white text-sm font-semibold hover:bg-lam-tri-tue shadow-[0_2px_6px_rgba(20,36,63,0.16)] transition-colors whitespace-nowrap shrink-0 min-h-[42px]"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-huyen-lam text-trang-nga text-sm font-semibold hover:bg-lam-tri-tue shadow-[0_2px_8px_-2px_rgba(20,36,63,0.22)] transition-colors whitespace-nowrap shrink-0 min-h-[42px]"
             >
               <Plus className="w-4 h-4 shrink-0 text-kim-quang" />
               <span>Thêm liên kết</span>
@@ -565,12 +568,12 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
         </div>
       </div>
 
-      {/* A. Harmonious 4-Card Summary Strip */}
+      {/* A. Harmonious 4-Card Summary Strip (Distinct Soft Atmospheric Tints) */}
       <section
         aria-label="Thống kê tài liệu dự án"
         className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3"
       >
-        {/* 1. Tổng liên kết — Huyền Lam */}
+        {/* 1. Tổng liên kết — Huyền Lam & Warm Ivory */}
         <button
           type="button"
           onClick={() => {
@@ -579,21 +582,17 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
             setDuplicateOnly(false);
           }}
           aria-pressed={groupFilter === 'all' && !reviewOnly && !duplicateOnly}
-          className={`relative overflow-hidden rounded-2xl border p-3.5 sm:p-4 text-left transition-[transform,background-color,border-color] duration-150 hover:-translate-y-[1px] ${
+          className={`rounded-2xl border p-3.5 sm:p-4 text-left shadow-[0_1px_4px_rgba(20,36,63,0.035)] transition-[transform,background-color,border-color] duration-150 hover:-translate-y-[1px] ${
             groupFilter === 'all' && !reviewOnly && !duplicateOnly
-              ? 'bg-[#F4F6FA] border-huyen-lam/45 ring-1 ring-huyen-lam/15'
-              : 'bg-white border-[#E2DDD2] hover:border-huyen-lam/35 hover:bg-[#F9FAFC]'
+              ? 'bg-[#F5F3ED] border-huyen-lam/40 ring-1 ring-huyen-lam/12'
+              : 'bg-trang-nga border-[#E5DFD2] hover:border-huyen-lam/35 hover:bg-[#F8F6F0]'
           }`}
         >
-          <span
-            aria-hidden="true"
-            className="absolute top-0 inset-x-4 h-[2.5px] rounded-b-full bg-huyen-lam"
-          />
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-semibold text-huyen-lam">
               Tổng số liên kết
             </span>
-            <span className="w-7 h-7 rounded-lg bg-[#EDF0F6] text-huyen-lam flex items-center justify-center shrink-0">
+            <span className="w-7 h-7 rounded-lg bg-[#EDEAE2] text-huyen-lam flex items-center justify-center shrink-0">
               <Library className="w-3.5 h-3.5" />
             </span>
           </div>
@@ -602,14 +601,14 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
               {summary.totalLinks}
             </span>
             {summary.validUrlLinkCount > 0 && (
-              <span className="text-[11.5px] text-[#5E697A] tabular-nums">
+              <span className="text-[11.5px] text-[#666E7C] tabular-nums">
                 {summary.uniqueValidUrlCount} URL duy nhất
               </span>
             )}
           </div>
         </button>
 
-        {/* 2. Tài liệu tham khảo — Lam Sáng */}
+        {/* 2. Tài liệu tham khảo — Lam Sáng & Soft Mist Blue */}
         <button
           type="button"
           onClick={() => {
@@ -618,21 +617,17 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
             );
           }}
           aria-pressed={groupFilter === 'reference'}
-          className={`relative overflow-hidden rounded-2xl border p-3.5 sm:p-4 text-left transition-[transform,background-color,border-color] duration-150 hover:-translate-y-[1px] ${
+          className={`rounded-2xl border p-3.5 sm:p-4 text-left shadow-[0_1px_4px_rgba(20,36,63,0.035)] transition-[transform,background-color,border-color] duration-150 hover:-translate-y-[1px] ${
             groupFilter === 'reference'
-              ? 'bg-lam-sang-soft/85 border-lam-sang/60 ring-1 ring-lam-sang/25'
-              : 'bg-white border-[#E2DDD2] hover:border-lam-sang/45 hover:bg-lam-sang-soft/35'
+              ? 'bg-[#E9F2FA] border-lam-sang/60 ring-1 ring-lam-sang/22'
+              : 'bg-[#F5F9FD] border-[#DCE7F2] hover:border-lam-sang/45 hover:bg-[#EEF5FC]'
           }`}
         >
-          <span
-            aria-hidden="true"
-            className="absolute top-0 inset-x-4 h-[2.5px] rounded-b-full bg-lam-sang"
-          />
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-semibold text-lam-sang-ink">
               Tài liệu tham khảo
             </span>
-            <span className="w-7 h-7 rounded-lg bg-lam-sang-soft text-lam-sang-ink flex items-center justify-center shrink-0">
+            <span className="w-7 h-7 rounded-lg bg-white/90 border border-lam-sang/20 text-lam-sang-ink flex items-center justify-center shrink-0">
               <BookOpen className="w-3.5 h-3.5" />
             </span>
           </div>
@@ -640,7 +635,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
             <span className="text-[22px] sm:text-[26px] leading-none font-bold font-mono-tabular text-lam-sang-ink">
               {summary.referenceCount}
             </span>
-            <span className="text-[11.5px] text-[#5E697A]">
+            <span className="text-[11.5px] text-[#556A7E]">
               {summary.referenceCount === 0
                 ? 'Chưa có · Bấm xem'
                 : 'Đầu vào nghiên cứu'}
@@ -648,28 +643,24 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
           </div>
         </button>
 
-        {/* 3. Kết quả nghiên cứu — Thanh Ngọc */}
+        {/* 3. Kết quả nghiên cứu — Thanh Ngọc & Soft Jade Mist */}
         <button
           type="button"
           onClick={() => {
             setGroupFilter((prev) => (prev === 'result' ? 'all' : 'result'));
           }}
           aria-pressed={groupFilter === 'result'}
-          className={`relative overflow-hidden rounded-2xl border p-3.5 sm:p-4 text-left transition-[transform,background-color,border-color] duration-150 hover:-translate-y-[1px] ${
+          className={`rounded-2xl border p-3.5 sm:p-4 text-left shadow-[0_1px_4px_rgba(20,36,63,0.035)] transition-[transform,background-color,border-color] duration-150 hover:-translate-y-[1px] ${
             groupFilter === 'result'
-              ? 'bg-thanh-ngoc-soft/85 border-thanh-ngoc/60 ring-1 ring-thanh-ngoc/25'
-              : 'bg-white border-[#E2DDD2] hover:border-thanh-ngoc/45 hover:bg-thanh-ngoc-soft/35'
+              ? 'bg-[#E4F4EF] border-thanh-ngoc/60 ring-1 ring-thanh-ngoc/22'
+              : 'bg-[#F3FAF8] border-[#D4E9E3] hover:border-thanh-ngoc/45 hover:bg-[#EBF6F3]'
           }`}
         >
-          <span
-            aria-hidden="true"
-            className="absolute top-0 inset-x-4 h-[2.5px] rounded-b-full bg-thanh-ngoc"
-          />
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs font-semibold text-thanh-ngoc-ink">
               Kết quả nghiên cứu
             </span>
-            <span className="w-7 h-7 rounded-lg bg-thanh-ngoc-soft text-thanh-ngoc-ink flex items-center justify-center shrink-0">
+            <span className="w-7 h-7 rounded-lg bg-white/90 border border-thanh-ngoc/20 text-thanh-ngoc-ink flex items-center justify-center shrink-0">
               <FileCheck2 className="w-3.5 h-3.5" />
             </span>
           </div>
@@ -677,44 +668,40 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
             <span className="text-[22px] sm:text-[26px] leading-none font-bold font-mono-tabular text-thanh-ngoc-ink">
               {summary.resultCount}
             </span>
-            <span className="text-[11.5px] text-[#5E697A]">
+            <span className="text-[11.5px] text-[#4E6B65]">
               Bản thảo &amp; sản phẩm
             </span>
           </div>
         </button>
 
-        {/* 4. Cần rà soát — Minh Kim */}
+        {/* 4. Cần rà soát — Minh Kim & Soft Warm Gold */}
         <button
           type="button"
           onClick={() => setReviewOnly((v) => !v)}
           aria-pressed={reviewOnly}
-          className={`relative overflow-hidden rounded-2xl border p-3.5 sm:p-4 text-left transition-[transform,background-color,border-color] duration-150 hover:-translate-y-[1px] ${
+          className={`rounded-2xl border p-3.5 sm:p-4 text-left shadow-[0_1px_4px_rgba(20,36,63,0.035)] transition-[transform,background-color,border-color] duration-150 hover:-translate-y-[1px] ${
             reviewOnly
-              ? 'bg-minh-kim-soft/90 border-minh-kim ring-1 ring-minh-kim/35'
-              : 'bg-white border-[#E2DDD2] hover:border-minh-kim/55 hover:bg-minh-kim-soft/35'
+              ? 'bg-[#F9F1DB] border-minh-kim ring-1 ring-minh-kim/35'
+              : summary.reviewNeededCount > 0
+              ? 'bg-[#FCF8EC] border-[#EBDCBA] hover:border-minh-kim/75 hover:bg-[#FAF3DF]'
+              : 'bg-trang-nga border-[#E5DFD2] hover:border-minh-kim/55 hover:bg-[#FAF6EC]'
           }`}
         >
-          <span
-            aria-hidden="true"
-            className={`absolute top-0 inset-x-4 h-[2.5px] rounded-b-full ${
-              summary.reviewNeededCount > 0 ? 'bg-minh-kim' : 'bg-[#D8D3C7]'
-            }`}
-          />
           <div className="flex items-center justify-between gap-2">
             <span
               className={`text-xs font-semibold ${
                 summary.reviewNeededCount > 0
                   ? 'text-minh-kim-ink'
-                  : 'text-[#556173]'
+                  : 'text-[#5E6775]'
               }`}
             >
               Cần rà soát
             </span>
             <span
-              className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+              className={`w-7 h-7 rounded-lg border flex items-center justify-center shrink-0 ${
                 summary.reviewNeededCount > 0
-                  ? 'bg-minh-kim-soft text-minh-kim-ink'
-                  : 'bg-nen-sang text-[#7D8796]'
+                  ? 'bg-white/90 border-minh-kim/25 text-minh-kim-ink'
+                  : 'bg-[#F4EFE4] border-[#E6DFD0] text-[#7D8593]'
               }`}
             >
               <AlertTriangle className="w-3.5 h-3.5" />
@@ -730,7 +717,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
             >
               {summary.reviewNeededCount}
             </span>
-            <span className="text-[11.5px] text-[#5E697A]">
+            <span className="text-[11.5px] text-[#6E6755]">
               {summary.reviewNeededCount > 0
                 ? 'Thiếu tên hoặc URL lỗi'
                 : 'Đều đã rõ ràng'}
@@ -740,24 +727,24 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
       </section>
 
       {/* B & C. Search & Filter Bar */}
-      <div className="bg-white border border-[#E2DDD2] rounded-2xl p-3 sm:p-4 space-y-3 shadow-[0_1px_2px_rgba(20,36,63,0.03)]">
+      <div className="bg-trang-nga border border-[#E5DFD2] rounded-2xl p-3 sm:p-4 space-y-3 shadow-[0_1px_4px_rgba(20,36,63,0.03)]">
         <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
           <div className="relative flex-1 min-w-0">
-            <Search className="w-4 h-4 text-[#7D8796] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <Search className="w-4 h-4 text-[#838A96] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Tìm theo tên tài liệu, nguồn, mã việc, người phụ trách..."
               aria-label="Tìm kiếm tài liệu dự án"
-              className="w-full pl-10 pr-10 py-2 text-sm bg-nen-sang border border-[#DFE4EC] rounded-xl text-huyen-lam placeholder:text-[#86909E] focus:outline-none focus:ring-2 focus:ring-lam-sang/25 focus:border-lam-sang focus:bg-white min-h-[42px] transition-colors"
+              className="w-full pl-10 pr-10 py-2 text-sm bg-[#FAF8F3] border border-[#E2DCD0] rounded-xl text-huyen-lam placeholder:text-[#8E949E] focus:outline-none focus:ring-2 focus:ring-lam-sang/25 focus:border-lam-sang focus:bg-white min-h-[42px] transition-colors"
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
                 aria-label="Xóa từ khóa tìm kiếm"
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-lg text-[#7D8796] hover:text-huyen-lam hover:bg-[#EAEEF4] transition-colors"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-lg text-[#7D8796] hover:text-huyen-lam hover:bg-[#EFEAE0] transition-colors"
               >
                 <X className="w-4 h-4 shrink-0" />
               </button>
@@ -765,7 +752,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
           </div>
 
           <div className="flex items-center justify-between sm:justify-end gap-2.5 shrink-0">
-            <div className="text-xs sm:text-[13px] text-[#5E697A] tabular-nums whitespace-nowrap px-1">
+            <div className="text-xs sm:text-[13px] text-[#606875] tabular-nums whitespace-nowrap px-1">
               Đang xem{' '}
               <span
                 className={`font-mono-tabular font-semibold ${
@@ -796,7 +783,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
           <div
             role="group"
             aria-label="Lọc theo loại tài liệu"
-            className="inline-flex items-center p-1 bg-nen-sang border border-[#E2E6ED] rounded-xl shrink-0 overflow-x-auto"
+            className="inline-flex items-center p-1 bg-[#F4EFE4] border border-[#E5DFD2] rounded-xl shrink-0 overflow-x-auto"
           >
             <button
               type="button"
@@ -804,7 +791,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
               className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap min-h-[34px] inline-flex items-center gap-1.5 ${
                 groupFilter === 'all'
                   ? 'bg-white text-huyen-lam font-semibold shadow-xs'
-                  : 'text-[#5E697A] hover:text-huyen-lam'
+                  : 'text-[#5E6673] hover:text-huyen-lam'
               }`}
             >
               <span>Tất cả</span>
@@ -818,7 +805,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
               className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap min-h-[34px] inline-flex items-center gap-1.5 ${
                 groupFilter === 'reference'
                   ? 'bg-white text-lam-sang-ink font-semibold shadow-xs'
-                  : 'text-[#5E697A] hover:text-lam-sang-ink'
+                  : 'text-[#5E6673] hover:text-lam-sang-ink'
               }`}
             >
               <BookOpen className="w-3.5 h-3.5 shrink-0" />
@@ -833,7 +820,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
               className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors whitespace-nowrap min-h-[34px] inline-flex items-center gap-1.5 ${
                 groupFilter === 'result'
                   ? 'bg-white text-thanh-ngoc-ink font-semibold shadow-xs'
-                  : 'text-[#5E697A] hover:text-thanh-ngoc-ink'
+                  : 'text-[#5E6673] hover:text-thanh-ngoc-ink'
               }`}
             >
               <FileCheck2 className="w-3.5 h-3.5 shrink-0" />
@@ -852,7 +839,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
               className={`w-full px-3 py-2 text-[13px] rounded-xl border focus:outline-none focus:ring-2 focus:ring-lam-sang/25 min-h-[42px] transition-colors ${
                 taskFilter !== 'all'
                   ? 'bg-lam-sang-soft border-lam-sang/45 text-huyen-lam font-medium'
-                  : 'bg-white border-[#DFE4EC] text-huyen-lam hover:border-[#C5CDD9]'
+                  : 'bg-white border-[#E2DCD0] text-huyen-lam hover:border-[#CFC7B7]'
               }`}
             >
               <option value="all">Tất cả công việc</option>
@@ -870,7 +857,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
               className={`w-full px-3 py-2 text-[13px] rounded-xl border focus:outline-none focus:ring-2 focus:ring-lam-sang/25 min-h-[42px] transition-colors ${
                 categoryFilter !== 'all'
                   ? 'bg-thanh-ngoc-soft border-thanh-ngoc/45 text-huyen-lam font-medium'
-                  : 'bg-white border-[#DFE4EC] text-huyen-lam hover:border-[#C5CDD9]'
+                  : 'bg-white border-[#E2DCD0] text-huyen-lam hover:border-[#CFC7B7]'
               }`}
             >
               <option value="all">Tất cả hạng mục</option>
@@ -890,7 +877,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
               className={`w-full inline-flex items-center justify-center gap-2 px-3 py-2 text-[13px] font-medium rounded-xl border transition-colors min-h-[42px] whitespace-nowrap ${
                 reviewOnly
                   ? 'bg-huyen-lam border-huyen-lam text-kim-quang font-semibold'
-                  : 'bg-white border-[#DFE4EC] text-huyen-lam hover:bg-nen-sang hover:border-[#C5CDD9]'
+                  : 'bg-white border-[#E2DCD0] text-huyen-lam hover:bg-[#FAF8F3] hover:border-[#CFC7B7]'
               }`}
             >
               <AlertTriangle
@@ -910,7 +897,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
 
         {/* Subtle Duplicate URL Notice (only if duplicate URLs exist across entries) */}
         {summary.duplicateEntryCount > 0 && (
-          <div className="pt-2.5 border-t border-[#ECEFF4] flex flex-wrap items-center justify-between gap-2 text-xs text-[#556173]">
+          <div className="pt-2.5 border-t border-[#EFEAE0] flex flex-wrap items-center justify-between gap-2 text-xs text-[#5E6775]">
             <div className="flex items-center gap-1.5">
               <Copy className="w-3.5 h-3.5 text-minh-kim-ink shrink-0" />
               <span>
@@ -932,7 +919,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
               className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors whitespace-nowrap ${
                 duplicateOnly
                   ? 'bg-minh-kim-soft border-minh-kim text-minh-kim-ink font-semibold'
-                  : 'bg-white border-[#DFE4EC] text-huyen-lam hover:bg-nen-sang'
+                  : 'bg-white border-[#E2DCD0] text-huyen-lam hover:bg-[#FAF8F3]'
               }`}
             >
               {duplicateOnly ? 'Đang lọc URL trùng' : 'Chỉ xem URL trùng'}
@@ -944,7 +931,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
       {/* D. Document List */}
       {filteredEntries.length === 0 ? (
         isEmptyReferenceFilterState ? (
-          <div className="bg-white border border-lam-sang/25 rounded-2xl px-4 py-12 text-center space-y-3.5 shadow-[0_1px_2px_rgba(20,36,63,0.03)]">
+          <div className="bg-trang-nga border border-lam-sang/25 rounded-2xl px-4 py-12 text-center space-y-3.5 shadow-[0_2px_10px_-4px_rgba(20,36,63,0.05)]">
             <div className="w-11 h-11 rounded-xl bg-lam-sang-soft border border-lam-sang/20 text-lam-sang-ink flex items-center justify-center mx-auto">
               <BookOpen className="w-5 h-5" />
             </div>
@@ -953,7 +940,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                 Chưa có tài liệu tham khảo. Bạn có thể thêm nguồn cần đọc cho
                 từng công việc.
               </p>
-              <p className="text-xs text-[#5E697A] leading-relaxed">
+              <p className="text-xs text-[#606875] leading-relaxed">
                 Kinh sách, tài liệu đối chiếu hoặc thư mục tham khảo đầu vào sẽ
                 tập trung riêng tại đây để phân biệt với kết quả nghiên cứu.
               </p>
@@ -972,15 +959,15 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
               <button
                 type="button"
                 onClick={() => setGroupFilter('all')}
-                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium bg-nen-sang text-huyen-lam border border-[#DFE4EC] rounded-xl hover:bg-[#EAEFF5] transition-colors min-h-[40px]"
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium bg-[#F4EFE4] text-huyen-lam border border-[#E2DBD0] rounded-xl hover:bg-[#EAE3D4] transition-colors min-h-[40px]"
               >
                 <span>Xem tất cả tài liệu</span>
               </button>
             </div>
           </div>
         ) : (
-          <div className="bg-white border border-[#E2DDD2] rounded-2xl px-4 py-14 text-center space-y-3 shadow-[0_1px_2px_rgba(20,36,63,0.03)]">
-            <div className="w-11 h-11 rounded-xl bg-nen-sang text-[#6E7889] flex items-center justify-center mx-auto">
+          <div className="bg-trang-nga border border-[#E5DFD2] rounded-2xl px-4 py-14 text-center space-y-3 shadow-[0_2px_10px_-4px_rgba(20,36,63,0.05)]">
+            <div className="w-11 h-11 rounded-xl bg-[#F4EFE4] text-[#6E7786] flex items-center justify-center mx-auto">
               <Library className="w-5 h-5" />
             </div>
             <div className="space-y-1 max-w-md mx-auto">
@@ -989,7 +976,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                   ? 'Chưa có tài liệu nào được gắn vào công việc'
                   : 'Không tìm thấy tài liệu khớp với điều kiện lọc'}
               </p>
-              <p className="text-xs text-[#5E697A] leading-relaxed">
+              <p className="text-xs text-[#606875] leading-relaxed">
                 {summary.totalLinks === 0
                   ? editableTasks.length > 0
                     ? 'Bạn có thể thêm liên kết tài liệu tham khảo hoặc kết quả nghiên cứu ngay tại đây và gắn vào công việc tương ứng.'
@@ -1002,7 +989,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                 <button
                   type="button"
                   onClick={resetFilters}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold bg-huyen-lam text-white rounded-xl hover:bg-lam-tri-tue transition-colors min-h-[40px]"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold bg-huyen-lam text-trang-nga rounded-xl hover:bg-lam-tri-tue transition-colors min-h-[40px]"
                 >
                   <RotateCcw className="w-3.5 h-3.5 shrink-0 text-kim-quang" />
                   <span>Xóa toàn bộ lọc</span>
@@ -1012,7 +999,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                 <button
                   type="button"
                   onClick={() => openAddModal()}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold bg-huyen-lam text-white rounded-xl hover:bg-lam-tri-tue transition-colors min-h-[40px]"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold bg-huyen-lam text-trang-nga rounded-xl hover:bg-lam-tri-tue transition-colors min-h-[40px]"
                 >
                   <Plus className="w-3.5 h-3.5 shrink-0 text-kim-quang" />
                   <span>Thêm liên kết đầu tiên</span>
@@ -1022,16 +1009,18 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
           </div>
         )
       ) : (
-        <div className="bg-white border border-[#E2DDD2] rounded-2xl shadow-[0_1px_3px_rgba(20,36,63,0.04)] overflow-hidden">
-          {/* Desktop Column Header */}
-          <div className="hidden lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(0,1.15fr)_auto] lg:items-center lg:gap-4 px-5 py-2.5 bg-nen-sang border-b border-[#E3E7EE] text-[11.5px] font-semibold tracking-[0.015em] text-[#556173]">
-            <div className="text-huyen-lam">Tài liệu &amp; Nguồn</div>
-            <div>Công việc liên quan</div>
+        <div className="bg-white border border-[#E5DFD2] rounded-2xl shadow-[0_2px_12px_-4px_rgba(20,36,63,0.06)] overflow-hidden">
+          {/* Desktop Column Header — Locked Grid Matches Every Row */}
+          <div
+            className={`hidden ${DOCUMENT_LIST_GRID_COLS} px-5 py-2.5 bg-[#F6F2E8]/85 border-b border-[#EAE3D5] text-[11.5px] font-semibold tracking-[0.015em] text-[#5C6472]`}
+          >
+            <div className="min-w-0 text-huyen-lam">Tài liệu &amp; Nguồn</div>
+            <div className="min-w-0">Công việc liên quan</div>
             <div className="text-right">Thao tác</div>
           </div>
 
-          {/* Document Rows */}
-          <div className="divide-y divide-[#ECEFF4]">
+          {/* Document Rows — Uniform Soft White Surface, Gentle Warm Hover */}
+          <div className="divide-y divide-[#EFEAE0]">
             {filteredEntries.map((entry) => {
               const isReference = entry.group === 'reference';
               const canEditRow = canUserEditTask(currentUser, entry.task);
@@ -1065,13 +1054,15 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
               return (
                 <div
                   key={entry.key}
-                  className="px-3.5 py-3 sm:px-5 sm:py-3 odd:bg-white even:bg-[#FAFBFD] hover:bg-[#F2F6FA] transition-colors duration-150"
+                  className="px-3.5 py-3 sm:px-5 sm:py-3.5 bg-white hover:bg-[#FAF7EF] transition-colors duration-150"
                 >
-                  <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,1.15fr)_auto] lg:items-center gap-2.5 lg:gap-4">
+                  <div
+                    className={`grid grid-cols-1 ${DOCUMENT_LIST_GRID_COLS} gap-2.5`}
+                  >
                     {/* Column 1: Icon + Document Title + Clean 1-line Type/Source Metadata */}
                     <div className="flex items-start gap-3 min-w-0">
                       <span
-                        className={`w-8 h-8 rounded-lg border flex items-center justify-center shrink-0 mt-0.5 ${
+                        className={`w-8 h-8 rounded-xl border flex items-center justify-center shrink-0 mt-0.5 ${
                           entry.isInvalidUrl
                             ? 'bg-chu-sa-soft border-chu-sa-border text-chu-sa'
                             : !entry.hasValidUrl
@@ -1093,7 +1084,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                             target="_blank"
                             rel="noopener noreferrer"
                             title={entry.link.url ?? undefined}
-                            className={`group/doc inline-flex items-baseline gap-1.5 max-w-full text-[14.5px] sm:text-[15px] leading-snug hover:text-lam-tri-tue hover:underline decoration-minh-kim/85 underline-offset-4 transition-colors ${
+                            className={`group/doc inline-flex items-baseline gap-1.5 max-w-full text-[15px] leading-[1.42] hover:text-lam-tri-tue hover:underline decoration-minh-kim/85 underline-offset-4 transition-colors ${
                               entry.isPlaceholderLabel
                                 ? 'text-[#6E7889] italic font-normal'
                                 : 'font-semibold text-huyen-lam'
@@ -1109,7 +1100,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                           </a>
                         ) : (
                           <div
-                            className={`text-[14.5px] sm:text-[15px] leading-snug break-words ${
+                            className={`text-[15px] leading-[1.42] break-words ${
                               entry.isPlaceholderLabel
                                 ? 'text-[#6E7889] italic font-normal'
                                 : 'font-semibold text-huyen-lam'
@@ -1133,12 +1124,12 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                               : 'Kết quả nghiên cứu'}
                           </span>
                           <span
-                            className="text-[#CBD3DE] select-none"
+                            className="text-[#D4CCB9] select-none"
                             aria-hidden="true"
                           >
                             ·
                           </span>
-                          <span className="text-[#4B5668] font-medium">
+                          <span className="text-[#566070] font-medium">
                             {entry.sourceLabel}
                           </span>
                         </div>
@@ -1204,7 +1195,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                         className="text-left max-w-full group/task focus-visible:outline-2 focus-visible:outline-lam-sang rounded-md py-0.5"
                       >
                         <div className="flex items-baseline gap-1.5 min-w-0">
-                          <span className="font-mono-tabular text-[11.5px] font-bold px-1.5 py-0.5 rounded bg-nen-sang border border-[#DCE2EC] text-huyen-lam group-hover/task:border-lam-sang/45 group-hover/task:bg-lam-sang-soft/60 transition-colors shrink-0">
+                          <span className="font-mono-tabular text-[11.5px] font-bold px-1.5 py-0.5 rounded bg-[#F5F1E7] border border-[#E2DAC9] text-huyen-lam group-hover/task:border-minh-kim/65 group-hover/task:bg-[#FBF6E8] transition-colors shrink-0">
                             {entry.taskCode}
                           </span>
                           <span className="text-[13px] font-medium text-huyen-lam/90 group-hover/task:text-lam-tri-tue group-hover/task:underline decoration-minh-kim/75 underline-offset-4 line-clamp-2 break-words transition-colors">
@@ -1216,7 +1207,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                           entry.neutralAssigneeHint) && (
                           <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11.5px] leading-snug">
                             {showCategoryDetail && (
-                              <span className="text-[#647082]">
+                              <span className="text-[#666E7C]">
                                 {entry.categoryName}
                               </span>
                             )}
@@ -1224,19 +1215,19 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                               (entry.officialAssigneeText ||
                                 entry.neutralAssigneeHint) && (
                                 <span
-                                  className="text-[#CBD3DE] select-none"
+                                  className="text-[#D4CCB9] select-none"
                                   aria-hidden="true"
                                 >
                                   ·
                                 </span>
                               )}
                             {entry.officialAssigneeText ? (
-                              <span className="font-medium text-[#36445A]">
+                              <span className="font-medium text-[#3D4A5E]">
                                 {entry.officialAssigneeText}
                               </span>
                             ) : (
                               entry.neutralAssigneeHint && (
-                                <span className="text-[#949DAA]">
+                                <span className="text-[#9299A5]">
                                   {entry.neutralAssigneeHint}
                                 </span>
                               )
@@ -1246,7 +1237,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                       </button>
                     </div>
 
-                    {/* Column 3: Actions */}
+                    {/* Column 3: Fixed-Width Action Cell (Prevents Column Shift Across Rows) */}
                     <div className="pl-11 lg:pl-0 flex items-center justify-start lg:justify-end gap-1.5 shrink-0">
                       {entry.hasValidUrl && (
                         <a
@@ -1254,7 +1245,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                           target="_blank"
                           rel="noopener noreferrer"
                           aria-label={`Mở liên kết ${entry.displayLabel} trong tab mới`}
-                          className="inline-flex items-center gap-1.5 px-3 h-[36px] rounded-lg border border-[#D8DFE8] bg-white hover:bg-lam-sang-soft/65 hover:border-lam-sang/55 text-xs font-semibold text-lam-tri-tue hover:text-lam-sang-ink transition-colors whitespace-nowrap"
+                          className="inline-flex items-center gap-1.5 px-2.5 h-[36px] lg:h-[34px] rounded-lg border border-[#DCD4C3] bg-white hover:bg-[#FAF6EC] hover:border-minh-kim/65 text-xs font-medium text-lam-tri-tue hover:text-huyen-lam transition-colors whitespace-nowrap shrink-0"
                         >
                           <ExternalLink className="w-3.5 h-3.5 shrink-0" />
                           <span>Mở liên kết</span>
@@ -1268,7 +1259,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                             onClick={() => openEditModal(entry)}
                             title="Chỉnh sửa liên kết"
                             aria-label={`Chỉnh sửa ${entry.displayLabel}`}
-                            className="w-9 h-9 flex items-center justify-center rounded-lg border border-[#DCE2EC] bg-white text-[#5E697A] hover:text-huyen-lam hover:border-huyen-lam/35 hover:bg-nen-sang transition-colors shrink-0"
+                            className="w-9 h-9 lg:w-[34px] lg:h-[34px] flex items-center justify-center rounded-lg border border-[#E2DCD0] bg-white text-[#5E697A] hover:text-huyen-lam hover:border-[#C7BFA9] hover:bg-[#FAF6EC] transition-colors shrink-0"
                           >
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
@@ -1283,7 +1274,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                             }}
                             title="Xóa liên kết khỏi công việc"
                             aria-label={`Xóa ${entry.displayLabel}`}
-                            className="w-9 h-9 flex items-center justify-center rounded-lg border border-[#DCE2EC] bg-white text-[#7D8796] hover:text-chu-sa hover:border-chu-sa-border hover:bg-chu-sa-soft transition-colors shrink-0"
+                            className="w-9 h-9 lg:w-[34px] lg:h-[34px] flex items-center justify-center rounded-lg border border-[#E2DCD0] bg-white text-[#7D8796] hover:text-chu-sa hover:border-chu-sa-border hover:bg-chu-sa-soft transition-colors shrink-0"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -1316,15 +1307,15 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
           }
           className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-huyen-lam/45 backdrop-blur-[1.5px] overscroll-contain"
         >
-          <div className="w-full max-w-[500px] bg-white border border-[#DCE2EC] rounded-2xl shadow-[0_24px_60px_-16px_rgba(20,36,63,0.3)] overflow-hidden">
-            <header className="px-4 sm:px-5 py-3.5 bg-nen-sang border-b border-[#E3E7EE] flex items-center justify-between gap-2">
+          <div className="w-full max-w-[500px] bg-trang-nga border border-[#DFD8CA] rounded-2xl shadow-[0_24px_60px_-16px_rgba(20,36,63,0.3)] overflow-hidden">
+            <header className="px-4 sm:px-5 py-3.5 bg-[#FAF8F3] border-b border-[#EAE3D5] flex items-center justify-between gap-2">
               <div className="min-w-0">
                 <h2 className="text-base font-bold text-huyen-lam">
                   {editorModal.mode === 'add'
                     ? 'Thêm liên kết tài liệu'
                     : 'Chỉnh sửa liên kết'}
                 </h2>
-                <p className="text-xs text-[#5E697A] mt-0.5 truncate">
+                <p className="text-xs text-[#667182] mt-0.5 truncate">
                   Lưu trực tiếp vào dữ liệu công việc gốc
                 </p>
               </div>
@@ -1336,7 +1327,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                   setEditorError(null);
                 }}
                 aria-label="Đóng hộp thoại"
-                className="w-9 h-9 flex items-center justify-center rounded-lg text-[#5E697A] hover:bg-[#E7ECF3] hover:text-huyen-lam transition-colors disabled:opacity-40"
+                className="w-9 h-9 flex items-center justify-center rounded-lg text-[#667182] hover:bg-[#EFEAE0] hover:text-huyen-lam transition-colors disabled:opacity-40"
               >
                 <X className="w-[18px] h-[18px]" />
               </button>
@@ -1366,7 +1357,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                       });
                       setEditorError(null);
                     }}
-                    className="w-full h-[40px] px-3 text-[13px] bg-white border border-[#DCE2EC] rounded-xl text-huyen-lam focus:outline-none focus:ring-2 focus:ring-lam-sang/25 focus:border-lam-sang"
+                    className="w-full h-[40px] px-3 text-[13px] bg-white border border-[#DFD8CA] rounded-xl text-huyen-lam focus:outline-none focus:ring-2 focus:ring-lam-sang/25 focus:border-lam-sang"
                   >
                     {editableTasks.map((t) => (
                       <option key={t.id} value={t.id}>
@@ -1376,7 +1367,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                   </select>
                 </div>
               ) : (
-                <div className="px-3 py-2.5 rounded-xl bg-nen-sang border border-[#E3E7EE] text-xs space-y-0.5">
+                <div className="px-3 py-2.5 rounded-xl bg-nen-sang border border-[#EAE3D5] text-xs space-y-0.5">
                   <div className="text-[#5E697A]">Công việc liên quan</div>
                   <div className="font-semibold text-huyen-lam break-words">
                     <span className="font-mono-tabular mr-1.5">

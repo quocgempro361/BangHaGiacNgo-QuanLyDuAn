@@ -2506,6 +2506,10 @@ test('Case 12: Project Documents Center aggregation, review/duplicate classifica
     true
   );
   assert.equal(docsViewText.includes('Thêm tài liệu tham khảo'), true);
+  assert.equal(docsViewText.includes('DOCUMENT_LIST_GRID_COLS'), true);
+  assert.equal(docsViewText.includes('196px'), true);
+  assert.equal(docsViewText.includes('1.15fr)_auto'), false);
+  assert.equal(docsViewText.includes('even:bg-'), false);
   assert.equal(docsViewText.includes('border-l-4'), false);
   assert.equal(docsViewText.includes('border-l-2'), false);
 });
