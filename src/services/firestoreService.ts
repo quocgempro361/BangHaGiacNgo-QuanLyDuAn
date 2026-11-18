@@ -21,6 +21,7 @@ import {
   ActivityLog,
   AuthSettings,
   CategoryItem,
+  MemberDirectoryEntry,
   MemberInvite,
   ProjectMember,
   TaskCategory,
@@ -171,6 +172,50 @@ function mapInviteDoc(
   };
 }
 
+function mapMemberDirectoryDoc(
+  uid: string,
+  data: Record<string, unknown>
+): MemberDirectoryEntry {
+  return {
+    uid,
+    displayName: String(data.displayName ?? ''),
+    isActive: data.isActive !== false,
+    updatedAt: toIsoString(data.updatedAt) ?? undefined,
+  };
+}
+
+async function syncOwnMemberDirectoryBestEffort(
+  profile: Pick<ProjectMember, 'uid' | 'displayName' | 'isActive'>
+): Promise<void> {
+  if (!profile.uid || !profile.isActive || !profile.displayName.trim()) {
+    return;
+  }
+  try {
+    const dirRef = doc(db, 'memberDirectory', profile.uid);
+    const snap = await getDoc(dirRef);
+    if (snap.exists()) {
+      const existing = mapMemberDirectoryDoc(
+        snap.id,
+        snap.data() as Record<string, unknown>
+      );
+      if (
+        existing.displayName === profile.displayName.trim() &&
+        existing.isActive === profile.isActive
+      ) {
+        return;
+      }
+    }
+    await setDoc(dirRef, {
+      uid: profile.uid,
+      displayName: profile.displayName.trim().slice(0, 120),
+      isActive: profile.isActive,
+      updatedAt: serverTimestamp(),
+    });
+  } catch {
+    // Best-effort sync; never block login if rules deployment is pending
+  }
+}
+
 export type AuthResolutionResult =
   | { status: 'active'; profile: ProjectMember }
   | { status: 'locked'; profile: ProjectMember }
@@ -194,6 +239,9 @@ export async function resolveUserMembership(
         userSnap.id,
         userSnap.data() as Record<string, unknown>
       );
+      if (profile.isActive) {
+        void syncOwnMemberDirectoryBestEffort(profile);
+      }
       return profile.isActive
         ? { status: 'active', profile }
         : { status: 'locked', profile };
@@ -245,6 +293,7 @@ export async function resolveUserMembership(
           createdSnap.id,
           createdSnap.data() as Record<string, unknown>
         );
+        await syncOwnMemberDirectoryBestEffort(profile);
         return { status: 'active', profile };
       }
     } catch (error) {
@@ -308,6 +357,7 @@ export async function resolveUserMembership(
           createdSnap.id,
           createdSnap.data() as Record<string, unknown>
         );
+        await syncOwnMemberDirectoryBestEffort(profile);
         return { status: 'active', profile };
       }
     } catch (error) {
@@ -348,13 +398,17 @@ export async function bootstrapOwnerAdmin(
   }
 
   const emailLower = (authUser.email || '').trim().toLowerCase();
+  const initialDisplayName =
+    emailLower === 'ngaothuyet2023@gmail.com'
+      ? 'Sư Phụ'
+      : authUser.displayName || emailLower;
   const path = `users/${authUser.uid}`;
   try {
     await setDoc(doc(db, 'users', authUser.uid), {
       uid: authUser.uid,
       email: emailLower,
-      displayName: authUser.displayName || emailLower,
-      sheetAlias: sheetAlias.trim() || authUser.displayName || 'Admin',
+      displayName: initialDisplayName,
+      sheetAlias: sheetAlias.trim() || initialDisplayName || 'Admin',
       role: 'admin',
       canApprove: true,
       isActive: true,
@@ -362,7 +416,9 @@ export async function bootstrapOwnerAdmin(
       updatedAt: serverTimestamp(),
     });
     const snap = await getDoc(doc(db, 'users', authUser.uid));
-    return mapUserDoc(snap.id, snap.data() as Record<string, unknown>);
+    const profile = mapUserDoc(snap.id, snap.data() as Record<string, unknown>);
+    await syncOwnMemberDirectoryBestEffort(profile);
+    return profile;
   } catch (error) {
     handleFirestoreError(error, OperationType.CREATE, path, {
       uid: authUser.uid,
@@ -437,6 +493,99 @@ export function subscribeUsers(
       }
     }
   );
+}
+
+/**
+ * Non-PII display directory listener for Member/Viewer accounts so teammates'
+ * official Project Display Names render identically without exposing `/users` PII emails.
+ */
+export function subscribeMemberDirectory(
+  currentUser: ProjectMember,
+  onData: (members: ProjectMember[]) => void
+): Unsubscribe {
+  return onSnapshot(
+    collection(db, 'memberDirectory'),
+    (snapshot) => {
+      const byUid = new Map<string, ProjectMember>();
+      byUid.set(currentUser.uid, currentUser);
+
+      snapshot.docs.forEach((d) => {
+        const entry = mapMemberDirectoryDoc(
+          d.id,
+          d.data() as Record<string, unknown>
+        );
+        if (entry.uid === currentUser.uid) {
+          byUid.set(entry.uid, {
+            ...currentUser,
+            displayName: entry.displayName || currentUser.displayName,
+            isActive: entry.isActive,
+          });
+        } else {
+          byUid.set(entry.uid, {
+            uid: entry.uid,
+            displayName: entry.displayName,
+            email: '',
+            role: 'member',
+            canApprove: false,
+            isActive: entry.isActive,
+            sheetAlias: '',
+            createdAt: '',
+            updatedAt: entry.updatedAt,
+          });
+        }
+      });
+
+      onData(Array.from(byUid.values()));
+    },
+    () => {
+      // Fallback cleanly to currentUser if directory rules are not yet deployed
+      onData([currentUser]);
+    }
+  );
+}
+
+export async function syncMemberDirectoryForAdmin(
+  members: ProjectMember[]
+): Promise<void> {
+  if (members.length === 0) return;
+  try {
+    const snap = await getDocsFromServer(collection(db, 'memberDirectory'));
+    const existingByUid = new Map<string, MemberDirectoryEntry>();
+    snap.docs.forEach((d) => {
+      existingByUid.set(
+        d.id,
+        mapMemberDirectoryDoc(d.id, d.data() as Record<string, unknown>)
+      );
+    });
+
+    const batch = writeBatch(db);
+    let pendingCount = 0;
+
+    for (const m of members) {
+      const cleanName = m.displayName.trim().slice(0, 120);
+      if (!m.uid || !cleanName) continue;
+      const existing = existingByUid.get(m.uid);
+      if (
+        !existing ||
+        existing.displayName !== cleanName ||
+        existing.isActive !== m.isActive
+      ) {
+        batch.set(doc(db, 'memberDirectory', m.uid), {
+          uid: m.uid,
+          displayName: cleanName,
+          isActive: m.isActive,
+          updatedAt: serverTimestamp(),
+        });
+        pendingCount++;
+      }
+    }
+
+    if (pendingCount > 0) {
+      await batch.commit();
+    }
+  } catch {
+    // Non-blocking best-effort directory sync
+  }
 }
 
 export function subscribeInvites(
@@ -1370,9 +1519,21 @@ export async function updateMemberInFirestore(
   patch: Partial<Pick<ProjectMember, 'role' | 'canApprove' | 'isActive' | 'sheetAlias' | 'displayName'>>
 ): Promise<void> {
   const userPath = `users/${uid}`;
+  const cleanPatch: Record<string, unknown> = { ...patch };
+  if (patch.displayName !== undefined) {
+    const trimmedName = patch.displayName.trim().slice(0, 120);
+    if (!trimmedName) {
+      throw new Error('Tên hiển thị không được để trống.');
+    }
+    cleanPatch.displayName = trimmedName;
+  }
+  if (patch.sheetAlias !== undefined) {
+    cleanPatch.sheetAlias = patch.sheetAlias.trim().slice(0, 80);
+  }
+
   try {
     await updateDoc(doc(db, 'users', uid), {
-      ...patch,
+      ...cleanPatch,
       updatedAt: serverTimestamp(),
     });
 
@@ -1381,28 +1542,61 @@ export async function updateMemberInFirestore(
       const inviteSnap = await getDoc(doc(db, 'invites', emailLower));
       if (inviteSnap.exists()) {
         await updateDoc(doc(db, 'invites', emailLower), {
-          ...patch,
+          ...cleanPatch,
           updatedAt: serverTimestamp(),
         });
       }
     }
+
+    if (
+      cleanPatch.displayName !== undefined ||
+      cleanPatch.isActive !== undefined
+    ) {
+      try {
+        const updatedSnap = await getDoc(doc(db, 'users', uid));
+        if (updatedSnap.exists()) {
+          const updatedProfile = mapUserDoc(
+            updatedSnap.id,
+            updatedSnap.data() as Record<string, unknown>
+          );
+          if (updatedProfile.displayName.trim()) {
+            await setDoc(doc(db, 'memberDirectory', uid), {
+              uid,
+              displayName: updatedProfile.displayName.trim().slice(0, 120),
+              isActive: updatedProfile.isActive,
+              updatedAt: serverTimestamp(),
+            });
+          }
+        }
+      } catch {
+        // Non-blocking best-effort directory sync
+      }
+    }
   } catch (error) {
-    handleFirestoreError(error, OperationType.UPDATE, userPath, patch);
+    handleFirestoreError(error, OperationType.UPDATE, userPath, cleanPatch);
   }
 }
 
 export async function updateInviteInFirestore(
   emailLower: string,
-  patch: Partial<Pick<MemberInvite, 'role' | 'canApprove' | 'isActive'>>
+  patch: Partial<Pick<MemberInvite, 'displayName' | 'role' | 'canApprove' | 'isActive'>>
 ): Promise<void> {
   const path = `invites/${emailLower}`;
+  const cleanPatch: Record<string, unknown> = { ...patch };
+  if (patch.displayName !== undefined) {
+    const trimmedName = patch.displayName.trim().slice(0, 120);
+    if (!trimmedName) {
+      throw new Error('Tên hiển thị không được để trống.');
+    }
+    cleanPatch.displayName = trimmedName;
+  }
   try {
     await updateDoc(doc(db, 'invites', emailLower), {
-      ...patch,
+      ...cleanPatch,
       updatedAt: serverTimestamp(),
     });
   } catch (error) {
-    handleFirestoreError(error, OperationType.UPDATE, path, patch);
+    handleFirestoreError(error, OperationType.UPDATE, path, cleanPatch);
   }
 }
 

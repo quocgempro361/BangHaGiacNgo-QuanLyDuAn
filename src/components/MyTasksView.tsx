@@ -15,14 +15,17 @@ import {
   canUserEditTask,
   formatShortDate,
   getEffectiveCategory,
+  getOfficialMemberDisplayName,
   isB1TestTask,
   isTaskOverdue,
+  resolveTaskAssignees,
 } from '../utils/taskHelpers';
 import { StatusBadge } from './StatusBadge';
 
 interface MyTasksViewProps {
   tasks: TaskItem[];
   categories: CategoryItem[];
+  members?: ProjectMember[];
   currentUser: ProjectMember;
   onSelectTask: (taskId: string) => void;
   onNavigateToTasks?: () => void;
@@ -36,6 +39,7 @@ interface MyTasksViewProps {
 export const MyTasksView: React.FC<MyTasksViewProps> = ({
   tasks,
   categories,
+  members = [],
   currentUser,
   onSelectTask,
   onNavigateToTasks,
@@ -182,9 +186,7 @@ export const MyTasksView: React.FC<MyTasksViewProps> = ({
               <span aria-hidden="true">·</span>
               <span>
                 Phụ trách:{' '}
-                {task.assignees.length > 0
-                  ? task.assignees.join(', ')
-                  : 'Chưa gắn tên'}
+                {resolveTaskAssignees(task, members).displayText}
               </span>
               {task.dueDate && (
                 <>
@@ -329,7 +331,10 @@ export const MyTasksView: React.FC<MyTasksViewProps> = ({
             Việc của tôi
           </h1>
           <p className="text-xs sm:text-sm text-ink-muted mt-0.5">
-            Tài khoản: <strong className="text-huyen-lam">{currentUser.displayName}</strong>
+            Tài khoản:{' '}
+            <strong className="text-huyen-lam">
+              {getOfficialMemberDisplayName(currentUser)}
+            </strong>
             {' · '}
             <span>
               {currentUser.role === 'admin'
@@ -372,11 +377,6 @@ export const MyTasksView: React.FC<MyTasksViewProps> = ({
           <h2 className="text-xs sm:text-sm font-semibold text-huyen-lam">
             Việc được giao theo tài khoản ({directTasks.length})
           </h2>
-          {currentUser.sheetAlias && (
-            <span className="text-[11px] text-ink-muted">
-              Nhân sự đối chiếu: {currentUser.sheetAlias}
-            </span>
-          )}
         </div>
 
         {directTasks.length === 0 ? (

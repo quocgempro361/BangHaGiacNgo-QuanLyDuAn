@@ -8,6 +8,7 @@ import {
   Info,
   Link2Off,
   Lock,
+  Pencil,
   Plus,
   ShieldCheck,
   Trash2,
@@ -116,6 +117,53 @@ export const MembersView: React.FC<MembersViewProps> = ({
     type: 'success' | 'error';
     text: string;
   } | null>(null);
+  const [renamingUid, setRenamingUid] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState('');
+  const [renameError, setRenameError] = useState<string | null>(null);
+  const [savingRename, setSavingRename] = useState(false);
+
+  const openRenameForMember = (member: ProjectMember) => {
+    if (renamingUid === member.uid) {
+      setRenamingUid(null);
+      setRenameError(null);
+      return;
+    }
+    setRenamingUid(member.uid);
+    setRenameDraft(member.displayName);
+    setRenameError(null);
+  };
+
+  const handleSaveRename = async (member: ProjectMember) => {
+    if (savingRename) return;
+    const trimmed = renameDraft.trim();
+    if (!trimmed) {
+      setRenameError('Vui lòng nhập tên hiển thị trong dự án.');
+      return;
+    }
+    if (trimmed.length > 120) {
+      setRenameError('Tên hiển thị tối đa 120 ký tự.');
+      return;
+    }
+    if (trimmed === member.displayName.trim()) {
+      setRenamingUid(null);
+      setRenameError(null);
+      return;
+    }
+    setSavingRename(true);
+    setRenameError(null);
+    try {
+      await onUpdateMember(member.uid, member.email, { displayName: trimmed });
+      setRenamingUid(null);
+    } catch (err) {
+      setRenameError(
+        err instanceof Error
+          ? err.message
+          : 'Không thể cập nhật tên hiển thị.'
+      );
+    } finally {
+      setSavingRename(false);
+    }
+  };
 
   const activeEmails = new Set(members.map((m) => m.email.toLowerCase()));
   const pendingInvites = invites.filter(
@@ -388,7 +436,6 @@ export const MembersView: React.FC<MembersViewProps> = ({
               </div>
               <div className="text-xs text-ink-muted mt-0.5">
                 {currentUser.email}
-                {currentUser.sheetAlias ? ` · Phụ trách tên: ${currentUser.sheetAlias}` : ''}
               </div>
             </div>
             <div className="text-xs text-huyen-lam/85 flex items-center gap-2 shrink-0">
@@ -579,208 +626,308 @@ export const MembersView: React.FC<MembersViewProps> = ({
                     (r) => r.account.originalName === effectiveSpec.originalName
                   )
                 : undefined;
+              const isRenaming = renamingUid === m.uid;
               return (
                 <div
                   key={m.uid}
-                  className={`p-3.5 sm:p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3 ${
+                  className={`p-3.5 sm:p-4 space-y-3 ${
                     !m.isActive ? 'bg-nga-thien opacity-75' : ''
                   }`}
                 >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-semibold text-huyen-lam">
-                        {m.displayName}
-                      </span>
-                      {isSelf && (
-                        <span className="text-[11px] font-medium text-lam-tri-tue">
-                          (Bạn)
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-semibold text-huyen-lam">
+                          {m.displayName}
                         </span>
-                      )}
-                      {replacedTempSpec ? (
-                        <span className="text-[11px] font-medium text-chu-sa">
-                          (Gmail tạm cũ · đã thay bằng {replacedTempSpec.newEmail})
-                        </span>
-                      ) : (
-                        isTemp && (
-                          <span className="text-[11px] font-medium text-minh-kim-ink">
-                            (Tạm thời)
+                        {isSelf && (
+                          <span className="text-[11px] font-medium text-lam-tri-tue">
+                            (Bạn)
                           </span>
-                        )
-                      )}
-                      {!m.isActive && (
-                        <span className="text-[11px] font-medium text-red-700">
-                          Đã khóa
-                        </span>
-                      )}
-                      {m.role === 'viewer' && m.isActive && (
-                        <span className="text-[11px] font-medium text-minh-kim-ink">
-                          · Đang là Viewer (Chỉ đọc)
-                        </span>
+                        )}
+                        {replacedTempSpec ? (
+                          <span className="text-[11px] font-medium text-chu-sa">
+                            (Gmail tạm cũ · đã thay bằng {replacedTempSpec.newEmail})
+                          </span>
+                        ) : (
+                          isTemp && (
+                            <span className="text-[11px] font-medium text-minh-kim-ink">
+                              (Tạm thời)
+                            </span>
+                          )
+                        )}
+                        {!m.isActive && (
+                          <span className="text-[11px] font-medium text-red-700">
+                            Đã khóa
+                          </span>
+                        )}
+                        {m.role === 'viewer' && m.isActive && (
+                          <span className="text-[11px] font-medium text-minh-kim-ink">
+                            · Đang là Viewer (Chỉ đọc)
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-ink-muted mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                        <span className="font-mono-tabular break-all">{m.email}</span>
+                        {replacedTempSpec ? (
+                          <>
+                            <span aria-hidden="true">·</span>
+                            <span className="text-minh-kim-ink">
+                              Nhân sự cũ: {replacedTempSpec.originalName} (giữ lịch sử, đối chiếu bên dưới)
+                            </span>
+                          </>
+                        ) : matchedSpec ? (
+                          <>
+                            <span aria-hidden="true">·</span>
+                            <span className="text-emerald-800 font-medium">
+                              Đã xác nhận nhân sự: {formatStandardMemberLabel(matchedSpec)}
+                            </span>
+                          </>
+                        ) : emailMatchedSpec ? (
+                          <>
+                            <span aria-hidden="true">·</span>
+                            <span className="text-lam-tri-tue font-medium">
+                              Khớp email với {formatStandardMemberLabel(emailMatchedSpec)}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                onUpdateMember(m.uid, m.email, {
+                                  sheetAlias: emailMatchedSpec.originalName,
+                                })
+                              }
+                              className="inline-flex items-center px-2 py-0.5 rounded border border-lam-tri-tue/40 bg-nga-thien text-[11px] font-semibold text-huyen-lam hover:bg-surface-muted transition-colors"
+                            >
+                              Xác nhận gắn &ldquo;{emailMatchedSpec.originalName}&rdquo; (giữ nguyên quyền)
+                            </button>
+                          </>
+                        ) : m.sheetAlias ? (
+                          <>
+                            <span aria-hidden="true">·</span>
+                            <span>Tên đối chiếu: {m.sheetAlias}</span>
+                          </>
+                        ) : (
+                          <>
+                            <span aria-hidden="true">·</span>
+                            <span className="text-ink-muted/75">Chưa xác nhận nhân sự</span>
+                          </>
+                        )}
+                      </div>
+                      {matchedPreviewRow && m.isActive && matchedPreviewRow.readyToConfirmCount > 0 && (
+                        <div className="mt-1.5 text-[11px] text-huyen-lam">
+                          Có <strong>{matchedPreviewRow.readyToConfirmCount}</strong> công việc mang tên &ldquo;
+                          {effectiveSpec?.legacyAliases?.length
+                            ? `${effectiveSpec.originalName} / ${effectiveSpec.legacyAliases.join(', ')}`
+                            : effectiveSpec?.originalName}
+                          &rdquo; chưa gán tài khoản này — xác nhận ở Bước 2 bên dưới.
+                        </div>
                       )}
                     </div>
-                    <div className="text-xs text-ink-muted mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                      <span className="font-mono-tabular break-all">{m.email}</span>
-                      {replacedTempSpec ? (
-                        <>
-                          <span aria-hidden="true">·</span>
-                          <span className="text-minh-kim-ink">
-                            Nhân sự cũ: {replacedTempSpec.originalName} (giữ lịch sử, đối chiếu bên dưới)
-                          </span>
-                        </>
-                      ) : matchedSpec ? (
-                        <>
-                          <span aria-hidden="true">·</span>
-                          <span className="text-emerald-800 font-medium">
-                            Đã xác nhận nhân sự: {formatStandardMemberLabel(matchedSpec)}
-                          </span>
-                        </>
-                      ) : emailMatchedSpec ? (
-                        <>
-                          <span aria-hidden="true">·</span>
-                          <span className="text-lam-tri-tue font-medium">
-                            Khớp email với {formatStandardMemberLabel(emailMatchedSpec)}
-                          </span>
+
+                    <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => openRenameForMember(m)}
+                        aria-expanded={isRenaming}
+                        className={`col-span-2 sm:col-span-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-2 text-xs font-medium rounded-lg border min-h-[42px] transition-colors ${
+                          isRenaming
+                            ? 'bg-huyen-lam border-huyen-lam text-white'
+                            : 'bg-white border-nga-xam text-huyen-lam hover:bg-nga-thien'
+                        }`}
+                      >
+                        <Pencil className="w-3.5 h-3.5 shrink-0" />
+                        <span>Đổi tên hiển thị</span>
+                      </button>
+
+                      <select
+                        aria-label={`Xác nhận nhân sự cho ${m.displayName}`}
+                        value={matchedSpec ? matchedSpec.originalName : ''}
+                        disabled={Boolean(replacedTempSpec)}
+                        onChange={(e) => {
+                          const nextAlias = e.target.value;
+                          onUpdateMember(m.uid, m.email, {
+                            sheetAlias: nextAlias,
+                          });
+                        }}
+                        className="col-span-2 sm:col-span-1 px-2.5 py-2 text-xs bg-white border border-nga-xam rounded-lg text-huyen-lam disabled:bg-surface-muted min-h-[42px]"
+                      >
+                        <option value="">-- Xác nhận nhân sự --</option>
+                        {EXPECTED_TBHGN_ACCOUNTS.map((acc) => (
+                          <option key={acc.originalName} value={acc.originalName}>
+                            {formatStandardMemberLabel(acc)}
+                          </option>
+                        ))}
+                      </select>
+
+                      <select
+                        aria-label={`Vai trò của ${m.displayName}`}
+                        value={m.role}
+                        disabled={isSelf}
+                        onChange={(e) => {
+                          const nextRole = e.target.value as UserRole;
+                          if (isTemp && nextRole === 'admin') return;
+                          onUpdateMember(m.uid, m.email, {
+                            role: nextRole,
+                            ...(nextRole === 'admin' || nextRole === 'moderator'
+                              ? { canApprove: true }
+                              : isTemp
+                              ? { canApprove: false }
+                              : {}),
+                          });
+                        }}
+                        className="px-2.5 py-2 text-xs bg-white border border-nga-xam rounded-lg text-huyen-lam disabled:bg-surface-muted min-h-[42px]"
+                      >
+                        <option value="admin" disabled={isTemp && m.role !== 'admin'}>
+                          Admin
+                        </option>
+                        <option value="moderator">Moderator</option>
+                        <option value="member">Member</option>
+                        <option value="viewer">Viewer</option>
+                      </select>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (isTemp && !m.canApprove) return;
+                          onUpdateMember(m.uid, m.email, {
+                            canApprove: !m.canApprove,
+                          });
+                        }}
+                        className={`inline-flex items-center justify-center gap-1.5 px-2.5 py-2 text-xs font-medium rounded-lg border min-h-[42px] transition-colors disabled:opacity-50 ${
+                          m.canApprove || m.role === 'admin' || m.role === 'moderator'
+                            ? 'bg-minh-kim-soft border-minh-kim-border text-minh-kim-ink'
+                            : 'bg-white border-nga-xam text-ink-muted hover:bg-nga-thien'
+                        }`}
+                        disabled={
+                          m.role === 'admin' ||
+                          m.role === 'moderator' ||
+                          (isTemp && !m.canApprove)
+                        }
+                        title={
+                          isTemp && !m.canApprove
+                            ? 'Tài khoản tạm thời không tự cấp quyền phê duyệt'
+                            : 'Quyền phê duyệt công việc'
+                        }
+                      >
+                        <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+                        <span>
+                          {m.canApprove || m.role === 'admin' || m.role === 'moderator'
+                            ? 'Được duyệt'
+                            : 'Không duyệt'}
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        disabled={isSelf}
+                        onClick={() =>
+                          onUpdateMember(m.uid, m.email, {
+                            isActive: !m.isActive,
+                          })
+                        }
+                        className={`col-span-2 sm:col-span-1 inline-flex items-center justify-center gap-1 px-2.5 py-2 text-xs font-medium rounded-lg border min-h-[42px] disabled:opacity-40 transition-colors ${
+                          m.isActive
+                            ? 'bg-white border-nga-xam text-huyen-lam/85 hover:bg-red-50 hover:text-red-700 hover:border-red-200'
+                            : 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                        }`}
+                      >
+                        {m.isActive ? (
+                          <>
+                            <Lock className="w-3.5 h-3.5 shrink-0" />
+                            <span>Khóa</span>
+                          </>
+                        ) : (
+                          <>
+                            <Unlock className="w-3.5 h-3.5 shrink-0" />
+                            <span>Mở khóa</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {isRenaming && (
+                    <div className="bg-[#FAF8F3] border border-[#E5DFD2] rounded-xl p-3 space-y-2.5">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label
+                            htmlFor={`rename-input-${m.uid}`}
+                            className="block text-xs font-semibold text-huyen-lam mb-1"
+                          >
+                            Tên hiển thị trong dự án
+                          </label>
+                          <input
+                            id={`rename-input-${m.uid}`}
+                            type="text"
+                            maxLength={120}
+                            autoFocus
+                            value={renameDraft}
+                            disabled={savingRename}
+                            onChange={(e) => {
+                              setRenameDraft(e.target.value);
+                              if (renameError) setRenameError(null);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                void handleSaveRename(m);
+                              }
+                              if (e.key === 'Escape') {
+                                setRenamingUid(null);
+                                setRenameError(null);
+                              }
+                            }}
+                            placeholder="VD: Sư Tín"
+                            className="w-full h-[38px] px-3 text-sm bg-white border border-[#DFD8CA] rounded-lg text-huyen-lam focus:outline-none focus:ring-2 focus:ring-lam-sang/25 focus:border-lam-sang"
+                          />
+                        </div>
+                        <div>
+                          <div className="block text-xs font-medium text-ink-muted mb-1">
+                            Email Google (chỉ đọc)
+                          </div>
+                          <div className="w-full h-[38px] px-3 text-xs font-mono-tabular bg-white/70 border border-[#E5DFD2] rounded-lg text-ink-muted flex items-center justify-between gap-2 truncate">
+                            <span className="truncate">{m.email}</span>
+                            <span className="shrink-0 text-[11px] font-sans font-medium text-huyen-lam/80 capitalize">
+                              {m.role}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {renameError && (
+                        <div className="text-xs text-chu-sa font-medium">
+                          {renameError}
+                        </div>
+                      )}
+
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-[11px] text-ink-muted">
+                          Giữ nguyên tài khoản, vai trò, quyền duyệt và lịch sử công việc.
+                        </span>
+                        <div className="flex items-center gap-2 ml-auto">
                           <button
                             type="button"
-                            onClick={() =>
-                              onUpdateMember(m.uid, m.email, {
-                                sheetAlias: emailMatchedSpec.originalName,
-                              })
-                            }
-                            className="inline-flex items-center px-2 py-0.5 rounded border border-lam-tri-tue/40 bg-nga-thien text-[11px] font-semibold text-huyen-lam hover:bg-surface-muted transition-colors"
+                            disabled={savingRename}
+                            onClick={() => {
+                              setRenamingUid(null);
+                              setRenameError(null);
+                            }}
+                            className="px-3 h-[34px] text-xs font-medium text-ink-muted hover:text-huyen-lam"
                           >
-                            Xác nhận gắn &ldquo;{emailMatchedSpec.originalName}&rdquo; (giữ nguyên quyền)
+                            Hủy
                           </button>
-                        </>
-                      ) : m.sheetAlias ? (
-                        <>
-                          <span aria-hidden="true">·</span>
-                          <span>Tên đối chiếu: {m.sheetAlias}</span>
-                        </>
-                      ) : (
-                        <>
-                          <span aria-hidden="true">·</span>
-                          <span className="text-ink-muted/75">Chưa xác nhận nhân sự</span>
-                        </>
-                      )}
-                    </div>
-                    {matchedPreviewRow && m.isActive && matchedPreviewRow.readyToConfirmCount > 0 && (
-                      <div className="mt-1.5 text-[11px] text-huyen-lam">
-                        Có <strong>{matchedPreviewRow.readyToConfirmCount}</strong> công việc mang tên &ldquo;
-                        {effectiveSpec?.legacyAliases?.length
-                          ? `${effectiveSpec.originalName} / ${effectiveSpec.legacyAliases.join(', ')}`
-                          : effectiveSpec?.originalName}
-                        &rdquo; chưa gán tài khoản này — xác nhận ở Bước 2 bên dưới.
+                          <button
+                            type="button"
+                            disabled={savingRename}
+                            onClick={() => void handleSaveRename(m)}
+                            className="px-4 h-[34px] text-xs font-semibold bg-huyen-lam text-white rounded-lg hover:bg-lam-tri-tue disabled:opacity-50 transition-colors"
+                          >
+                            {savingRename ? 'Đang lưu...' : 'Lưu'}
+                          </button>
+                        </div>
                       </div>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 shrink-0">
-                    <select
-                      aria-label={`Xác nhận nhân sự cho ${m.displayName}`}
-                      value={matchedSpec ? matchedSpec.originalName : ''}
-                      disabled={Boolean(replacedTempSpec)}
-                      onChange={(e) => {
-                        const nextAlias = e.target.value;
-                        onUpdateMember(m.uid, m.email, {
-                          sheetAlias: nextAlias,
-                        });
-                      }}
-                      className="col-span-2 sm:col-span-1 px-2.5 py-2 text-xs bg-white border border-nga-xam rounded-lg text-huyen-lam disabled:bg-surface-muted min-h-[42px]"
-                    >
-                      <option value="">-- Xác nhận nhân sự --</option>
-                      {EXPECTED_TBHGN_ACCOUNTS.map((acc) => (
-                        <option key={acc.originalName} value={acc.originalName}>
-                          {formatStandardMemberLabel(acc)}
-                        </option>
-                      ))}
-                    </select>
-
-                    <select
-                      aria-label={`Vai trò của ${m.displayName}`}
-                      value={m.role}
-                      disabled={isSelf}
-                      onChange={(e) => {
-                        const nextRole = e.target.value as UserRole;
-                        if (isTemp && nextRole === 'admin') return;
-                        onUpdateMember(m.uid, m.email, {
-                          role: nextRole,
-                          ...(nextRole === 'admin' || nextRole === 'moderator'
-                            ? { canApprove: true }
-                            : isTemp
-                            ? { canApprove: false }
-                            : {}),
-                        });
-                      }}
-                      className="px-2.5 py-2 text-xs bg-white border border-nga-xam rounded-lg text-huyen-lam disabled:bg-surface-muted min-h-[42px]"
-                    >
-                      <option value="admin" disabled={isTemp && m.role !== 'admin'}>
-                        Admin
-                      </option>
-                      <option value="moderator">Moderator</option>
-                      <option value="member">Member</option>
-                      <option value="viewer">Viewer</option>
-                    </select>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (isTemp && !m.canApprove) return;
-                        onUpdateMember(m.uid, m.email, {
-                          canApprove: !m.canApprove,
-                        });
-                      }}
-                      className={`inline-flex items-center justify-center gap-1.5 px-2.5 py-2 text-xs font-medium rounded-lg border min-h-[42px] transition-colors disabled:opacity-50 ${
-                        m.canApprove || m.role === 'admin' || m.role === 'moderator'
-                          ? 'bg-minh-kim-soft border-minh-kim-border text-minh-kim-ink'
-                          : 'bg-white border-nga-xam text-ink-muted hover:bg-nga-thien'
-                      }`}
-                      disabled={
-                        m.role === 'admin' ||
-                        m.role === 'moderator' ||
-                        (isTemp && !m.canApprove)
-                      }
-                      title={
-                        isTemp && !m.canApprove
-                          ? 'Tài khoản tạm thời không tự cấp quyền phê duyệt'
-                          : 'Quyền phê duyệt công việc'
-                      }
-                    >
-                      <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
-                      <span>
-                        {m.canApprove || m.role === 'admin' || m.role === 'moderator'
-                          ? 'Được duyệt'
-                          : 'Không duyệt'}
-                      </span>
-                    </button>
-
-                    <button
-                      type="button"
-                      disabled={isSelf}
-                      onClick={() =>
-                        onUpdateMember(m.uid, m.email, {
-                          isActive: !m.isActive,
-                        })
-                      }
-                      className={`col-span-2 sm:col-span-1 inline-flex items-center justify-center gap-1 px-2.5 py-2 text-xs font-medium rounded-lg border min-h-[42px] disabled:opacity-40 transition-colors ${
-                        m.isActive
-                          ? 'bg-white border-nga-xam text-huyen-lam/85 hover:bg-red-50 hover:text-red-700 hover:border-red-200'
-                          : 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                      }`}
-                    >
-                      {m.isActive ? (
-                        <>
-                          <Lock className="w-3.5 h-3.5 shrink-0" />
-                          <span>Khóa</span>
-                        </>
-                      ) : (
-                        <>
-                          <Unlock className="w-3.5 h-3.5 shrink-0" />
-                          <span>Mở khóa</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
+                    </div>
+                  )}
                 </div>
               );
             })}

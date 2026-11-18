@@ -121,12 +121,28 @@
         "updatedBy": { "type": "string", "maxLength": 128 }
       },
       "required": ["allowOpenGoogleLogin", "updatedAt", "updatedBy"]
+    },
+    "MemberDirectoryEntry": {
+      "title": "MemberDirectoryEntry",
+      "description": "Non-PII project display name directory synced from /users/{uid} for consistent UID display across all active members.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "isActive": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName", "isActive", "updatedAt"]
     }
   },
   "firestore": {
     "/users/{uid}": {
       "schema": { "$ref": "#/entities/UserProfile" },
       "description": "Approved project member profiles and role assignments"
+    },
+    "/memberDirectory/{uid}": {
+      "schema": { "$ref": "#/entities/MemberDirectoryEntry" },
+      "description": "Non-PII project display name directory synced from /users/{uid}"
     },
     "/invites/{emailId}": {
       "schema": { "$ref": "#/entities/MemberInvite" },

@@ -24,15 +24,19 @@ import {
   computeParentProgress,
   formatShortDate,
   getEffectiveCategory,
+  getOfficialMemberDisplayName,
   isB1TestTask,
   isTaskOverdue,
+  resolveTaskAssignees,
 } from '../utils/taskHelpers';
+import { isReplacedTemporaryAccountEmail } from '../utils/memberMapping';
 import { StatusBadge } from './StatusBadge';
 
 interface TasksViewProps {
   tasks: TaskItem[];
   categories: CategoryItem[];
   currentUser: ProjectMember;
+  members?: ProjectMember[];
   initialStatusFilter?: string;
   initialCategoryFilter?: string;
   initialReviewOnly?: boolean;
@@ -92,6 +96,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
   tasks,
   categories,
   currentUser,
+  members = [],
   initialStatusFilter = 'all',
   initialCategoryFilter = 'all',
   initialReviewOnly = false,
@@ -137,14 +142,51 @@ export const TasksView: React.FC<TasksViewProps> = ({
   }, [tasks, showArchived]);
 
   const assigneeOptions = useMemo(() => {
-    const set = new Set<string>();
+    const referencedUids = new Set<string>();
     visiblePool.forEach((t) => {
-      t.assignees.forEach((a) => {
-        if (a.trim()) set.add(a.trim());
+      (t.assigneeUids ?? []).forEach((uid) => {
+        if (uid) referencedUids.add(uid);
       });
     });
-    return Array.from(set).sort((a, b) => a.localeCompare(b, 'vi'));
-  }, [visiblePool]);
+
+    const eligible = members.filter(
+      (m) =>
+        (m.isActive &&
+          m.role !== 'viewer' &&
+          !isReplacedTemporaryAccountEmail(m.email)) ||
+        referencedUids.has(m.uid)
+    );
+
+    const nameCounts = new Map<string, number>();
+    eligible.forEach((m) => {
+      const key = getOfficialMemberDisplayName(m).toLowerCase();
+      nameCounts.set(key, (nameCounts.get(key) ?? 0) + 1);
+    });
+
+    return eligible
+      .map((m) => {
+        const baseName = getOfficialMemberDisplayName(m);
+        const isDup = (nameCounts.get(baseName.toLowerCase()) ?? 0) > 1;
+        const emailPrefix = m.email?.split('@')[0]?.trim();
+        let label = baseName;
+        if (isDup && emailPrefix) {
+          label = `${label} (${emailPrefix})`;
+        }
+        if (!m.isActive) {
+          label = `${label} (Đã khóa)`;
+        }
+        return { uid: m.uid, label };
+      })
+      .sort((a, b) => a.label.localeCompare(b.label, 'vi'));
+  }, [members, visiblePool]);
+
+  const hasCollectiveGroupTasks = useMemo(
+    () =>
+      visiblePool.some(
+        (t) => resolveTaskAssignees(t, members).isCollectiveGroup
+      ),
+    [visiblePool, members]
+  );
 
   const reviewFlagCount = useMemo(
     () => visiblePool.filter((t) => t.reviewFlags.length > 0).length,
@@ -154,9 +196,9 @@ export const TasksView: React.FC<TasksViewProps> = ({
   const unlinkedUidCount = useMemo(
     () =>
       visiblePool.filter(
-        (t) => t.assignees.length > 0 && t.assigneeUids.length === 0
+        (t) => resolveTaskAssignees(t, members).isUnlinkedAccount
       ).length,
-    [visiblePool]
+    [visiblePool, members]
   );
 
   const hasActiveFilter =
@@ -170,13 +212,15 @@ export const TasksView: React.FC<TasksViewProps> = ({
     statusFilter !== 'all' || assigneeFilter !== 'all' || reviewOnly;
 
   const matchesFilter = (task: TaskItem): boolean => {
+    const resolved = resolveTaskAssignees(task, members);
+
     const q = searchQuery.trim().toLowerCase();
     if (q) {
       const effForSearch = getEffectiveCategory(task, visiblePool, categories);
       const hay = [
         task.displayCode,
         task.title,
-        task.assignees.join(' '),
+        resolved.searchText,
         task.nextStep ?? '',
         task.notes ?? '',
         effForSearch.category ?? '',
@@ -205,14 +249,18 @@ export const TasksView: React.FC<TasksViewProps> = ({
 
     if (assigneeFilter !== 'all') {
       if (assigneeFilter === '__unassigned__') {
-        if (task.assignees.length > 0 || task.assigneeUids.length > 0) {
+        if (!resolved.isUnassigned) {
           return false;
         }
       } else if (assigneeFilter === '__unlinked_uid__') {
-        if (task.assigneeUids.length > 0) {
+        if (!resolved.isUnlinkedAccount) {
           return false;
         }
-      } else if (!task.assignees.includes(assigneeFilter)) {
+      } else if (assigneeFilter === '__collective__') {
+        if (!resolved.isCollectiveGroup) {
+          return false;
+        }
+      } else if (!(task.assigneeUids ?? []).includes(assigneeFilter)) {
         return false;
       }
     }
@@ -286,6 +334,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
     reviewOnly,
     visiblePool,
     categories,
+    members,
   ]);
 
   const parentsWithVisibleChildren = useMemo(
@@ -464,12 +513,21 @@ export const TasksView: React.FC<TasksViewProps> = ({
     }
 
     if (assigneeFilter !== 'all') {
+      const matchedOpt = assigneeOptions.find((o) => o.uid === assigneeFilter);
+      const matchedMember = members.find((m) => m.uid === assigneeFilter);
       const assigneeLabel =
         assigneeFilter === '__unassigned__'
           ? 'Chưa phân công'
           : assigneeFilter === '__unlinked_uid__'
-          ? 'Chưa gắn TK'
-          : assigneeFilter;
+          ? 'Chưa liên kết TK'
+          : assigneeFilter === '__collective__'
+          ? 'Việc nhóm'
+          : matchedOpt?.label ??
+            (matchedMember
+              ? `${getOfficialMemberDisplayName(matchedMember)}${
+                  !matchedMember.isActive ? ' (Đã khóa)' : ''
+                }`
+              : 'Tài khoản không xác định');
       chips.push({
         key: 'assignee',
         label: `PT: ${assigneeLabel}`,
@@ -480,12 +538,21 @@ export const TasksView: React.FC<TasksViewProps> = ({
     }
 
     return chips;
-  }, [statusFilter, categoryFilter, assigneeFilter, categories]);
+  }, [
+    statusFilter,
+    categoryFilter,
+    assigneeFilter,
+    categories,
+    assigneeOptions,
+    members,
+  ]);
 
   const activeDropdownFilterCount = activeFilterChips.length;
 
   const renderAssigneeCell = (task: TaskItem) => {
-    if (task.assignees.length === 0 && task.assigneeUids.length === 0) {
+    const resolved = resolveTaskAssignees(task, members);
+
+    if (resolved.isUnassigned) {
       return (
         <span className="text-[12.5px] text-[#8E96A3]">
           Chưa phân công
@@ -493,23 +560,44 @@ export const TasksView: React.FC<TasksViewProps> = ({
       );
     }
 
-    const isUnlinkedForManager =
-      isManager && task.assignees.length > 0 && task.assigneeUids.length === 0;
-
     return (
       <div className="min-w-0 inline-flex items-center gap-1.5 flex-wrap">
-        <span className="text-[13px] font-medium text-huyen-lam leading-snug break-words">
-          {task.assignees.length > 0
-            ? task.assignees.join(', ')
-            : 'Đã gắn tài khoản'}
-        </span>
-        {isUnlinkedForManager && (
+        {resolved.assignedMembers.length > 0 && (
+          <span className="text-[13px] font-medium leading-snug break-words">
+            {resolved.assignedMembers.map((am, idx) => (
+              <React.Fragment key={am.uid}>
+                {idx > 0 && <span className="text-[#8E96A3]">, </span>}
+                <span
+                  className={
+                    am.isActive ? 'text-huyen-lam' : 'text-[#7D8796]'
+                  }
+                >
+                  {am.displayName}
+                  {!am.isActive ? ' (Đã khóa)' : ''}
+                </span>
+              </React.Fragment>
+            ))}
+          </span>
+        )}
+        {resolved.unknownUidCount > 0 && (
+          <span className="text-[12.5px] font-medium text-[#7D8796]">
+            {resolved.unknownUidCount === 1
+              ? 'Tài khoản không xác định'
+              : `Tài khoản không xác định (${resolved.unknownUidCount})`}
+          </span>
+        )}
+        {resolved.isUnlinkedAccount && (
           <span
             title="Chưa liên kết tài khoản Google (UID)"
-            aria-label="Chưa liên kết tài khoản Google"
-            className="inline-flex items-center text-[#BEB6A7] hover:text-huyen-lam transition-colors shrink-0"
+            className="inline-flex items-center gap-1 text-[12.5px] font-medium text-minh-kim-ink"
           >
             <Link2Off className="w-3.5 h-3.5 shrink-0" />
+            <span>Chưa liên kết tài khoản</span>
+          </span>
+        )}
+        {resolved.isCollectiveGroup && (
+          <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-[#EFF7F5] border border-[#C9E2DD] text-[#1D5950] text-[11px] font-semibold whitespace-nowrap">
+            Việc nhóm
           </span>
         )}
       </div>
@@ -848,14 +936,17 @@ export const TasksView: React.FC<TasksViewProps> = ({
                     >
                       <option value="all">Tất cả</option>
                       <option value="__unassigned__">Chưa phân công</option>
+                      {hasCollectiveGroupTasks && (
+                        <option value="__collective__">Việc nhóm</option>
+                      )}
                       {isManager && (
                         <option value="__unlinked_uid__">
-                          Chưa gắn TK ({unlinkedUidCount})
+                          Chưa liên kết TK ({unlinkedUidCount})
                         </option>
                       )}
-                      {assigneeOptions.map((person) => (
-                        <option key={person} value={person}>
-                          {person}
+                      {assigneeOptions.map((opt) => (
+                        <option key={opt.uid} value={opt.uid}>
+                          {opt.label}
                         </option>
                       ))}
                     </select>
@@ -1077,14 +1168,17 @@ export const TasksView: React.FC<TasksViewProps> = ({
           >
             <option value="all">Tất cả người phụ trách</option>
             <option value="__unassigned__">Chưa phân công</option>
+            {hasCollectiveGroupTasks && (
+              <option value="__collective__">Việc nhóm</option>
+            )}
             {isManager && (
               <option value="__unlinked_uid__">
                 Chưa liên kết tài khoản ({unlinkedUidCount})
               </option>
             )}
-            {assigneeOptions.map((person) => (
-              <option key={person} value={person}>
-                {person}
+            {assigneeOptions.map((opt) => (
+              <option key={opt.uid} value={opt.uid}>
+                {opt.label}
               </option>
             ))}
           </select>

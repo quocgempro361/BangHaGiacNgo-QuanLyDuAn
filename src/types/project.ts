@@ -115,6 +115,13 @@ export interface ProjectMember {
   updatedAt?: string;
 }
 
+export interface MemberDirectoryEntry {
+  uid: string;
+  displayName: string;
+  isActive: boolean;
+  updatedAt?: string;
+}
+
 export interface MemberInvite {
   email: string;
   displayName: string;

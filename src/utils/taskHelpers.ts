@@ -300,9 +300,132 @@ export function isB1TestTask(
   );
 }
 
+export interface ResolvedAssigneeMember {
+  uid: string;
+  displayName: string;
+  isActive: boolean;
+}
+
+export interface ResolvedTaskAssignees {
+  assignedMembers: ResolvedAssigneeMember[];
+  unknownUidCount: number;
+  isCollectiveGroup: boolean;
+  isUnlinkedAccount: boolean;
+  isUnassigned: boolean;
+  labels: string[];
+  displayText: string;
+  searchText: string;
+}
+
+/**
+ * Single authoritative Project Display Name source for daily UI.
+ * Reads `/users/{uid}.displayName` directly (falls back to email local-part only if empty).
+ */
+export function getOfficialMemberDisplayName(
+  member: Pick<ProjectMember, 'displayName' | 'email'>
+): string {
+  const dn = (member.displayName ?? '').trim();
+  if (dn) return dn;
+  const prefix = (member.email ?? '').split('@')[0]?.trim();
+  return prefix || 'Thành viên';
+}
+
+/**
+ * Resolves task assignees strictly from `task.assigneeUids` matched against loaded project members.
+ * Never surfaces legacy spreadsheet names (`task.assignees` personal aliases) or raw UIDs in daily UI.
+ * Collective `"Nhóm"` tags render distinctly as `Việc nhóm`.
+ */
+export function resolveTaskAssignees(
+  task: Pick<TaskItem, 'assigneeUids' | 'assignees'>,
+  members: Array<
+    Pick<ProjectMember, 'uid' | 'displayName' | 'email' | 'isActive'>
+  > = []
+): ResolvedTaskAssignees {
+  const uniqueUids = Array.from(
+    new Set((task.assigneeUids ?? []).filter(Boolean))
+  );
+  const rawAssignees = (task.assignees ?? [])
+    .map((a) => a.trim())
+    .filter(Boolean);
+
+  const isCollectiveGroup = rawAssignees.some(
+    (a) => a.toLowerCase() === 'nhóm'
+  );
+  const hasLegacyPersonalAlias = rawAssignees.some(
+    (a) => a.toLowerCase() !== 'nhóm'
+  );
+
+  const memberByUid = new Map(members.map((m) => [m.uid, m]));
+  const assignedMembers: ResolvedAssigneeMember[] = [];
+  let unknownUidCount = 0;
+
+  for (const uid of uniqueUids) {
+    const m = memberByUid.get(uid);
+    if (m) {
+      assignedMembers.push({
+        uid: m.uid,
+        displayName: getOfficialMemberDisplayName(m),
+        isActive: m.isActive,
+      });
+    } else {
+      unknownUidCount++;
+    }
+  }
+
+  const isUnlinkedAccount = uniqueUids.length === 0 && hasLegacyPersonalAlias;
+  const isUnassigned =
+    uniqueUids.length === 0 && !hasLegacyPersonalAlias && !isCollectiveGroup;
+
+  const labels: string[] = [];
+  for (const am of assignedMembers) {
+    labels.push(am.isActive ? am.displayName : `${am.displayName} (Đã khóa)`);
+  }
+  if (unknownUidCount > 0) {
+    labels.push(
+      unknownUidCount === 1
+        ? 'Tài khoản không xác định'
+        : `Tài khoản không xác định (${unknownUidCount})`
+    );
+  }
+  if (isUnlinkedAccount) {
+    labels.push('Chưa liên kết tài khoản');
+  }
+  if (isCollectiveGroup) {
+    labels.push('Việc nhóm');
+  }
+  if (labels.length === 0) {
+    labels.push('Chưa phân công');
+  }
+
+  const displayText = labels.join(', ');
+  const searchText = [
+    ...assignedMembers.map((am) => am.displayName),
+    isCollectiveGroup ? 'Việc nhóm Nhóm' : '',
+    isUnlinkedAccount ? 'Chưa liên kết tài khoản' : '',
+    isUnassigned ? 'Chưa phân công' : '',
+    unknownUidCount > 0 ? 'Tài khoản không xác định' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  return {
+    assignedMembers,
+    unknownUidCount,
+    isCollectiveGroup,
+    isUnlinkedAccount,
+    isUnassigned,
+    labels,
+    displayText,
+    searchText,
+  };
+}
+
 export function exportTasksToCSV(
   tasks: TaskItem[],
-  categories: CategoryItem[] = []
+  categories: CategoryItem[] = [],
+  members: Array<
+    Pick<ProjectMember, 'uid' | 'displayName' | 'email' | 'isActive'>
+  > = []
 ): string {
   const headers = [
     'ID',
@@ -345,6 +468,7 @@ export function exportTasksToCSV(
           })()
         : '';
     const effCat = getEffectiveCategory(t, activeTasks, categories);
+    const resolvedAssignees = resolveTaskAssignees(t, members);
 
     return [
       t.id,
@@ -352,7 +476,7 @@ export function exportTasksToCSV(
       t.parentId ?? '',
       t.title,
       effCat.category ?? '',
-      t.assignees.join(', '),
+      resolvedAssignees.displayText,
       t.status ?? '',
       t.nextStep ?? '',
       t.dueDate ?? '',

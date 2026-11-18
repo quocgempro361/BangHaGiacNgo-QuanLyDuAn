@@ -3,7 +3,6 @@ import {
   AlertCircle,
   Check,
   ChevronDown,
-  Plus,
   Search,
   X,
 } from 'lucide-react';
@@ -19,10 +18,10 @@ import {
   canBeParent,
   canUserCreateSubtaskInParent,
   getEffectiveCategory,
+  getOfficialMemberDisplayName,
   isB1TestTask,
 } from '../utils/taskHelpers';
 import {
-  EXPECTED_TBHGN_ACCOUNTS,
   isReplacedTemporaryAccountEmail,
   isTemporaryAccountEmail,
 } from '../utils/memberMapping';
@@ -51,18 +50,6 @@ interface NewTaskModalProps {
 
 type TaskMode = 'main' | 'subtask';
 
-function getCompactMemberLabel(member: ProjectMember): string {
-  const emailNorm = member.email?.trim().toLowerCase() ?? '';
-  const expected = EXPECTED_TBHGN_ACCOUNTS.find(
-    (acc) => acc.email.toLowerCase() === emailNorm
-  );
-  if (expected) return expected.displayName;
-  const dn = member.displayName?.trim();
-  if (dn && dn.toLowerCase() !== 'admin') return dn;
-  const sa = member.sheetAlias?.trim();
-  if (sa) return sa;
-  return member.email?.split('@')[0] || 'Thành viên';
-}
 
 function getCategoryDotColor(
   categoryId: string | null,
@@ -124,7 +111,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
   const duplicateLabels = useMemo(() => {
     const counts = new Map<string, number>();
     assignableMembers.forEach((m) => {
-      const label = getCompactMemberLabel(m).toLowerCase();
+      const label = getOfficialMemberDisplayName(m).toLowerCase();
       counts.set(label, (counts.get(label) ?? 0) + 1);
     });
     const dups = new Set<string>();
@@ -146,8 +133,6 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
   const [title, setTitle] = useState('');
   const [categoryId, setCategoryId] = useState<string>('');
   const [assigneeUids, setAssigneeUids] = useState<string[]>([]);
-  const [showExtraAlias, setShowExtraAlias] = useState(false);
-  const [customAssigneeNote, setCustomAssigneeNote] = useState('');
   const [status, setStatus] = useState<TaskStatus>('Chưa bắt đầu');
   const [nextStep, setNextStep] = useState('');
   const [dueDate, setDueDate] = useState('');
@@ -199,8 +184,6 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
     }
 
     setAssigneeUids(isManager ? [] : [currentUser.uid]);
-    setShowExtraAlias(false);
-    setCustomAssigneeNote('');
     setStatus('Chưa bắt đầu');
     setNextStep('');
     setDueDate('');
@@ -235,7 +218,6 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
     status,
     nextStep,
     dueDate,
-    customAssigneeNote,
   ]);
 
   useEffect(() => {
@@ -276,7 +258,6 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
       displayCode.trim() !== '' ||
       nextStep.trim() !== '' ||
       dueDate !== '' ||
-      customAssigneeNote.trim() !== '' ||
       status !== 'Chưa bắt đầu' ||
       taskMode !== defaultMode ||
       uidsChanged
@@ -292,7 +273,6 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
     displayCode,
     nextStep,
     dueDate,
-    customAssigneeNote,
     status,
     taskMode,
   ]);
@@ -416,22 +396,6 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
     const matchedCategory = categories.find((c) => c.id === effectiveCatId);
 
     const resolvedUids = isManager ? assigneeUids : [currentUser.uid];
-    const uidNames = resolvedUids
-      .map((uid) => {
-        const matched =
-          members.find((m) => m.uid === uid) ??
-          (uid === currentUser.uid ? currentUser : undefined);
-        return matched ? getCompactMemberLabel(matched) : '';
-      })
-      .filter((n): n is string => Boolean(n));
-
-    const extraNames = isManager
-      ? customAssigneeNote
-          .split(',')
-          .map((s) => s.trim())
-          .filter(Boolean)
-      : [];
-    const displayNames = Array.from(new Set([...uidNames, ...extraNames]));
 
     setSubmitting(true);
     try {
@@ -441,7 +405,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
         parentId: cleanParentId,
         categoryId: effectiveCatId,
         category: matchedCategory?.name ?? null,
-        assignees: displayNames,
+        assignees: [],
         assigneeUids: resolvedUids,
         status,
         nextStep: nextStep.trim() || null,
@@ -893,7 +857,7 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
                         <div className="flex flex-wrap gap-1.5">
                           {assignableMembers.map((m) => {
                             const selected = assigneeUids.includes(m.uid);
-                            const compactLabel = getCompactMemberLabel(m);
+                            const compactLabel = getOfficialMemberDisplayName(m);
                             const hasDup = duplicateLabels.has(
                               compactLabel.toLowerCase()
                             );
@@ -901,9 +865,6 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
                             const emailPrefix = m.email.split('@')[0];
                             const tooltipText = [
                               compactLabel,
-                              m.sheetAlias && m.sheetAlias !== compactLabel
-                                ? `Tên gốc: ${m.sheetAlias}`
-                                : '',
                               m.email,
                               isTemp ? 'Tài khoản tạm' : '',
                             ]
@@ -953,57 +914,12 @@ export const NewTaskModal: React.FC<NewTaskModalProps> = ({
                         </div>
                       )}
                     </div>
-
-                    {/* Discreet Optional Display-Only Label */}
-                    {!showExtraAlias && !customAssigneeNote ? (
-                      <button
-                        type="button"
-                        onClick={() => setShowExtraAlias(true)}
-                        className="inline-flex items-center gap-1 text-[11.5px] font-medium text-[#5E697A] hover:text-huyen-lam transition-colors py-0.5"
-                      >
-                        <Plus className="w-3 h-3 shrink-0 text-minh-kim-ink" />
-                        <span>Tên hiển thị thêm (không cấp quyền sửa)</span>
-                      </button>
-                    ) : (
-                      <div className="pt-1">
-                        <div className="flex items-center justify-between gap-2 mb-1">
-                          <label
-                            htmlFor="new-task-extra-alias"
-                            className="text-[11.5px] font-medium text-[#5B6678]"
-                          >
-                            Tên hiển thị thêm{' '}
-                            <span className="font-normal text-[#838C9A]">
-                              (chỉ để hiển thị, không cấp quyền sửa)
-                            </span>
-                          </label>
-                          {!customAssigneeNote && (
-                            <button
-                              type="button"
-                              onClick={() => setShowExtraAlias(false)}
-                              className="text-[11px] text-[#7E8796] hover:text-huyen-lam"
-                            >
-                              Thu gọn
-                            </button>
-                          )}
-                        </div>
-                        <input
-                          id="new-task-extra-alias"
-                          type="text"
-                          value={customAssigneeNote}
-                          onChange={(e) =>
-                            setCustomAssigneeNote(e.target.value)
-                          }
-                          placeholder="Ví dụ: Nhóm"
-                          className={`${fieldBase} h-[34px] text-xs border-[#DFD8CA] focus:ring-lam-sang/25 focus:border-lam-sang`}
-                        />
-                      </div>
-                    )}
                   </div>
                 ) : (
                   <div className="px-3 py-2 bg-[#FAF8F3] border border-[#E6E0D3] rounded-xl text-xs text-[#5B6678]">
                     <span>Người được giao: </span>
                     <strong className="font-semibold text-huyen-lam">
-                      {getCompactMemberLabel(currentUser)}
+                      {getOfficialMemberDisplayName(currentUser)}
                     </strong>
                     <span className="text-[#7E8796]">
                       {' '}

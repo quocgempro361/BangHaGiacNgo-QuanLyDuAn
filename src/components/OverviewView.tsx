@@ -17,6 +17,7 @@ import {
   getEffectiveCategory,
   isB1TestTask,
   isTaskOverdue,
+  resolveTaskAssignees,
   REVIEW_FLAG_LABELS,
 } from '../utils/taskHelpers';
 import { StatusBadge } from './StatusBadge';
@@ -24,6 +25,7 @@ import { StatusBadge } from './StatusBadge';
 interface OverviewViewProps {
   tasks: TaskItem[];
   categories?: CategoryItem[];
+  members?: ProjectMember[];
   currentUser: ProjectMember;
   onSelectTask: (taskId: string) => void;
   onNavigateToTasks: (filterPreset?: { status?: string; reviewOnly?: boolean }) => void;
@@ -32,6 +34,7 @@ interface OverviewViewProps {
 export const OverviewView: React.FC<OverviewViewProps> = ({
   tasks,
   categories = [],
+  members = [],
   currentUser,
   onSelectTask,
   onNavigateToTasks,
@@ -226,9 +229,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                     {task.title}
                   </div>
                   <div className="text-xs text-ink-muted mt-0.5">
-                    {task.assignees.length > 0
-                      ? task.assignees.join(', ')
-                      : 'Chưa phân công'}
+                    {resolveTaskAssignees(task, members).displayText}
                   </div>
                 </div>
                 <StatusBadge status={task.status} compact />
@@ -249,9 +250,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                     </span>
                     <span aria-hidden="true">·</span>
                     <span>
-                      {task.assignees.length > 0
-                        ? task.assignees.join(', ')
-                        : 'Chưa phân công'}
+                      {resolveTaskAssignees(task, members).displayText}
                     </span>
                   </div>
                   <div className="text-sm font-medium text-huyen-lam mt-0.5 break-words">
@@ -398,9 +397,7 @@ export const OverviewView: React.FC<OverviewViewProps> = ({
                       </span>
                       <span aria-hidden="true">·</span>
                       <span>
-                        {parent.assignees.length > 0
-                          ? parent.assignees.join(', ')
-                          : 'Chưa phân công'}
+                        {resolveTaskAssignees(parent, members).displayText}
                       </span>
                     </div>
                   </div>

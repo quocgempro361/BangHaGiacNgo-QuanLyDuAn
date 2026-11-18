@@ -51,9 +51,11 @@ import {
   subscribeAuthSettings,
   subscribeCategories,
   subscribeInvites,
+  subscribeMemberDirectory,
   subscribeTasks,
   subscribeUsers,
   swapCategoryOrderInFirestore,
+  syncMemberDirectoryForAdmin,
   transferTaskUidInFirestore,
   updateCategoryInFirestore,
   updateInviteInFirestore,
@@ -252,13 +254,29 @@ export default function App() {
     let unsubUsers: (() => void) | undefined;
     let unsubInvites: (() => void) | undefined;
     let unsubAuthSettings: (() => void) | undefined;
+    let lastSyncedFingerprint = '';
 
     if (currentUser.role === 'admin' || currentUser.role === 'moderator') {
-      unsubUsers = subscribeUsers(setMembers, (err) => {
-        showToast('error', formatActionError(err));
-      });
+      unsubUsers = subscribeUsers(
+        (loadedMembers) => {
+          setMembers(loadedMembers);
+          if (currentUser.role === 'admin') {
+            const fp = loadedMembers
+              .map((m) => `${m.uid}:${m.displayName}:${m.isActive}`)
+              .sort()
+              .join('|');
+            if (fp !== lastSyncedFingerprint) {
+              lastSyncedFingerprint = fp;
+              void syncMemberDirectoryForAdmin(loadedMembers);
+            }
+          }
+        },
+        (err) => {
+          showToast('error', formatActionError(err));
+        }
+      );
     } else {
-      setMembers([currentUser]);
+      unsubUsers = subscribeMemberDirectory(currentUser, setMembers);
     }
 
     if (currentUser.role === 'admin') {
@@ -280,7 +298,13 @@ export default function App() {
       if (unsubInvites) unsubInvites();
       if (unsubAuthSettings) unsubAuthSettings();
     };
-  }, [currentUser?.uid, currentUser?.role, currentUser?.isActive, showToast]);
+  }, [
+    currentUser?.uid,
+    currentUser?.role,
+    currentUser?.isActive,
+    currentUser?.displayName,
+    showToast,
+  ]);
 
   const handleSignInPopup = async () => {
     setAuthError(null);
@@ -579,7 +603,9 @@ export default function App() {
 
   const handleUpdateInvite = async (
     email: string,
-    patch: Partial<Pick<MemberInvite, 'role' | 'canApprove' | 'isActive'>>
+    patch: Partial<
+      Pick<MemberInvite, 'displayName' | 'role' | 'canApprove' | 'isActive'>
+    >
   ) => {
     if (!currentUser || currentUser.role !== 'admin') return;
     try {
@@ -664,7 +690,7 @@ export default function App() {
   };
 
   const handleExportCSV = () => {
-    const csv = exportTasksToCSV(tasks, categories);
+    const csv = exportTasksToCSV(tasks, categories, members);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -1015,6 +1041,7 @@ export default function App() {
             <OverviewView
               tasks={tasks}
               categories={categories}
+              members={members}
               currentUser={currentUser}
               onSelectTask={(id) => setSelectedTaskId(id)}
               onNavigateToTasks={(preset) => {
@@ -1033,6 +1060,7 @@ export default function App() {
               key={tasksFilterPreset.key}
               tasks={tasks}
               categories={categories}
+              members={members}
               currentUser={currentUser}
               initialStatusFilter={tasksFilterPreset.status ?? 'all'}
               initialCategoryFilter={tasksFilterPreset.categoryId ?? 'all'}
@@ -1046,6 +1074,7 @@ export default function App() {
             <MyTasksView
               tasks={tasks}
               categories={categories}
+              members={members}
               currentUser={currentUser}
               onSelectTask={(id) => setSelectedTaskId(id)}
               onNavigateToTasks={() => setRoute('tasks')}

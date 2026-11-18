@@ -31,8 +31,10 @@ import {
   computeParentProgress,
   exportTasksToCSV,
   getEffectiveCategory,
+  getOfficialMemberDisplayName,
   isB1TestTask,
   isTaskManagerRole,
+  resolveTaskAssignees,
 } from './src/utils/taskHelpers';
 import { buildCreateTaskPayloads, DEFAULT_TBHGN_CATEGORIES } from './src/services/firestoreService';
 import {
@@ -1494,7 +1496,7 @@ test('Stage B2.3 member mapping preview, temporary account guardrails, and safe 
     createdAt: '2026-01-01T00:00:00.000Z',
   };
   const khanhInvitedOnly: MemberInvite = {
-    email: 'filmfata02@gmail.com',
+    email: 'khanhqn312@gmail.com',
     displayName: 'Khánh',
     sheetAlias: 'Khánh',
     role: 'member',
@@ -1519,6 +1521,7 @@ test('Stage B2.3 member mapping preview, temporary account guardrails, and safe 
 
   const unpairedAdmin: ProjectMember = {
     ...adminUser,
+    email: 'admin.other@example.com',
     displayName: 'Quản trị viên',
     sheetAlias: '',
   };
@@ -1535,7 +1538,7 @@ test('Stage B2.3 member mapping preview, temporary account guardrails, and safe 
   assert.equal(preview.tasksUnlinkedUidCount, 20);
   assert.equal(preview.signedInExpectedCount, 1);
   assert.equal(preview.invitedPendingExpectedCount, 1);
-  assert.equal(preview.temporaryExpectedCount, 5);
+  assert.equal(preview.temporaryExpectedCount, 1);
   assert.equal(EXPECTED_TBHGN_ACCOUNTS.length, 6);
   assert.deepEqual(preview.collectiveGroupTaskCodes, ['1', '5']);
   assert.equal(
@@ -1543,14 +1546,15 @@ test('Stage B2.3 member mapping preview, temporary account guardrails, and safe 
     false
   );
 
-  // Admin account with similar displayName/sheetAlias ("Sư phụ" lowercase p) MUST NEVER auto-match "Sư Phụ"
+  // Account with similar Google displayName ("Sư phụ") and unconfirmed sheetAlias MUST NEVER auto-match "Sư Phụ"
   const adminLookalike: ProjectMember = {
     ...adminUser,
+    email: 'admin.lookalike@example.com',
     displayName: 'Sư phụ',
-    sheetAlias: 'Sư phụ',
+    sheetAlias: '',
   };
   const suPhuSpec = EXPECTED_TBHGN_ACCOUNTS.find(
-    (a) => a.email === 'filmfata01@gmail.com'
+    (a) => a.email === 'ngaothuyet2023@gmail.com'
   )!;
   assert.equal(suPhuSpec.originalName, 'Sư Phụ');
   assert.equal(suPhuSpec.displayName, 'Sư Phụ');
@@ -1574,7 +1578,7 @@ test('Stage B2.3 member mapping preview, temporary account guardrails, and safe 
     officialTasks
   );
   const suPhuLookalikeRow = lookalikePreview.accountRows.find(
-    (r) => r.account.email === 'filmfata01@gmail.com'
+    (r) => r.account.email === 'ngaothuyet2023@gmail.com'
   )!;
   assert.equal(suPhuLookalikeRow.matchedMember, null);
   assert.equal(suPhuLookalikeRow.signInStatus, 'not_invited');
@@ -1603,7 +1607,7 @@ test('Stage B2.3 member mapping preview, temporary account guardrails, and safe 
   assert.ok(quocRow.readyToConfirmCount > 0);
 
   const suPhuRow = preview.accountRows.find(
-    (r) => r.account.email === 'filmfata01@gmail.com'
+    (r) => r.account.email === 'ngaothuyet2023@gmail.com'
   )!;
   assert.equal(suPhuRow.signInStatus, 'not_invited');
   assert.equal(suPhuRow.hasPrivilegeWarning, false);
@@ -1621,22 +1625,22 @@ test('Stage B2.3 member mapping preview, temporary account guardrails, and safe 
     [
       {
         uid: 'uid_bad_temp',
-        displayName: 'Sư Phụ',
-        email: 'filmfata01@gmail.com',
+        displayName: 'Tuấn',
+        email: 'filmfata03@gmail.com',
         role: 'admin',
         canApprove: true,
         isActive: true,
-        sheetAlias: 'Sư Minh Hạnh',
+        sheetAlias: 'Khả Tuệ',
         createdAt: '2026-01-01T00:00:00.000Z',
       },
     ],
     [],
     officialTasks
   );
-  const escalatedSuPhu = escalatedPreview.accountRows.find(
-    (r) => r.account.email === 'filmfata01@gmail.com'
+  const escalatedTemp = escalatedPreview.accountRows.find(
+    (r) => r.account.email === 'filmfata03@gmail.com'
   )!;
-  assert.equal(escalatedSuPhu.hasPrivilegeWarning, true);
+  assert.equal(escalatedTemp.hasPrivilegeWarning, true);
 
   // Verify TaskDetailDrawer UID toggle preserves unrelated Sheet aliases & "Chưa liên kết tài khoản"
   const merged1 = computeUpdatedAssigneeNamesOnUidToggle(
@@ -1891,5 +1895,155 @@ test('Case 9: Sư Phụ label simplification, AdminSettingsView separation from 
     { allowed: true }
   );
 });
+
+test('Case 10: Single official Project Display Name source, standardized task assignee resolution, CSV export, and UI source guards', () => {
+  const renamedSuTin: ProjectMember = {
+    uid: 'uid_su_tin',
+    displayName: 'Sư Tín (Mới)',
+    email: 'linhgiangtu1991@gmail.com',
+    role: 'member',
+    canApprove: false,
+    isActive: true,
+    sheetAlias: 'Sư Pháp Tín',
+    createdAt: '2026-01-01T00:00:00.000Z',
+  };
+  const lockedTuan: ProjectMember = {
+    uid: 'uid_tuan_locked',
+    displayName: 'Tuấn',
+    email: 'filmfata03@gmail.com',
+    role: 'member',
+    canApprove: false,
+    isActive: false,
+    sheetAlias: 'Khả Tuệ',
+    createdAt: '2026-01-01T00:00:00.000Z',
+  };
+  const projectMembers: ProjectMember[] = [
+    memberUser,
+    renamedSuTin,
+    lockedTuan,
+  ];
+
+  // 1. Admin rename on /users/{uid}.displayName overrides any static alias/email lookup
+  assert.equal(getOfficialMemberDisplayName(renamedSuTin), 'Sư Tín (Mới)');
+
+  // 2. Linked UID resolves to official displayName (never spreadsheet alias "Sư Pháp Tín")
+  const linkedRes = resolveTaskAssignees(
+    { assignees: ['Sư Pháp Tín'], assigneeUids: ['uid_su_tin'] },
+    projectMembers
+  );
+  assert.equal(linkedRes.displayText, 'Sư Tín (Mới)');
+  assert.equal(linkedRes.displayText.includes('Sư Pháp Tín'), false);
+
+  // 3. Collective "Nhóm" renders distinctly as "Việc nhóm"
+  const collectiveLinked = resolveTaskAssignees(
+    { assignees: ['Quốc', 'Nhóm'], assigneeUids: ['uid_member'] },
+    projectMembers
+  );
+  assert.equal(collectiveLinked.isCollectiveGroup, true);
+  assert.equal(collectiveLinked.displayText, 'Quốc, Việc nhóm');
+
+  const collectiveUnlinked = resolveTaskAssignees(
+    { assignees: ['Nhóm'], assigneeUids: [] },
+    projectMembers
+  );
+  assert.equal(collectiveUnlinked.isCollectiveGroup, true);
+  assert.equal(collectiveUnlinked.isUnlinkedAccount, false);
+  assert.equal(collectiveUnlinked.displayText, 'Việc nhóm');
+
+  // 4. Unlinked legacy personal aliases never leak spreadsheet names ("Khả Tuệ", "Sư Pháp Tín")
+  const unlinkedRes = resolveTaskAssignees(
+    { assignees: ['Khả Tuệ', 'Sư Pháp Tín'], assigneeUids: [] },
+    projectMembers
+  );
+  assert.equal(unlinkedRes.isUnlinkedAccount, true);
+  assert.equal(unlinkedRes.displayText, 'Chưa liên kết tài khoản');
+  assert.equal(unlinkedRes.displayText.includes('Khả Tuệ'), false);
+  assert.equal(unlinkedRes.searchText.includes('Khả Tuệ'), false);
+
+  // 5. Empty assignees & assigneeUids -> "Chưa phân công"
+  const emptyRes = resolveTaskAssignees(
+    { assignees: [], assigneeUids: [] },
+    projectMembers
+  );
+  assert.equal(emptyRes.isUnassigned, true);
+  assert.equal(emptyRes.displayText, 'Chưa phân công');
+
+  // 6. Locked member UID -> "Tên (Đã khóa)"; unknown UID -> "Tài khoản không xác định" (never raw UID)
+  const lockedRes = resolveTaskAssignees(
+    { assignees: ['Khả Tuệ'], assigneeUids: ['uid_tuan_locked'] },
+    projectMembers
+  );
+  assert.equal(lockedRes.displayText, 'Tuấn (Đã khóa)');
+
+  const unknownRes = resolveTaskAssignees(
+    { assignees: [], assigneeUids: ['raw_secret_uid_999'] },
+    projectMembers
+  );
+  assert.equal(unknownRes.displayText, 'Tài khoản không xác định');
+  assert.equal(unknownRes.displayText.includes('raw_secret_uid_999'), false);
+
+  // 7. CSV export uses resolved official displayName & hides spreadsheet personal aliases
+  const csvTasks: TaskItem[] = [
+    {
+      ...sampleTasks[0],
+      id: 'tbhgn_csv_1',
+      displayCode: '1',
+      assignees: ['Sư Pháp Tín'],
+      assigneeUids: ['uid_su_tin'],
+      isTestRecord: false,
+    },
+    {
+      ...sampleTasks[0],
+      id: 'tbhgn_csv_2',
+      displayCode: '2',
+      assignees: ['Khả Tuệ'],
+      assigneeUids: [],
+      isTestRecord: false,
+    },
+  ];
+  const csvOut = exportTasksToCSV(csvTasks, sampleCategories, projectMembers);
+  assert.equal(csvOut.includes('Sư Tín (Mới)'), true);
+  assert.equal(csvOut.includes('Chưa liên kết tài khoản'), true);
+  assert.equal(csvOut.includes('Sư Pháp Tín'), false);
+  assert.equal(csvOut.includes('Khả Tuệ'), false);
+
+  // 8. Source guards across components
+  const tasksViewText = fs.readFileSync(
+    path.join(rootDir, 'src/components/TasksView.tsx'),
+    'utf8'
+  );
+  const newTaskModalText = fs.readFileSync(
+    path.join(rootDir, 'src/components/NewTaskModal.tsx'),
+    'utf8'
+  );
+  const overviewText = fs.readFileSync(
+    path.join(rootDir, 'src/components/OverviewView.tsx'),
+    'utf8'
+  );
+
+  for (const [name, src] of [
+    ['TasksView', tasksViewText],
+    ['TaskDetailDrawer', drawerText],
+    ['OverviewView', overviewText],
+    ['MyTasksView', myTasksText],
+  ] as const) {
+    assert.equal(
+      src.includes('resolveTaskAssignees'),
+      true,
+      `${name} must use resolveTaskAssignees`
+    );
+    assert.equal(
+      src.includes('task.assignees.join'),
+      false,
+      `${name} must not render raw task.assignees.join`
+    );
+  }
+
+  assert.equal(drawerText.includes('task-assignees-text'), false);
+  assert.equal(drawerText.includes('assigneesText'), false);
+  assert.equal(newTaskModalText.includes('customAssigneeNote'), false);
+  assert.equal(membersViewText.includes('Đổi tên hiển thị'), true);
+});
+
 
 

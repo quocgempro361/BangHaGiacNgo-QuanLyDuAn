@@ -45,17 +45,13 @@ import {
   formatDateTime,
   formatShortDate,
   getEffectiveCategory,
+  getOfficialMemberDisplayName,
   isB1TestTask,
   isTaskOverdue,
+  resolveTaskAssignees,
   REVIEW_FLAG_LABELS,
 } from '../utils/taskHelpers';
-import {
-  computeUpdatedAssigneeNamesOnUidToggle,
-  EXPECTED_TBHGN_ACCOUNTS,
-  getExpectedAccountAliases,
-  isReplacedTemporaryAccountEmail,
-  normalizeTextKey,
-} from '../utils/memberMapping';
+import { isReplacedTemporaryAccountEmail } from '../utils/memberMapping';
 import { StatusBadge } from './StatusBadge';
 
 interface TaskDetailDrawerProps {
@@ -86,58 +82,19 @@ type PendingNavigationAction =
   | { type: 'tab'; tab: 'info' | 'comments' | 'history' }
   | { type: 'select_task'; taskId: string };
 
-function getCompactMemberLabel(member: ProjectMember): string {
-  const emailNorm = normalizeTextKey(member.email);
-  const expected = EXPECTED_TBHGN_ACCOUNTS.find(
-    (acc) => normalizeTextKey(acc.email) === emailNorm
-  );
-  if (expected) return expected.displayName;
-  const dn = member.displayName?.trim();
-  if (dn && dn.toLowerCase() !== 'admin') return dn;
-  const sa = member.sheetAlias?.trim();
-  if (sa) return sa;
-  return member.email?.split('@')[0] || 'Thành viên';
-}
-
-function toCompactAliasDisplay(rawAlias: string): string {
-  const norm = normalizeTextKey(rawAlias);
-  if (!norm) return '';
-  const matched = EXPECTED_TBHGN_ACCOUNTS.find((acc) =>
-    getExpectedAccountAliases(acc).some(
-      (candidate) => normalizeTextKey(candidate) === norm
-    )
-  );
-  return matched ? matched.displayName : rawAlias.trim();
-}
-
-function getCompactTaskAssignees(
-  task: TaskItem,
+function resolveActorName(
+  actorUid: string | null | undefined,
+  fallbackName: string | null | undefined,
   members: ProjectMember[]
-): string[] {
-  const result: string[] = [];
-  const seenNorm = new Set<string>();
-
-  const pushLabel = (label: string) => {
-    const clean = label.trim();
-    if (!clean) return;
-    const key = normalizeTextKey(clean);
-    if (seenNorm.has(key)) return;
-    seenNorm.add(key);
-    result.push(clean);
-  };
-
-  for (const raw of task.assignees) {
-    pushLabel(toCompactAliasDisplay(raw));
-  }
-
-  for (const uid of task.assigneeUids ?? []) {
-    const member = members.find((m) => m.uid === uid);
-    if (member) {
-      pushLabel(getCompactMemberLabel(member));
+): string {
+  if (actorUid) {
+    const matched = members.find((m) => m.uid === actorUid);
+    if (matched) {
+      return getOfficialMemberDisplayName(matched);
     }
   }
-
-  return result;
+  const clean = (fallbackName ?? '').trim();
+  return clean || 'Thành viên';
 }
 
 function getLinkHostLabel(url: string | null): string {
@@ -191,7 +148,6 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const [title, setTitle] = useState('');
   const [titleError, setTitleError] = useState<string | null>(null);
   const [categoryId, setCategoryId] = useState<string>('');
-  const [assigneesText, setAssigneesText] = useState('');
   const [assigneeUids, setAssigneeUids] = useState<string[]>([]);
   const [approverUids, setApproverUids] = useState<string[]>([]);
   const [statusValue, setStatusValue] = useState<string>('');
@@ -229,7 +185,6 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     setTitle(source.title);
     setTitleError(null);
     setCategoryId(source.categoryId ?? '');
-    setAssigneesText(source.assignees.join(', '));
     setAssigneeUids(source.assigneeUids ?? []);
     setApproverUids(source.approverUids ?? []);
     setStatusValue(source.status ?? '');
@@ -347,7 +302,6 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
       if (title.trim() !== task.title) return true;
       if (categoryId !== (task.categoryId ?? '')) return true;
       if (dueDate !== (task.dueDate ?? '')) return true;
-      if (assigneesText.trim() !== task.assignees.join(', ').trim()) return true;
       if (!sameStringSet(assigneeUids, task.assigneeUids ?? [])) return true;
       if (!sameStringSet(approverUids, task.approverUids ?? [])) return true;
     }
@@ -367,7 +321,6 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     title,
     categoryId,
     dueDate,
-    assigneesText,
     assigneeUids,
     approverUids,
   ]);
@@ -385,7 +338,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
   const duplicateMemberLabels = useMemo(() => {
     const counts = new Map<string, number>();
     assignableMembers.forEach((m) => {
-      const label = getCompactMemberLabel(m).toLowerCase();
+      const label = getOfficialMemberDisplayName(m).toLowerCase();
       counts.set(label, (counts.get(label) ?? 0) + 1);
     });
     const dups = new Set<string>();
@@ -443,7 +396,6 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     displayCode,
     title,
     categoryId,
-    assigneesText,
     assigneeUids,
     approverUids,
     statusValue,
@@ -501,7 +453,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     (a, b) => a.sortOrder - b.sortOrder
   );
 
-  const compactAssignees = getCompactTaskAssignees(task, members);
+  const resolvedAssignees = resolveTaskAssignees(task, members);
   const approverMembers = members.filter(
     (m) => m.canApprove && m.role !== 'admin' && m.role !== 'moderator'
   );
@@ -536,11 +488,6 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
     setSaving(true);
 
     try {
-      const parsedAssignees = assigneesText
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean);
-
       const nextStatus: TaskStatus | null = statusValue
         ? (statusValue as TaskStatus)
         : null;
@@ -552,7 +499,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
       });
       if (
         assigneeUids.length === 0 &&
-        parsedAssignees.length === 0 &&
+        task.assignees.length === 0 &&
         !updatedFlags.includes('missing_assignee')
       ) {
         updatedFlags.push('missing_assignee');
@@ -587,7 +534,6 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
             title: title.trim() || task.title,
             categoryId: categoryId || null,
             category: selectedCat ? selectedCat.name : null,
-            assignees: parsedAssignees,
             assigneeUids,
             approverUids,
             status: statusLockedByCompletion ? task.status : nextStatus,
@@ -933,9 +879,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               {/* 3. Unboxed Context Metadata: Assignee · Category · Due Date */}
               <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-[#5E697A] pt-0.5">
                 <span className="text-huyen-lam font-medium">
-                  {compactAssignees.length > 0
-                    ? compactAssignees.join(', ')
-                    : 'Chưa phân công'}
+                  {resolvedAssignees.displayText}
                 </span>
                 <span aria-hidden="true" className="text-[#B8B0A0]">
                   ·
@@ -1126,7 +1070,13 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                   <p className="mt-0.5 text-chu-sa/90">
                     {conflictError ||
                       `Cập nhật gần nhất bởi ${
-                        task.updatedBy ?? 'thành viên khác'
+                        task.updatedBy || task.updatedByUid
+                          ? resolveActorName(
+                              task.updatedByUid,
+                              task.updatedBy,
+                              members
+                            )
+                          : 'thành viên khác'
                       }. Hệ thống chặn ghi đè âm thầm để bảo vệ dữ liệu mới hơn.`}
                   </p>
                 </div>
@@ -1183,14 +1133,53 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
 
                   <div className="min-w-0">
                     <dt className="text-xs text-[#737D8E]">Người phụ trách</dt>
-                    <dd className="mt-1 font-medium text-huyen-lam">
-                      {compactAssignees.length > 0
-                        ? compactAssignees.join(', ')
-                        : 'Chưa phân công'}
-                      {isManager && (task.assigneeUids?.length ?? 0) === 0 && (
-                        <span className="block text-[11px] font-normal text-minh-kim-ink mt-0.5">
-                          Chưa liên kết tài khoản đăng nhập
+                    <dd className="mt-1 font-medium text-huyen-lam flex flex-wrap items-center gap-1.5">
+                      {resolvedAssignees.isUnassigned ? (
+                        <span className="font-normal text-[#8A94A3]">
+                          Chưa phân công
                         </span>
+                      ) : (
+                        <>
+                          {resolvedAssignees.assignedMembers.length > 0 && (
+                            <span>
+                              {resolvedAssignees.assignedMembers.map((am, idx) => (
+                                <React.Fragment key={am.uid}>
+                                  {idx > 0 && (
+                                    <span className="text-[#8E96A3]">, </span>
+                                  )}
+                                  <span
+                                    className={
+                                      am.isActive
+                                        ? 'text-huyen-lam'
+                                        : 'text-[#7D8796]'
+                                    }
+                                  >
+                                    {am.displayName}
+                                    {!am.isActive ? ' (Đã khóa)' : ''}
+                                  </span>
+                                </React.Fragment>
+                              ))}
+                            </span>
+                          )}
+                          {resolvedAssignees.unknownUidCount > 0 && (
+                            <span className="text-[#7D8796]">
+                              {resolvedAssignees.unknownUidCount === 1
+                                ? 'Tài khoản không xác định'
+                                : `Tài khoản không xác định (${resolvedAssignees.unknownUidCount})`}
+                            </span>
+                          )}
+                          {resolvedAssignees.isUnlinkedAccount && (
+                            <span className="inline-flex items-center gap-1 text-xs font-medium text-minh-kim-ink">
+                              <Link2Off className="w-3.5 h-3.5 shrink-0" />
+                              <span>Chưa liên kết tài khoản</span>
+                            </span>
+                          )}
+                          {resolvedAssignees.isCollectiveGroup && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-[#EFF7F5] border border-[#C9E2DD] text-[#1D5950] text-[11px] font-semibold">
+                              Việc nhóm
+                            </span>
+                          )}
+                        </>
                       )}
                     </dd>
                   </div>
@@ -1526,16 +1515,13 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     <div className="flex flex-wrap gap-1.5">
                       {assignableMembers.map((m) => {
                         const selected = assigneeUids.includes(m.uid);
-                        const compactLabel = getCompactMemberLabel(m);
+                        const compactLabel = getOfficialMemberDisplayName(m);
                         const hasDup = duplicateMemberLabels.has(
                           compactLabel.toLowerCase()
                         );
                         const emailPrefix = m.email.split('@')[0];
                         const tooltipText = [
                           compactLabel,
-                          m.sheetAlias && m.sheetAlias !== compactLabel
-                            ? `Tên gốc: ${m.sheetAlias}`
-                            : '',
                           m.email,
                           !m.isActive ? 'Tài khoản đã khóa' : '',
                         ]
@@ -1547,16 +1533,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                             key={`assign_${m.uid}`}
                             type="button"
                             onClick={() => {
-                              const nextUids = toggleUid(assigneeUids, m.uid);
-                              setAssigneeUids(nextUids);
-                              setAssigneesText(
-                                computeUpdatedAssigneeNamesOnUidToggle(
-                                  assigneesText,
-                                  m,
-                                  nextUids,
-                                  members
-                                )
-                              );
+                              setAssigneeUids(toggleUid(assigneeUids, m.uid));
                             }}
                             aria-pressed={selected}
                             title={tooltipText}
@@ -1780,54 +1757,35 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                        <div className="min-w-0">
-                          <label
-                            htmlFor="task-category-select"
-                            className="block text-xs font-medium text-[#434F63] mb-1"
-                          >
-                            Hạng mục
-                          </label>
-                          <select
-                            id="task-category-select"
-                            value={categoryId}
-                            onChange={(e) => setCategoryId(e.target.value)}
-                            className={`${inputBaseClass} h-[36px]`}
-                          >
-                            <option value="">
-                              {effCategory.inherited
-                                ? `Kế thừa từ cha (${effCategory.category})`
-                                : 'Chưa phân hạng mục'}
-                            </option>
-                            {sortedCategories
-                              .filter(
-                                (cat) => cat.isActive || cat.id === categoryId
-                              )
-                              .map((cat) => (
-                                <option key={cat.id} value={cat.id}>
-                                  {cat.name}
-                                  {!cat.isActive ? ' (Ngừng dùng)' : ''}
-                                </option>
-                              ))}
-                          </select>
-                        </div>
-
-                        <div className="min-w-0">
-                          <label
-                            htmlFor="task-assignees-text"
-                            className="block text-xs font-medium text-[#434F63] mb-1"
-                          >
-                            Tên phụ trách hiển thị
-                          </label>
-                          <input
-                            id="task-assignees-text"
-                            type="text"
-                            value={assigneesText}
-                            onChange={(e) => setAssigneesText(e.target.value)}
-                            placeholder="VD: Quốc, Khả Tuệ"
-                            className={`${inputBaseClass} h-[36px]`}
-                          />
-                        </div>
+                      <div className="min-w-0">
+                        <label
+                          htmlFor="task-category-select"
+                          className="block text-xs font-medium text-[#434F63] mb-1"
+                        >
+                          Hạng mục
+                        </label>
+                        <select
+                          id="task-category-select"
+                          value={categoryId}
+                          onChange={(e) => setCategoryId(e.target.value)}
+                          className={`${inputBaseClass} h-[36px]`}
+                        >
+                          <option value="">
+                            {effCategory.inherited
+                              ? `Kế thừa từ cha (${effCategory.category})`
+                              : 'Chưa phân hạng mục'}
+                          </option>
+                          {sortedCategories
+                            .filter(
+                              (cat) => cat.isActive || cat.id === categoryId
+                            )
+                            .map((cat) => (
+                              <option key={cat.id} value={cat.id}>
+                                {cat.name}
+                                {!cat.isActive ? ' (Ngừng dùng)' : ''}
+                              </option>
+                            ))}
+                        </select>
                       </div>
 
                       {approverMembers.length > 0 && (
@@ -1838,7 +1796,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                           <div className="flex flex-wrap gap-1.5">
                             {approverMembers.map((m) => {
                               const checked = approverUids.includes(m.uid);
-                              const label = getCompactMemberLabel(m);
+                              const label = getOfficialMemberDisplayName(m);
                               return (
                                 <button
                                   key={`appr_${m.uid}`}
@@ -1883,7 +1841,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     value={commentText}
                     disabled={postingComment}
                     onChange={(e) => setCommentText(e.target.value)}
-                    placeholder={`Viết góp ý dưới tên ${getCompactMemberLabel(
+                    placeholder={`Viết góp ý dưới tên ${getOfficialMemberDisplayName(
                       currentUser
                     )}...`}
                     className="w-full px-3 py-2 text-[13.5px] bg-white border border-[#DFD8CA] rounded-xl text-huyen-lam placeholder:text-[#969EAE] focus:outline-none focus:ring-2 focus:ring-lam-sang/25 focus:border-lam-sang disabled:bg-[#FAF8F3]"
@@ -1923,7 +1881,7 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     <div key={c.id} className="py-3 space-y-1">
                       <div className="flex items-center justify-between gap-2 text-xs">
                         <span className="font-semibold text-huyen-lam">
-                          {toCompactAliasDisplay(c.authorName)}
+                          {resolveActorName(c.authorUid, c.authorName, members)}
                         </span>
                         <span className="font-mono-tabular text-[11px] text-[#7D8796]">
                           {formatDateTime(c.createdAt)}
@@ -1952,7 +1910,11 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
                     <div key={log.id} className="py-2.5 space-y-0.5 text-xs">
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-semibold text-huyen-lam">
-                          {toCompactAliasDisplay(log.actorName)}
+                          {resolveActorName(
+                            log.actorUid,
+                            log.actorName,
+                            members
+                          )}
                         </span>
                         <span className="font-mono-tabular text-[11px] text-[#7D8796]">
                           {formatDateTime(log.createdAt)}
@@ -1970,8 +1932,12 @@ export const TaskDetailDrawer: React.FC<TaskDetailDrawerProps> = ({
               <div className="pt-3 border-t border-[#ECE6DA] flex flex-wrap items-center justify-between gap-2 text-[11px] text-[#8A94A3]">
                 <span>
                   Cập nhật: {formatDateTime(task.updatedAt)}
-                  {task.updatedBy
-                    ? ` · ${toCompactAliasDisplay(task.updatedBy)}`
+                  {task.updatedBy || task.updatedByUid
+                    ? ` · ${resolveActorName(
+                        task.updatedByUid,
+                        task.updatedBy,
+                        members
+                      )}`
                     : ''}
                 </span>
                 <span className="font-mono-tabular">
