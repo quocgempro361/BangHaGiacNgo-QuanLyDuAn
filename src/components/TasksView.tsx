@@ -8,6 +8,8 @@ import {
   ChevronsUpDown,
   CornerDownRight,
   ExternalLink,
+  Link2Off,
+  ListChecks,
   Plus,
   RotateCcw,
   Search,
@@ -36,8 +38,53 @@ interface TasksViewProps {
   onOpenNewTask: (defaultParentId?: string | null) => void;
 }
 
+interface CategoryTheme {
+  accent: string;
+  text: string;
+  softBg: string;
+  softBorder: string;
+}
+
+function getCategoryVisualTheme(
+  categoryId: string | null,
+  categoryName: string,
+  fallbackColor?: string
+): CategoryTheme {
+  const nameKey = categoryName.trim().toLowerCase();
+  if (categoryId === 'cat_outline' || nameKey.includes('đề cương')) {
+    return {
+      accent: '#477FAE',
+      text: '#285780',
+      softBg: '#EFF6FB',
+      softBorder: '#CEE1F2',
+    };
+  }
+  if (categoryId === 'cat_foundation' || nameKey.includes('nền tảng')) {
+    return {
+      accent: '#328578',
+      text: '#1F5E54',
+      softBg: '#EEF7F5',
+      softBorder: '#C7E3DE',
+    };
+  }
+  if (categoryId === 'cat_research' || nameKey.includes('truy nguồn')) {
+    return {
+      accent: '#C9A14B',
+      text: '#78530E',
+      softBg: '#FBF6E8',
+      softBorder: '#E7D5A3',
+    };
+  }
+  return {
+    accent: fallbackColor || '#477FAE',
+    text: '#14243F',
+    softBg: '#F4F6F9',
+    softBorder: '#DCE3EC',
+  };
+}
+
 const DESKTOP_GRID_COLS =
-  'lg:grid lg:grid-cols-[minmax(0,1fr)_132px_168px_192px_94px] lg:items-center lg:gap-4';
+  'lg:grid lg:grid-cols-[minmax(0,1fr)_136px_174px_206px_98px] lg:items-center lg:gap-4';
 
 export const TasksView: React.FC<TasksViewProps> = ({
   tasks,
@@ -94,6 +141,14 @@ export const TasksView: React.FC<TasksViewProps> = ({
     [visiblePool]
   );
 
+  const unlinkedUidCount = useMemo(
+    () =>
+      visiblePool.filter(
+        (t) => t.assignees.length > 0 && t.assigneeUids.length === 0
+      ).length,
+    [visiblePool]
+  );
+
   const hasActiveFilter =
     searchQuery.trim() !== '' ||
     statusFilter !== 'all' ||
@@ -141,6 +196,10 @@ export const TasksView: React.FC<TasksViewProps> = ({
     if (assigneeFilter !== 'all') {
       if (assigneeFilter === '__unassigned__') {
         if (task.assignees.length > 0 || task.assigneeUids.length > 0) {
+          return false;
+        }
+      } else if (assigneeFilter === '__unlinked_uid__') {
+        if (task.assigneeUids.length > 0) {
           return false;
         }
       } else if (!task.assignees.includes(assigneeFilter)) {
@@ -263,21 +322,30 @@ export const TasksView: React.FC<TasksViewProps> = ({
   const renderAssigneeCell = (task: TaskItem) => {
     if (task.assignees.length === 0 && task.assigneeUids.length === 0) {
       return (
-        <span className="text-xs font-medium text-minh-kim-ink">
+        <span className="text-[13px] text-slate-400 italic">
           Chưa phân công
         </span>
       );
     }
 
+    const isUnlinkedForManager =
+      isManager && task.assignees.length > 0 && task.assigneeUids.length === 0;
+
     return (
-      <div className="min-w-0">
-        <div className="text-xs font-medium text-huyen-lam leading-snug break-words">
-          {task.assignees.length > 0 ? task.assignees.join(', ') : 'Đã gán tài khoản'}
-        </div>
-        {task.assignees.length > 0 && task.assigneeUids.length === 0 && (
-          <div className="text-[11px] text-ink-muted/75 leading-tight mt-0.5">
-            Chưa gắn tài khoản
-          </div>
+      <div className="min-w-0 inline-flex items-center gap-1.5 flex-wrap">
+        <span className="text-[13px] font-medium text-huyen-lam leading-snug break-words">
+          {task.assignees.length > 0
+            ? task.assignees.join(', ')
+            : 'Đã gắn tài khoản'}
+        </span>
+        {isUnlinkedForManager && (
+          <span
+            title="Chưa liên kết tài khoản Google (UID)"
+            aria-label="Chưa liên kết tài khoản Google"
+            className="inline-flex items-center text-slate-400 shrink-0"
+          >
+            <Link2Off className="w-3.5 h-3.5 shrink-0" />
+          </span>
         )}
       </div>
     );
@@ -287,7 +355,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
     if (!task.dueDate) {
       return (
         <span
-          className={`text-xs font-mono-tabular text-ink-muted/50 ${
+          className={`text-[13px] font-mono-tabular text-slate-300 select-none ${
             alignRight ? 'block text-right' : ''
           }`}
         >
@@ -298,9 +366,11 @@ export const TasksView: React.FC<TasksViewProps> = ({
     const overdue = isTaskOverdue(task);
     return (
       <span
-        className={`text-xs font-mono-tabular whitespace-nowrap ${
+        className={`text-[13px] font-mono-tabular whitespace-nowrap ${
           alignRight ? 'block text-right' : ''
-        } ${overdue ? 'text-chu-sa font-semibold' : 'text-huyen-lam/85'}`}
+        } ${
+          overdue ? 'text-chu-sa font-semibold' : 'text-slate-600'
+        }`}
         title={overdue ? 'Quá hạn xử lý' : undefined}
       >
         {formatShortDate(task.dueDate)}
@@ -308,7 +378,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
     );
   };
 
-  const renderDriveLinksTrigger = (task: TaskItem) => {
+  const renderDriveLinkAction = (task: TaskItem) => {
     const validLinks = task.resultLinks.filter((l) => Boolean(l.url));
     if (validLinks.length === 0) return null;
     const primary = validLinks[0];
@@ -323,9 +393,9 @@ export const TasksView: React.FC<TasksViewProps> = ({
             ? `${primary.label} (+${validLinks.length - 1} tài liệu khác)`
             : primary.label
         }
-        className="inline-flex items-center gap-1 text-[11px] font-medium text-lam-tri-tue hover:text-huyen-lam hover:underline whitespace-nowrap shrink-0 py-0.5"
+        className="inline-flex items-center gap-1.5 text-xs font-medium text-lam-sang-ink hover:text-huyen-lam hover:underline whitespace-nowrap shrink-0"
       >
-        <ExternalLink className="w-3 h-3 shrink-0" />
+        <ExternalLink className="w-3.5 h-3.5 shrink-0" />
         <span>
           {validLinks.length > 1
             ? `${validLinks.length} tài liệu KQ`
@@ -341,12 +411,15 @@ export const TasksView: React.FC<TasksViewProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2.5">
-            <h1 className="text-lg sm:text-2xl font-bold text-huyen-lam tracking-tight">
+            <h1 className="text-xl sm:text-2xl font-bold text-huyen-lam tracking-tight">
               Danh sách công việc
             </h1>
-            <span className="h-[3px] w-6 rounded-full bg-chu-sa/85 hidden sm:inline-block" aria-hidden="true" />
+            <span
+              className="hidden sm:inline-block h-[2px] w-5 bg-chu-sa/75 rounded-full"
+              aria-hidden="true"
+            />
           </div>
-          <p className="text-xs sm:text-sm text-ink-muted mt-0.5 tabular-nums">
+          <p className="text-xs sm:text-sm text-slate-500 mt-1 tabular-nums">
             <span className="font-semibold text-huyen-lam">
               {parentTasks.length}
             </span>{' '}
@@ -364,16 +437,16 @@ export const TasksView: React.FC<TasksViewProps> = ({
             <button
               type="button"
               onClick={toggleExpandAll}
-              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-nga-xam bg-white text-huyen-lam text-xs font-medium hover:bg-surface-muted transition-colors whitespace-nowrap min-h-[42px]"
+              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-200 bg-trang-nga text-huyen-lam text-xs sm:text-[13px] font-medium hover:bg-nen-sang hover:border-slate-300 transition-colors whitespace-nowrap min-h-[42px]"
             >
               {allExpanded ? (
                 <>
-                  <ChevronsDownUp className="w-3.5 h-3.5 shrink-0 text-ink-muted" />
+                  <ChevronsDownUp className="w-4 h-4 shrink-0 text-slate-500" />
                   <span>Thu gọn việc con</span>
                 </>
               ) : (
                 <>
-                  <ChevronsUpDown className="w-3.5 h-3.5 shrink-0 text-minh-kim-ink" />
+                  <ChevronsUpDown className="w-4 h-4 shrink-0 text-lam-sang" />
                   <span>Mở tất cả việc con</span>
                 </>
               )}
@@ -384,7 +457,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
             <button
               type="button"
               onClick={() => onOpenNewTask(null)}
-              className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-huyen-lam text-nga-thien text-sm font-semibold hover:bg-lam-tri-tue transition-colors whitespace-nowrap shrink-0 min-h-[42px]"
+              className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-huyen-lam text-trang-nga text-sm font-semibold hover:bg-lam-tri-tue transition-colors whitespace-nowrap shrink-0 min-h-[42px]"
             >
               <Plus className="w-4 h-4 shrink-0 text-kim-quang" />
               <span>{isManager ? 'Thêm đầu việc' : 'Thêm việc con'}</span>
@@ -393,38 +466,37 @@ export const TasksView: React.FC<TasksViewProps> = ({
         </div>
       </div>
 
-      {/* Search & Filter Toolbar */}
-      <div className="bg-white border border-nga-xam rounded-xl p-3 sm:p-3.5 space-y-2.5 shadow-[0_1px_2px_rgba(20,36,63,0.03)]">
-        {/* Tier 1: Search Input + Live Count + Reset */}
-        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+      {/* Luminous Search & Filter Bar */}
+      <div className="bg-trang-nga border border-slate-200/90 rounded-2xl p-3 sm:p-4 space-y-3 shadow-[0_1px_2px_rgba(20,36,63,0.03)]">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
           <div className="relative flex-1 min-w-0">
-            <Search className="w-4 h-4 text-ink-muted absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Tìm theo mã, tên việc, người phụ trách, bước tiếp theo..."
               aria-label="Tìm kiếm công việc"
-              className="w-full pl-9 pr-10 py-2 text-sm bg-nga-thien/75 border border-nga-xam rounded-lg text-huyen-lam placeholder:text-ink-muted/75 focus:outline-none focus:ring-2 focus:ring-lam-tri-tue focus:bg-white min-h-[42px]"
+              className="w-full pl-10 pr-10 py-2 text-sm bg-nen-sang border border-slate-200 rounded-xl text-huyen-lam placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-lam-sang/40 focus:border-lam-sang focus:bg-white min-h-[42px] transition-colors"
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
                 aria-label="Xóa từ khóa tìm kiếm"
-                className="absolute right-1 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-md text-ink-muted hover:text-huyen-lam hover:bg-surface-muted transition-colors"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 w-9 h-9 flex items-center justify-center rounded-lg text-slate-400 hover:text-huyen-lam hover:bg-slate-200/60 transition-colors"
               >
                 <X className="w-4 h-4 shrink-0" />
               </button>
             )}
           </div>
 
-          <div className="flex items-center justify-between sm:justify-end gap-2 shrink-0">
-            <div className="text-xs text-ink-muted tabular-nums whitespace-nowrap px-1">
+          <div className="flex items-center justify-between sm:justify-end gap-2.5 shrink-0">
+            <div className="text-xs sm:text-[13px] text-slate-500 tabular-nums whitespace-nowrap px-1">
               Đang xem{' '}
               <span
                 className={`font-mono-tabular font-semibold ${
-                  hasActiveFilter ? 'text-minh-kim-ink' : 'text-huyen-lam'
+                  hasActiveFilter ? 'text-lam-sang-ink' : 'text-huyen-lam'
                 }`}
               >
                 {visibleTotalCount}/{visiblePool.length}
@@ -445,16 +517,15 @@ export const TasksView: React.FC<TasksViewProps> = ({
           </div>
         </div>
 
-        {/* Tier 2: Structured Filter Controls */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
           <select
             aria-label="Lọc theo trạng thái"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className={`w-full px-3 py-2 text-xs sm:text-sm rounded-lg border focus:outline-none focus:ring-2 focus:ring-lam-tri-tue min-h-[42px] transition-colors ${
+            className={`w-full px-3 py-2 text-[13px] rounded-xl border focus:outline-none focus:ring-2 focus:ring-lam-sang/40 min-h-[42px] transition-colors ${
               statusFilter !== 'all'
-                ? 'bg-minh-kim-soft/70 border-minh-kim-border text-huyen-lam font-medium'
-                : 'bg-white border-nga-xam text-huyen-lam'
+                ? 'bg-lam-sang-soft border-lam-sang/40 text-huyen-lam font-medium'
+                : 'bg-white border-slate-200 text-huyen-lam'
             }`}
           >
             <option value="all">Tất cả trạng thái</option>
@@ -470,10 +541,10 @@ export const TasksView: React.FC<TasksViewProps> = ({
             aria-label="Lọc theo hạng mục"
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
-            className={`w-full px-3 py-2 text-xs sm:text-sm rounded-lg border focus:outline-none focus:ring-2 focus:ring-lam-tri-tue min-h-[42px] transition-colors ${
+            className={`w-full px-3 py-2 text-[13px] rounded-xl border focus:outline-none focus:ring-2 focus:ring-lam-sang/40 min-h-[42px] transition-colors ${
               categoryFilter !== 'all'
-                ? 'bg-minh-kim-soft/70 border-minh-kim-border text-huyen-lam font-medium'
-                : 'bg-white border-nga-xam text-huyen-lam'
+                ? 'bg-thanh-ngoc-soft border-thanh-ngoc/40 text-huyen-lam font-medium'
+                : 'bg-white border-slate-200 text-huyen-lam'
             }`}
           >
             <option value="all">Tất cả hạng mục</option>
@@ -490,14 +561,19 @@ export const TasksView: React.FC<TasksViewProps> = ({
             aria-label="Lọc theo người phụ trách"
             value={assigneeFilter}
             onChange={(e) => setAssigneeFilter(e.target.value)}
-            className={`w-full px-3 py-2 text-xs sm:text-sm rounded-lg border focus:outline-none focus:ring-2 focus:ring-lam-tri-tue min-h-[42px] transition-colors ${
+            className={`w-full px-3 py-2 text-[13px] rounded-xl border focus:outline-none focus:ring-2 focus:ring-lam-sang/40 min-h-[42px] transition-colors ${
               assigneeFilter !== 'all'
-                ? 'bg-minh-kim-soft/70 border-minh-kim-border text-huyen-lam font-medium'
-                : 'bg-white border-nga-xam text-huyen-lam'
+                ? 'bg-minh-kim-soft border-minh-kim-border text-huyen-lam font-medium'
+                : 'bg-white border-slate-200 text-huyen-lam'
             }`}
           >
             <option value="all">Tất cả người phụ trách</option>
             <option value="__unassigned__">Chưa phân công</option>
+            {isManager && (
+              <option value="__unlinked_uid__">
+                Chưa liên kết tài khoản ({unlinkedUidCount})
+              </option>
+            )}
             {assigneeOptions.map((person) => (
               <option key={person} value={person}>
                 {person}
@@ -509,10 +585,10 @@ export const TasksView: React.FC<TasksViewProps> = ({
             type="button"
             onClick={() => setReviewOnly((v) => !v)}
             aria-pressed={reviewOnly}
-            className={`w-full inline-flex items-center justify-center gap-2 px-3 py-2 text-xs sm:text-sm font-medium rounded-lg border transition-colors min-h-[42px] whitespace-nowrap ${
+            className={`w-full inline-flex items-center justify-center gap-2 px-3 py-2 text-[13px] font-medium rounded-xl border transition-colors min-h-[42px] whitespace-nowrap ${
               reviewOnly
                 ? 'bg-huyen-lam border-huyen-lam text-kim-quang font-semibold'
-                : 'bg-white border-nga-xam text-huyen-lam hover:bg-nga-thien'
+                : 'bg-white border-slate-200 text-huyen-lam hover:bg-nen-sang'
             }`}
           >
             <AlertCircle
@@ -528,24 +604,25 @@ export const TasksView: React.FC<TasksViewProps> = ({
         </div>
       </div>
 
-      {/* Desktop Column Header Bar (Huyền Lam + Kim Quang + Minh Kim rule) */}
-      {filteredTree.length > 0 && (
-        <div
-          className={`hidden ${DESKTOP_GRID_COLS} px-4 py-2.5 bg-huyen-lam text-nga-thien rounded-xl border border-huyen-lam-deep border-b-2 border-b-minh-kim text-xs font-semibold tracking-[0.01em]`}
-        >
-          <div className="pl-11">Mã · Đầu việc &amp; Hạng mục</div>
-          <div className="text-kim-quang">Trạng thái</div>
-          <div>Người phụ trách</div>
-          <div>Bước tiếp theo</div>
-          <div className="text-right">Hạn xử lý</div>
-        </div>
-      )}
+      {/* Serene Luminous Hybrid Workspace Container */}
+      <div className="bg-nen-sang border border-slate-200/80 rounded-2xl p-1.5 sm:p-3 space-y-2.5">
+        {/* Desktop Crisp Architectural Column Header */}
+        {filteredTree.length > 0 && (
+          <div
+            className={`hidden ${DESKTOP_GRID_COLS} px-4 py-2.5 bg-trang-nga border border-slate-200/85 border-b-2 border-b-huyen-lam/20 rounded-xl text-xs font-semibold text-slate-600`}
+          >
+            <div className="pl-[46px] text-huyen-lam">Công việc &amp; Hạng mục</div>
+            <div className="text-huyen-lam">Trạng thái</div>
+            <div>Người phụ trách</div>
+            <div>Bước tiếp theo</div>
+            <div className="text-right">Hạn xử lý</div>
+          </div>
+        )}
 
-      {/* Card–Table Hybrid List */}
-      <div className="space-y-2.5">
+        {/* Group Cards */}
         {filteredTree.length === 0 ? (
-          <div className="bg-white border border-nga-xam rounded-xl px-4 py-10 text-center space-y-3">
-            <p className="text-sm text-ink-muted">
+          <div className="bg-trang-nga border border-slate-200/80 rounded-xl px-4 py-12 text-center space-y-3">
+            <p className="text-sm text-slate-500">
               {tasks.filter((t) => !isB1TestTask(t)).length === 0
                 ? 'Chưa có công việc nào trên hệ thống.'
                 : 'Không tìm thấy công việc nào khớp với điều kiện lọc hiện tại.'}
@@ -554,7 +631,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
               <button
                 type="button"
                 onClick={resetFilters}
-                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-huyen-lam text-nga-thien rounded-lg hover:bg-lam-tri-tue transition-colors min-h-[42px]"
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold bg-huyen-lam text-trang-nga rounded-lg hover:bg-lam-tri-tue transition-colors min-h-[42px]"
               >
                 <RotateCcw className="w-4 h-4 shrink-0 text-kim-quang" />
                 <span>Đặt lại toàn bộ bộ lọc</span>
@@ -562,406 +639,419 @@ export const TasksView: React.FC<TasksViewProps> = ({
             )}
           </div>
         ) : (
-          filteredTree.map(({ parent, children, autoExpand }) => {
-            const totalChildrenInParent =
-              (childrenByParent[parent.id] || []).length;
-            const hasChildren = children.length > 0;
-            const isExpanded =
-              hasChildren && (autoExpand || Boolean(expandedParents[parent.id]));
-            const progress = computeParentProgress(parent.id, visiblePool);
-            const effCat = getEffectiveCategory(parent, visiblePool, categories);
-            const catAccentColor = effCat.color || '#14243F';
-            const parentDriveNode = renderDriveLinksTrigger(parent);
+          <div className="space-y-3">
+            {filteredTree.map(({ parent, children, autoExpand }) => {
+              const totalChildrenInParent =
+                (childrenByParent[parent.id] || []).length;
+              const hasChildren = children.length > 0;
+              const isExpanded =
+                hasChildren &&
+                (autoExpand || Boolean(expandedParents[parent.id]));
+              const progress = computeParentProgress(parent.id, visiblePool);
+              const effCat = getEffectiveCategory(
+                parent,
+                visiblePool,
+                categories
+              );
+              const catTheme = getCategoryVisualTheme(
+                effCat.categoryId,
+                effCat.category,
+                effCat.color
+              );
+              const parentDriveNode = renderDriveLinkAction(parent);
+              const isParentDone =
+                progress.total > 0 && progress.completed === progress.total;
 
-            return (
-              <section
-                key={parent.id}
-                aria-label={`Nhóm công việc ${parent.displayCode}: ${parent.title}`}
-                className="bg-white border border-nga-xam rounded-xl overflow-hidden shadow-[0_1px_2px_rgba(20,36,63,0.04)]"
-              >
-                {/* Category Identity Hairline Accent */}
-                <div
-                  className="h-[3px] w-full"
-                  style={{ backgroundColor: catAccentColor }}
-                  aria-hidden="true"
-                />
-
-                {/* Parent Row */}
-                <div
-                  onClick={() => onSelectTask(parent.id)}
-                  className="px-3 py-3 sm:px-4 sm:py-3.5 bg-white hover:bg-nga-thien/70 transition-colors cursor-pointer"
+              return (
+                <section
+                  key={parent.id}
+                  aria-label={`Nhóm công việc ${parent.displayCode}: ${parent.title}`}
+                  className="bg-trang-nga border border-slate-200/90 hover:border-slate-300/90 rounded-xl overflow-hidden shadow-[0_1px_2px_rgba(20,36,63,0.03)] transition-colors"
                 >
-                  <div className={DESKTOP_GRID_COLS}>
-                    {/* Column 1: Expand Toggle + Parent Code + Title + Quiet Sub-meta */}
-                    <div className="flex items-start gap-2 min-w-0">
-                      <div className="shrink-0 w-9 flex items-start justify-center pt-0.5">
-                        {hasChildren ? (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleParent(parent.id);
-                            }}
-                            aria-expanded={isExpanded}
-                            aria-label={
-                              isExpanded
-                                ? `Thu gọn việc con của ${parent.displayCode}`
-                                : `Mở rộng việc con của ${parent.displayCode}`
-                            }
-                            className="w-10 h-10 -my-1.5 flex items-center justify-center rounded-lg text-huyen-lam/75 hover:bg-surface-muted hover:text-huyen-lam transition-colors"
-                          >
-                            {isExpanded ? (
-                              <ChevronDown className="w-4 h-4 shrink-0" />
-                            ) : (
-                              <ChevronRight className="w-4 h-4 shrink-0" />
-                            )}
-                          </button>
-                        ) : (
-                          <span
-                            aria-hidden="true"
-                            className="w-9 h-6 inline-flex items-center justify-center text-nga-xam"
-                          >
-                            ·
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="flex-1 min-w-0">
-                        {/* Mobile Top Strip: Code + Status side-by-side so Title gets full width below */}
-                        <div className="flex sm:hidden items-center justify-between gap-2 mb-1">
-                          <span className="font-mono-tabular text-xs font-bold px-2 py-0.5 rounded-[5px] bg-huyen-lam text-kim-quang shrink-0 leading-5">
-                            {parent.displayCode}
-                          </span>
-                          <StatusBadge status={parent.status} compact />
+                  {/* Parent Row */}
+                  <div
+                    onClick={() => onSelectTask(parent.id)}
+                    className="px-3 py-3.5 sm:px-4 sm:py-4 bg-trang-nga hover:bg-slate-50/75 transition-colors cursor-pointer"
+                  >
+                    <div className={DESKTOP_GRID_COLS}>
+                      {/* Column 1: Chevron + Tinted Code Seal + Dominant Parent Title + Unified Meta */}
+                      <div className="flex items-start gap-2.5 min-w-0">
+                        <div
+                          className={`shrink-0 pt-0.5 ${
+                            hasChildren
+                              ? 'w-9 flex items-start justify-center'
+                              : 'hidden lg:flex lg:w-9 lg:items-start lg:justify-center'
+                          }`}
+                        >
+                          {hasChildren ? (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleParent(parent.id);
+                              }}
+                              aria-expanded={isExpanded}
+                              aria-label={
+                                isExpanded
+                                  ? `Thu gọn việc con của ${parent.displayCode}`
+                                  : `Mở rộng việc con của ${parent.displayCode}`
+                              }
+                              className="w-10 h-10 -my-1.5 flex items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-huyen-lam transition-colors"
+                            >
+                              {isExpanded ? (
+                                <ChevronDown className="w-4 h-4 shrink-0" />
+                              ) : (
+                                <ChevronRight className="w-4 h-4 shrink-0" />
+                              )}
+                            </button>
+                          ) : (
+                            <span
+                              aria-hidden="true"
+                              className="w-9 h-7 inline-flex items-center justify-center text-slate-300"
+                            >
+                              ·
+                            </span>
+                          )}
                         </div>
 
-                        <div className="flex items-start justify-between gap-2.5">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onSelectTask(parent.id);
-                            }}
-                            className="text-left flex-1 min-w-0 group focus-visible:outline-2 focus-visible:outline-lam-tri-tue rounded-sm"
-                          >
-                            <div className="flex items-start gap-2">
-                              <span className="hidden sm:inline-block font-mono-tabular text-xs font-bold px-2 py-0.5 rounded-[5px] bg-huyen-lam text-kim-quang shrink-0 mt-0.5 leading-5">
-                                {parent.displayCode}
-                              </span>
-                              <span className="text-[14.5px] sm:text-[15px] font-semibold text-huyen-lam group-hover:text-lam-tri-tue group-hover:underline leading-snug break-words">
-                                {parent.title}
-                              </span>
-                            </div>
-                          </button>
-
-                          {/* Tablet Status Badge (sm..md) */}
-                          <div className="hidden sm:block lg:hidden shrink-0 pt-0.5">
+                        <div className="flex-1 min-w-0">
+                          {/* Mobile (< sm) Top Row: Airy Category-Tinted Code Seal + StatusBadge */}
+                          <div className="flex sm:hidden items-center justify-between gap-2 mb-1.5">
+                            <span
+                              style={{
+                                backgroundColor: catTheme.softBg,
+                                color: catTheme.text,
+                                borderColor: catTheme.softBorder,
+                              }}
+                              className="font-mono-tabular text-xs font-bold min-w-[28px] h-6 px-2 inline-flex items-center justify-center rounded-md border shrink-0"
+                            >
+                              {parent.displayCode}
+                            </span>
                             <StatusBadge status={parent.status} compact />
                           </div>
-                        </div>
 
-                        {/* Priority #6 Meta Strip: Category · Subtask Progress · Drive Link · Subtle Review */}
-                        <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-ink-muted">
-                          <span className="inline-flex items-center gap-1.5">
+                          <div className="flex items-start justify-between gap-2.5">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onSelectTask(parent.id);
+                              }}
+                              className="text-left flex-1 min-w-0 group focus-visible:outline-2 focus-visible:outline-lam-sang rounded-sm"
+                            >
+                              <div className="flex items-start gap-2.5">
+                                <span
+                                  style={{
+                                    backgroundColor: catTheme.softBg,
+                                    color: catTheme.text,
+                                    borderColor: catTheme.softBorder,
+                                  }}
+                                  className="hidden sm:inline-flex font-mono-tabular text-xs font-bold min-w-[28px] h-[26px] px-2 items-center justify-center rounded-md border shrink-0 mt-0.5"
+                                >
+                                  {parent.displayCode}
+                                </span>
+                                <span className="text-[15.5px] sm:text-base font-semibold text-huyen-lam group-hover:text-lam-sang-ink group-hover:underline leading-[1.4] break-words">
+                                  {parent.title}
+                                </span>
+                              </div>
+                            </button>
+
+                            {/* Tablet (sm..md) StatusBadge */}
+                            <div className="hidden sm:block lg:hidden shrink-0 pt-0.5">
+                              <StatusBadge status={parent.status} compact />
+                            </div>
+                          </div>
+
+                          {/* Unified Parent Metadata Line */}
+                          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs leading-5">
                             <span
-                              className="w-2 h-2 rounded-[2px] shrink-0"
-                              style={{ backgroundColor: catAccentColor }}
-                              aria-hidden="true"
-                            />
-                            <span className="text-huyen-lam/80 font-medium">
-                              {effCat.category || 'Chưa phân hạng mục'}
-                            </span>
-                          </span>
-
-                          {totalChildrenInParent > 0 && (
-                            <>
-                              <span aria-hidden="true" className="text-nga-xam">
-                                ·
+                              style={{ color: catTheme.text }}
+                              className="inline-flex items-center gap-1.5 font-medium"
+                            >
+                              <span
+                                className="w-2 h-2 rounded-[2px] shrink-0"
+                                style={{ backgroundColor: catTheme.accent }}
+                                aria-hidden="true"
+                              />
+                              <span>
+                                {effCat.category || 'Chưa phân hạng mục'}
                               </span>
-                              <span className="inline-flex items-center gap-1.5">
+                            </span>
+
+                            {totalChildrenInParent > 0 && (
+                              <span className="inline-flex items-center gap-1.5 text-slate-600">
+                                <ListChecks
+                                  className="w-3.5 h-3.5 shrink-0"
+                                  style={{
+                                    color: isParentDone
+                                      ? '#328578'
+                                      : catTheme.accent,
+                                  }}
+                                />
                                 <span
                                   className={`font-mono-tabular font-semibold ${
-                                    progress.completed === progress.total &&
-                                    progress.total > 0
-                                      ? 'text-emerald-800'
-                                      : 'text-minh-kim-ink'
+                                    isParentDone
+                                      ? 'text-thanh-ngoc-ink'
+                                      : 'text-huyen-lam'
                                   }`}
                                 >
-                                  Tiến độ con: {progress.completed}/{progress.total}
+                                  {progress.completed}/{progress.total}
                                 </span>
                                 <span
                                   aria-hidden="true"
-                                  className="w-10 h-1.5 rounded-full bg-nga-xam overflow-hidden inline-block"
+                                  className="w-10 h-1.5 rounded-full bg-slate-200 overflow-hidden inline-block"
                                 >
                                   <span
-                                    className={`block h-full rounded-full ${
-                                      progress.completed === progress.total &&
-                                      progress.total > 0
-                                        ? 'bg-emerald-600'
-                                        : 'bg-minh-kim'
-                                    }`}
-                                    style={{ width: `${progress.percentage}%` }}
+                                    className="block h-full rounded-full transition-all"
+                                    style={{
+                                      width: `${progress.percentage}%`,
+                                      backgroundColor: isParentDone
+                                        ? '#328578'
+                                        : catTheme.accent,
+                                    }}
                                   />
                                 </span>
                               </span>
-                            </>
-                          )}
+                            )}
 
-                          {parentDriveNode && (
-                            <>
-                              <span aria-hidden="true" className="text-nga-xam">
-                                ·
-                              </span>
-                              {parentDriveNode}
-                            </>
-                          )}
+                            {parentDriveNode}
 
-                          {parent.reviewFlags.length > 0 && (
-                            <>
-                              <span aria-hidden="true" className="text-nga-xam">
-                                ·
-                              </span>
-                              <span className="inline-flex items-center gap-1 text-[11px] text-minh-kim-ink">
-                                <AlertCircle className="w-3 h-3 shrink-0" />
+                            {parent.reviewFlags.length > 0 && (
+                              <span className="inline-flex items-center gap-1.5 font-medium text-minh-kim-ink">
+                                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                                 <span>Cần rà soát</span>
                               </span>
-                            </>
-                          )}
+                            )}
 
-                          {parent.archivedAt && (
-                            <>
-                              <span aria-hidden="true" className="text-nga-xam">
-                                ·
-                              </span>
-                              <span className="inline-flex items-center gap-1 text-[11px] text-ink-muted">
-                                <Archive className="w-3 h-3 shrink-0" />
+                            {parent.archivedAt && (
+                              <span className="inline-flex items-center gap-1.5 text-slate-500">
+                                <Archive className="w-3.5 h-3.5 shrink-0" />
                                 <span>Đã lưu trữ</span>
                               </span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Desktop Column 2: Status */}
-                    <div className="hidden lg:flex items-center">
-                      <StatusBadge
-                        status={parent.status}
-                        compact
-                        className="min-w-[108px]"
-                      />
-                    </div>
-
-                    {/* Desktop Column 3: Assignees */}
-                    <div className="hidden lg:block min-w-0">
-                      {renderAssigneeCell(parent)}
-                    </div>
-
-                    {/* Desktop Column 4: Next Step */}
-                    <div
-                      className="hidden lg:block min-w-0 text-xs text-ink-muted leading-snug"
-                      title={parent.nextStep ?? ''}
-                    >
-                      {parent.nextStep ? (
-                        <span className="line-clamp-2 break-words text-slate-700">
-                          {parent.nextStep}
-                        </span>
-                      ) : (
-                        <span className="text-ink-muted/45">—</span>
-                      )}
-                    </div>
-
-                    {/* Desktop Column 5: Due Date */}
-                    <div className="hidden lg:block">
-                      {renderDueDateCell(parent, true)}
-                    </div>
-                  </div>
-
-                  {/* Mobile Compact Metadata Grid (< lg, tuned for 375px) */}
-                  <div className="lg:hidden pl-11 mt-2 pt-2 border-t border-nga-xam/60 space-y-1.5">
-                    <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
-                      <div className="min-w-0 flex-1">
-                        {renderAssigneeCell(parent)}
-                      </div>
-                      {parent.dueDate && (
-                        <div className="shrink-0 text-xs text-ink-muted flex items-center gap-1">
-                          <span>Hạn:</span>
-                          {renderDueDateCell(parent, false)}
-                        </div>
-                      )}
-                    </div>
-                    {parent.nextStep && (
-                      <div className="text-xs text-slate-700 leading-snug break-words">
-                        <span className="text-ink-muted font-medium">
-                          Tiếp theo:{' '}
-                        </span>
-                        {parent.nextStep}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Nested Child Rows (Compact Alternating Table Rows) */}
-                {isExpanded && (
-                  <div className="border-t border-nga-xam divide-y divide-nga-xam/70">
-                    {children.map((child, idx) => {
-                      const childDriveNode = renderDriveLinksTrigger(child);
-                      const rowSurface =
-                        idx % 2 === 0
-                          ? 'bg-nga-thien/75'
-                          : 'bg-surface-muted/45';
-
-                      return (
-                        <div
-                          key={child.id}
-                          onClick={() => onSelectTask(child.id)}
-                          className={`px-3 py-2.5 sm:px-4 sm:py-3 ${rowSurface} hover:bg-minh-kim-soft/45 transition-colors cursor-pointer`}
-                        >
-                          <div className={DESKTOP_GRID_COLS}>
-                            {/* Column 1: Tree Indentation + Child Code + Title */}
-                            <div className="flex items-start gap-2 min-w-0">
-                              <div className="shrink-0 w-9 sm:w-12 flex items-start justify-end pr-0.5 pt-1">
-                                <CornerDownRight
-                                  className="w-3.5 h-3.5 text-minh-kim-ink/70 shrink-0"
-                                  aria-hidden="true"
-                                />
-                              </div>
-
-                              <div className="flex-1 min-w-0">
-                                {/* Mobile Child Top Strip: Child Code + Status */}
-                                <div className="flex sm:hidden items-center justify-between gap-2 mb-1">
-                                  <span className="font-mono-tabular text-[11px] font-semibold px-1.5 py-0.5 rounded bg-minh-kim-soft border border-minh-kim-border/80 text-minh-kim-ink shrink-0 leading-4">
-                                    {child.displayCode}
-                                  </span>
-                                  <StatusBadge status={child.status} compact />
-                                </div>
-
-                                <div className="flex items-start justify-between gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      onSelectTask(child.id);
-                                    }}
-                                    className="text-left flex-1 min-w-0 group focus-visible:outline-2 focus-visible:outline-lam-tri-tue rounded-sm"
-                                  >
-                                    <div className="flex items-start gap-2">
-                                      <span className="hidden sm:inline-block font-mono-tabular text-[11px] font-semibold px-1.5 py-0.5 rounded bg-minh-kim-soft border border-minh-kim-border/80 text-minh-kim-ink shrink-0 mt-0.5 leading-4">
-                                        {child.displayCode}
-                                      </span>
-                                      <span className="text-[13.5px] sm:text-sm font-medium text-huyen-lam group-hover:text-lam-tri-tue group-hover:underline leading-snug break-words">
-                                        {child.title}
-                                      </span>
-                                    </div>
-                                  </button>
-
-                                  {/* Tablet Child Status Badge (sm..md) */}
-                                  <div className="hidden sm:block lg:hidden shrink-0 pt-0.5">
-                                    <StatusBadge status={child.status} compact />
-                                  </div>
-                                </div>
-
-                                {(childDriveNode ||
-                                  child.reviewFlags.length > 0 ||
-                                  child.archivedAt) && (
-                                  <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px]">
-                                    {childDriveNode}
-                                    {childDriveNode &&
-                                      (child.reviewFlags.length > 0 ||
-                                        child.archivedAt) && (
-                                        <span
-                                          aria-hidden="true"
-                                          className="text-nga-xam"
-                                        >
-                                          ·
-                                        </span>
-                                      )}
-                                    {child.reviewFlags.length > 0 && (
-                                      <span className="inline-flex items-center gap-1 text-minh-kim-ink">
-                                        <AlertCircle className="w-3 h-3 shrink-0" />
-                                        <span>Cần rà soát</span>
-                                      </span>
-                                    )}
-                                    {child.archivedAt && (
-                                      <span className="inline-flex items-center gap-1 text-ink-muted">
-                                        <Archive className="w-3 h-3 shrink-0" />
-                                        <span>Đã lưu trữ</span>
-                                      </span>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Desktop Column 2: Child Status */}
-                            <div className="hidden lg:flex items-center">
-                              <StatusBadge
-                                status={child.status}
-                                compact
-                                className="min-w-[108px]"
-                              />
-                            </div>
-
-                            {/* Desktop Column 3: Child Assignees */}
-                            <div className="hidden lg:block min-w-0">
-                              {renderAssigneeCell(child)}
-                            </div>
-
-                            {/* Desktop Column 4: Child Next Step */}
-                            <div
-                              className="hidden lg:block min-w-0 text-xs text-ink-muted leading-snug"
-                              title={child.nextStep ?? ''}
-                            >
-                              {child.nextStep ? (
-                                <span className="line-clamp-2 break-words text-slate-700">
-                                  {child.nextStep}
-                                </span>
-                              ) : (
-                                <span className="text-ink-muted/45">—</span>
-                              )}
-                            </div>
-
-                            {/* Desktop Column 5: Child Due Date */}
-                            <div className="hidden lg:block">
-                              {renderDueDateCell(child, true)}
-                            </div>
-                          </div>
-
-                          {/* Mobile Child Compact Meta (< lg) */}
-                          <div className="lg:hidden pl-11 sm:pl-14 mt-1.5 space-y-1">
-                            <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-0.5">
-                              <div className="min-w-0 flex-1">
-                                {renderAssigneeCell(child)}
-                              </div>
-                              {child.dueDate && (
-                                <div className="shrink-0 text-[11px] text-ink-muted flex items-center gap-1">
-                                  <span>Hạn:</span>
-                                  {renderDueDateCell(child, false)}
-                                </div>
-                              )}
-                            </div>
-                            {child.nextStep && (
-                              <div className="text-[11px] text-slate-700 leading-snug break-words">
-                                <span className="text-ink-muted font-medium">
-                                  Tiếp theo:{' '}
-                                </span>
-                                {child.nextStep}
-                              </div>
                             )}
                           </div>
                         </div>
-                      );
-                    })}
+                      </div>
+
+                      {/* Desktop Column 2: Status */}
+                      <div className="hidden lg:flex items-center">
+                        <StatusBadge
+                          status={parent.status}
+                          compact
+                          className="min-w-[110px]"
+                        />
+                      </div>
+
+                      {/* Desktop Column 3: Assignees */}
+                      <div className="hidden lg:block min-w-0">
+                        {renderAssigneeCell(parent)}
+                      </div>
+
+                      {/* Desktop Column 4: Next Step */}
+                      <div
+                        className="hidden lg:block min-w-0 text-[13px] leading-snug"
+                        title={parent.nextStep ?? ''}
+                      >
+                        {parent.nextStep ? (
+                          <span className="line-clamp-2 break-words text-slate-600">
+                            {parent.nextStep}
+                          </span>
+                        ) : (
+                          <span className="text-slate-300 select-none">—</span>
+                        )}
+                      </div>
+
+                      {/* Desktop Column 5: Due Date */}
+                      <div className="hidden lg:block">
+                        {renderDueDateCell(parent, true)}
+                      </div>
+                    </div>
+
+                    {/* Mobile (< lg) Parent Meta */}
+                    <div
+                      className={`lg:hidden mt-2.5 pt-2 border-t border-slate-100 space-y-1.5 ${
+                        hasChildren ? 'pl-11' : ''
+                      }`}
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                        <div className="min-w-0 flex-1">
+                          {renderAssigneeCell(parent)}
+                        </div>
+                        {parent.dueDate && (
+                          <div className="shrink-0 text-xs text-slate-500 flex items-center gap-1">
+                            <span>Hạn:</span>
+                            {renderDueDateCell(parent, false)}
+                          </div>
+                        )}
+                      </div>
+                      {parent.nextStep && (
+                        <div className="text-[13px] text-slate-600 leading-snug break-words">
+                          <span className="text-slate-400 font-medium">
+                            Tiếp theo:{' '}
+                          </span>
+                          {parent.nextStep}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                )}
-              </section>
-            );
-          })
+
+                  {/* Nested Child Rows (Light, Airy, Minimal Borders) */}
+                  {isExpanded && (
+                    <div className="border-t border-slate-200/75 bg-slate-50/70 divide-y divide-slate-200/55">
+                      {children.map((child) => {
+                        const childDriveNode = renderDriveLinkAction(child);
+
+                        return (
+                          <div
+                            key={child.id}
+                            onClick={() => onSelectTask(child.id)}
+                            className="px-3 py-2.5 sm:px-4 sm:py-3 hover:bg-white/90 transition-colors cursor-pointer"
+                          >
+                            <div className={DESKTOP_GRID_COLS}>
+                              {/* Column 1: Indented Tree Connector + Clean Code + Readable Child Title */}
+                              <div className="flex items-start gap-2.5 min-w-0">
+                                <div className="shrink-0 w-9 sm:w-12 flex items-start justify-end pr-0.5 pt-1">
+                                  <CornerDownRight
+                                    className="w-3.5 h-3.5 shrink-0 opacity-65"
+                                    style={{ color: catTheme.accent }}
+                                    aria-hidden="true"
+                                  />
+                                </div>
+
+                                <div className="flex-1 min-w-0">
+                                  {/* Mobile (< sm) Top Strip: Child Code + Status */}
+                                  <div className="flex sm:hidden items-center justify-between gap-2 mb-1">
+                                    <span
+                                      style={{ color: catTheme.text }}
+                                      className="font-mono-tabular text-xs font-semibold shrink-0"
+                                    >
+                                      {child.displayCode}
+                                    </span>
+                                    <StatusBadge status={child.status} compact />
+                                  </div>
+
+                                  <div className="flex items-start justify-between gap-2.5">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        onSelectTask(child.id);
+                                      }}
+                                      className="text-left flex-1 min-w-0 group focus-visible:outline-2 focus-visible:outline-lam-sang rounded-sm"
+                                    >
+                                      <div className="flex items-baseline gap-2">
+                                        <span
+                                          style={{ color: catTheme.text }}
+                                          className="hidden sm:inline-block font-mono-tabular text-xs font-semibold shrink-0"
+                                        >
+                                          {child.displayCode}
+                                        </span>
+                                        <span className="text-sm font-medium text-slate-800 group-hover:text-lam-sang-ink group-hover:underline leading-[1.42] break-words">
+                                          {child.title}
+                                        </span>
+                                      </div>
+                                    </button>
+
+                                    {/* Tablet (sm..md) StatusBadge */}
+                                    <div className="hidden sm:block lg:hidden shrink-0 pt-0.5">
+                                      <StatusBadge status={child.status} compact />
+                                    </div>
+                                  </div>
+
+                                  {(childDriveNode ||
+                                    child.reviewFlags.length > 0 ||
+                                    child.archivedAt) && (
+                                    <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs leading-5">
+                                      {childDriveNode}
+                                      {child.reviewFlags.length > 0 && (
+                                        <span className="inline-flex items-center gap-1.5 font-medium text-minh-kim-ink">
+                                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                                          <span>Cần rà soát</span>
+                                        </span>
+                                      )}
+                                      {child.archivedAt && (
+                                        <span className="inline-flex items-center gap-1.5 text-slate-500">
+                                          <Archive className="w-3.5 h-3.5 shrink-0" />
+                                          <span>Đã lưu trữ</span>
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Desktop Column 2: Child Status */}
+                              <div className="hidden lg:flex items-center">
+                                <StatusBadge
+                                  status={child.status}
+                                  compact
+                                  className="min-w-[110px]"
+                                />
+                              </div>
+
+                              {/* Desktop Column 3: Child Assignees */}
+                              <div className="hidden lg:block min-w-0">
+                                {renderAssigneeCell(child)}
+                              </div>
+
+                              {/* Desktop Column 4: Child Next Step */}
+                              <div
+                                className="hidden lg:block min-w-0 text-[13px] leading-snug"
+                                title={child.nextStep ?? ''}
+                              >
+                                {child.nextStep ? (
+                                  <span className="line-clamp-2 break-words text-slate-600">
+                                    {child.nextStep}
+                                  </span>
+                                ) : (
+                                  <span className="text-slate-300 select-none">
+                                    —
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Desktop Column 5: Child Due Date */}
+                              <div className="hidden lg:block">
+                                {renderDueDateCell(child, true)}
+                              </div>
+                            </div>
+
+                            {/* Mobile (< lg) Child Meta */}
+                            <div className="lg:hidden pl-11 sm:pl-14 mt-1.5 space-y-1">
+                              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5">
+                                <div className="min-w-0 flex-1">
+                                  {renderAssigneeCell(child)}
+                                </div>
+                                {child.dueDate && (
+                                  <div className="shrink-0 text-xs text-slate-500 flex items-center gap-1">
+                                    <span>Hạn:</span>
+                                    {renderDueDateCell(child, false)}
+                                  </div>
+                                )}
+                              </div>
+                              {child.nextStep && (
+                                <div className="text-[13px] text-slate-600 leading-snug break-words">
+                                  <span className="text-slate-400 font-medium">
+                                    Tiếp theo:{' '}
+                                  </span>
+                                  {child.nextStep}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </section>
+              );
+            })}
+          </div>
         )}
       </div>
 
       {/* Footer Summary & Archive Toggle */}
-      <div className="pt-1 flex flex-wrap items-center justify-between gap-2 text-xs text-ink-muted">
+      <div className="pt-1 flex flex-wrap items-center justify-between gap-2 text-xs sm:text-[13px] text-slate-500">
         <span className="tabular-nums">
           Hiển thị{' '}
           <strong className="font-semibold text-huyen-lam">
@@ -973,7 +1063,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
         <button
           type="button"
           onClick={() => setShowArchived((v) => !v)}
-          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-huyen-lam/80 hover:text-huyen-lam hover:bg-surface-muted transition-colors min-h-[40px]"
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium text-slate-600 hover:text-huyen-lam hover:bg-slate-100 transition-colors min-h-[40px]"
         >
           <Archive className="w-3.5 h-3.5 shrink-0" />
           <span>

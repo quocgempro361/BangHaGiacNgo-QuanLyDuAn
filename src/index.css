@@ -16,6 +16,14 @@
   --color-nga-xam: #e6e2d8;
   --color-surface-muted: #f3efe6;
   --color-ink-muted: #5a6270;
+  --color-thanh-ngoc: #328578;
+  --color-thanh-ngoc-soft: #eef7f5;
+  --color-thanh-ngoc-ink: #1f5e54;
+  --color-lam-sang: #477fae;
+  --color-lam-sang-soft: #eff6fb;
+  --color-lam-sang-ink: #285780;
+  --color-trang-nga: #fffdfc;
+  --color-nen-sang: #f6f8fa;
 }
 
 @layer base {
@@ -35,6 +43,10 @@
     --tbhgn-surface: #ffffff;
     --tbhgn-surface-muted: #f3efe6;
     --tbhgn-ink-muted: #5a6270;
+    --tbhgn-thanh-ngoc: #328578;
+    --tbhgn-lam-sang: #477fae;
+    --tbhgn-trang-nga: #fffdfc;
+    --tbhgn-nen-sang: #f6f8fa;
   }
 
   html {

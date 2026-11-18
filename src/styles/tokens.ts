@@ -26,6 +26,16 @@ export const TBHGN_COLORS = {
   chuSaSoft: '#F8EFEF',
   chuSaBorder: '#D9B6B5',
 
+  // Luminous Supporting Palette
+  thanhNgoc: '#328578',
+  thanhNgocSoft: '#EEF7F5',
+  thanhNgocInk: '#1F5E54',
+  lamSang: '#477FAE',
+  lamSangSoft: '#EFF6FB',
+  lamSangInk: '#285780',
+  trangNga: '#FFFDFC',
+  nenSang: '#F6F8FA',
+
   // Serene Light Canvas & Neutrals
   ngaThien: '#FAF8F3',
   ngaXam: '#E6E2D8',
