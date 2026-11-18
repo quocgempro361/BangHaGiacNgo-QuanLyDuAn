@@ -287,6 +287,8 @@ async function createServer() {
     next();
   });
 
+  const isProd = process.env.NODE_ENV === 'production';
+
   app.use(
     [
       '/server_data',
@@ -296,7 +298,6 @@ async function createServer() {
       '/firestore.rules.backup',
       '/firestore.rules.test.ts',
       '/firebase-blueprint.json',
-      '/firebase-applet-config.json',
       '/security_spec.md',
       '/server.ts',
       '/package.json',
@@ -308,7 +309,11 @@ async function createServer() {
     }
   );
 
-  if (process.env.NODE_ENV === 'production') {
+  if (isProd) {
+    app.use('/firebase-applet-config.json', (_req, res) => {
+      res.status(403).json({ error: 'Truy cập bị từ chối.' });
+    });
+
     const distDir = path.resolve(process.cwd(), 'dist');
     const indexHtmlPath = path.join(distDir, 'index.html');
     if (!fs.existsSync(indexHtmlPath)) {
@@ -348,7 +353,8 @@ async function createServer() {
   }
 
   const port = Number(process.env.PORT || 3000);
-  const host = process.env.HOST || '0.0.0.0';
+  // AI Studio Preview runs dev server on 0.0.0.0; VPS production binds to HOST (e.g. 127.0.0.1 behind Nginx)
+  const host = isProd ? process.env.HOST || '0.0.0.0' : '0.0.0.0';
   app.listen(port, host, () => {
     console.log(
       `TBHGN server running on http://${host}:${port} (env=${process.env.NODE_ENV || 'development'})`
