@@ -547,6 +547,13 @@ export interface ProjectDocumentOccurrence {
   group: DocumentLinkGroup;
 }
 
+export type ProjectDocumentAssigneeStatusKind =
+  | 'named'
+  | 'collective'
+  | 'unlinked'
+  | 'unknown_account'
+  | 'unassigned';
+
 export interface ProjectDocumentEntry {
   key: string;
   taskId: string;
@@ -572,6 +579,9 @@ export interface ProjectDocumentEntry {
   categoryColor?: string;
   assigneeNamesText: string;
   assigneeSearchText: string;
+  officialAssigneeText: string | null;
+  assigneeStatusKind: ProjectDocumentAssigneeStatusKind;
+  neutralAssigneeHint: string | null;
   task: TaskItem;
 }
 
@@ -604,6 +614,32 @@ export function buildProjectDocumentEntries(
   for (const task of activeTasks) {
     const effCat = getEffectiveCategory(task, activeTasks, categories);
     const resolvedAssignees = resolveTaskAssignees(task, members);
+
+    const officialParts: string[] = resolvedAssignees.assignedMembers.map(
+      (am) => (am.isActive ? am.displayName : `${am.displayName} (Đã khóa)`)
+    );
+    if (resolvedAssignees.isCollectiveGroup) {
+      officialParts.push('Việc nhóm');
+    }
+    const officialAssigneeText =
+      officialParts.length > 0 ? officialParts.join(', ') : null;
+
+    let assigneeStatusKind: ProjectDocumentAssigneeStatusKind = 'unassigned';
+    let neutralAssigneeHint: string | null = 'Chưa phân công';
+
+    if (resolvedAssignees.assignedMembers.length > 0) {
+      assigneeStatusKind = 'named';
+      neutralAssigneeHint = null;
+    } else if (resolvedAssignees.isCollectiveGroup) {
+      assigneeStatusKind = 'collective';
+      neutralAssigneeHint = null;
+    } else if (resolvedAssignees.unknownUidCount > 0) {
+      assigneeStatusKind = 'unknown_account';
+      neutralAssigneeHint = 'TK chưa xác định';
+    } else if (resolvedAssignees.isUnlinkedAccount) {
+      assigneeStatusKind = 'unlinked';
+      neutralAssigneeHint = 'Chưa liên kết TK';
+    }
 
     const groups: Array<{ group: DocumentLinkGroup; links: DocumentLink[] }> = [
       { group: 'reference', links: task.referenceLinks ?? [] },
@@ -667,6 +703,9 @@ export function buildProjectDocumentEntries(
           categoryColor: effCat.color,
           assigneeNamesText: resolvedAssignees.displayText,
           assigneeSearchText: resolvedAssignees.searchText,
+          officialAssigneeText,
+          assigneeStatusKind,
+          neutralAssigneeHint,
           task,
         });
       }

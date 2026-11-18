@@ -2333,7 +2333,41 @@ test('Case 12: Project Documents Center aggregation, review/duplicate classifica
 
   assert.equal(summary.entries[0].taskId, 'doc_t1');
   assert.equal(summary.entries[0].assigneeNamesText, memberUser.displayName);
+  assert.equal(summary.entries[0].officialAssigneeText, memberUser.displayName);
+  assert.equal(summary.entries[0].assigneeStatusKind, 'named');
+  assert.equal(summary.entries[0].neutralAssigneeHint, null);
   assert.equal(summary.entries[0].assigneeSearchText.includes('Legacy Sheet Name'), false);
+
+  const unassignedDocEntry = summary.entries.find((e) => e.taskId === 'doc_t2');
+  assert.ok(unassignedDocEntry);
+  assert.equal(unassignedDocEntry.officialAssigneeText, null);
+  assert.equal(unassignedDocEntry.assigneeStatusKind, 'unassigned');
+  assert.equal(unassignedDocEntry.neutralAssigneeHint, 'Chưa phân công');
+
+  const unknownUidTask: TaskItem = {
+    ...t2,
+    id: 'doc_unknown_uid',
+    displayCode: '3',
+    sortOrder: 5,
+    assigneeUids: ['uid_not_in_directory'],
+    referenceLinks: [],
+    resultLinks: [
+      {
+        id: 'res_unknown_1',
+        label: 'Bản thảo 3',
+        url: 'https://example.com/res3',
+        type: 'result',
+      },
+    ],
+  };
+  const unknownSummary = buildProjectDocumentEntries(
+    [unknownUidTask],
+    sampleCategories,
+    docMembers
+  );
+  assert.equal(unknownSummary.entries[0].officialAssigneeText, null);
+  assert.equal(unknownSummary.entries[0].assigneeStatusKind, 'unknown_account');
+  assert.equal(unknownSummary.entries[0].neutralAssigneeHint, 'TK chưa xác định');
 
   // 2. Review classification accuracy
   const missingEntry = summary.entries.find((e) => e.linkId === 'ref_2_bad');
@@ -2434,7 +2468,7 @@ test('Case 12: Project Documents Center aggregation, review/duplicate classifica
   );
   assert.equal(seedDocs.validUrlLinkCount, 13);
 
-  // 7. Source & Navigation contracts
+  // 7. Source & Navigation contracts (including V1.1 UI polish & smart reference guidance)
   const appText = fs.readFileSync(path.join(rootDir, 'src/App.tsx'), 'utf8');
   const docsViewText = fs.readFileSync(
     path.join(rootDir, 'src/components/DocumentsView.tsx'),
@@ -2461,10 +2495,19 @@ test('Case 12: Project Documents Center aggregation, review/duplicate classifica
   assert.equal(docsViewText.includes('onSaveTask'), true);
   assert.equal(docsViewText.includes('onSelectTask'), true);
   assert.equal(docsViewText.includes('assigneeNamesText'), true);
+  assert.equal(docsViewText.includes('officialAssigneeText'), true);
+  assert.equal(docsViewText.includes('neutralAssigneeHint'), true);
   assert.equal(docsViewText.includes('openedVersion'), true);
   assert.equal(docsViewText.includes('Tải bản mới nhất'), true);
   assert.equal(docsViewText.includes('if (res.ok)'), true);
   assert.equal(docsViewText.includes('Mở liên kết'), true);
+  assert.equal(
+    docsViewText.includes('Chưa có tài liệu tham khảo. Bạn có thể thêm nguồn cần đọc cho'),
+    true
+  );
+  assert.equal(docsViewText.includes('Thêm tài liệu tham khảo'), true);
+  assert.equal(docsViewText.includes('border-l-4'), false);
+  assert.equal(docsViewText.includes('border-l-2'), false);
 });
 
 
