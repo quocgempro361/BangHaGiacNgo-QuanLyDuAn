@@ -2383,7 +2383,55 @@ test('Case 12: Project Documents Center aggregation, review/duplicate classifica
   const cleanEntry = summary.entries.find((e) => e.linkId === 'ref_1');
   assert.ok(cleanEntry);
   assert.equal(cleanEntry.needsReview, false);
+  assert.equal(cleanEntry.taskPendingApproval, false);
+  assert.equal(cleanEntry.taskNeedsReview, false);
+  assert.equal(cleanEntry.needsAttention, false);
   assert.deepEqual(cleanEntry.reviewReasons, []);
+
+  // 2b. Task-level pending approval ('Chờ duyệt') & task review flags ('reviewFlags' / status null) surface under Cần rà soát
+  const pendingApprovalTask: TaskItem = {
+    ...t1,
+    id: 'doc_pending_approval',
+    displayCode: '5.2',
+    status: 'Chờ duyệt',
+    reviewFlags: [],
+    referenceLinks: [],
+    resultLinks: [
+      {
+        id: 'res_pending',
+        label: 'Bản nháp chờ Sư phụ duyệt',
+        url: 'https://docs.google.com/document/d/pending_doc/edit',
+        type: 'result',
+      },
+    ],
+  };
+  const taskReviewFlagTask: TaskItem = {
+    ...t1,
+    id: 'doc_task_flagged',
+    displayCode: '3.1',
+    status: 'Tạm dừng',
+    reviewFlags: ['missing_assignee'],
+    referenceLinks: [],
+    resultLinks: [
+      {
+        id: 'res_flagged',
+        label: 'Danh sách tác giả',
+        url: 'https://docs.google.com/spreadsheets/d/flagged_sheet/edit',
+        type: 'result',
+      },
+    ],
+  };
+  const attentionSummary = buildProjectDocumentEntries(
+    [pendingApprovalTask, taskReviewFlagTask],
+    sampleCategories,
+    docMembers
+  );
+  assert.equal(attentionSummary.reviewNeededCount, 0);
+  assert.equal(attentionSummary.attentionNeededCount, 2);
+  assert.equal(attentionSummary.entries[0].taskPendingApproval, true);
+  assert.equal(attentionSummary.entries[0].needsAttention, true);
+  assert.equal(attentionSummary.entries[1].taskNeedsReview, true);
+  assert.equal(attentionSummary.entries[1].needsAttention, true);
 
   // 3. Duplicate URLs across tasks are flagged for visibility, never auto-merged or deleted
   const dupRes = summary.entries.find((e) => e.linkId === 'res_1');
@@ -2517,6 +2565,9 @@ test('Case 12: Project Documents Center aggregation, review/duplicate classifica
   assert.equal(docsViewText.includes('getDocumentKindInfo'), true);
   assert.equal(docsViewText.includes('MoreHorizontal'), true);
   assert.equal(docsViewText.includes('Chế độ hiển thị tài liệu'), true);
+  assert.equal(docsViewText.includes('entry.needsAttention'), true);
+  assert.equal(docsViewText.includes('summary.attentionNeededCount'), true);
+  assert.equal(docsViewText.includes('Công việc chờ duyệt'), true);
 });
 
 

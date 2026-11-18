@@ -5,6 +5,7 @@ import {
   ArrowUpRight,
   BookOpen,
   ClipboardList,
+  Clock,
   Copy,
   ExternalLink,
   FileCheck2,
@@ -242,7 +243,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
           return false;
         }
       }
-      if (reviewOnly && !entry.needsReview) {
+      if (reviewOnly && !entry.needsAttention) {
         return false;
       }
       if (duplicateOnly && entry.duplicateOccurrences.length === 0) {
@@ -841,20 +842,20 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
               </span>
             </div>
 
-            {/* Compact Review Alert Chip — unobtrusive when 0, warm alert when > 0 */}
+            {/* Compact Review Alert Chip — includes link issues + pending-approval & review-flagged tasks */}
             <button
               type="button"
               onClick={() => setReviewOnly((v) => !v)}
               aria-pressed={reviewOnly}
               title={
-                summary.reviewNeededCount > 0
-                  ? 'Lọc tài liệu thiếu tên rõ ràng hoặc đường dẫn lỗi'
-                  : 'Kiểm tra tài liệu cần rà soát'
+                summary.attentionNeededCount > 0
+                  ? 'Lọc tài liệu thuộc công việc chờ duyệt, cần rà soát hoặc liên kết thiếu tên/URL'
+                  : 'Kiểm tra tài liệu chờ duyệt hoặc cần rà soát'
               }
               className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-medium transition-colors whitespace-nowrap shrink-0 min-h-[40px] ${
                 reviewOnly
                   ? 'bg-huyen-lam border-huyen-lam text-kim-quang font-semibold'
-                  : summary.reviewNeededCount > 0
+                  : summary.attentionNeededCount > 0
                   ? 'bg-[#FCF5DF] border-minh-kim-border text-minh-kim-ink hover:bg-[#F8ECC9] font-semibold'
                   : 'bg-white border-[#E0D9CA] text-[#5E6673] hover:text-huyen-lam hover:bg-[#FAF8F3]'
               }`}
@@ -863,15 +864,15 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                 className={`w-3.5 h-3.5 shrink-0 ${
                   reviewOnly
                     ? 'text-kim-quang'
-                    : summary.reviewNeededCount > 0
+                    : summary.attentionNeededCount > 0
                     ? 'text-minh-kim-ink'
                     : 'text-[#87909E]'
                 }`}
               />
               <span>
                 Cần rà soát
-                {summary.reviewNeededCount > 0
-                  ? ` (${summary.reviewNeededCount})`
+                {summary.attentionNeededCount > 0
+                  ? ` (${summary.attentionNeededCount})`
                   : ''}
               </span>
             </button>
@@ -1348,10 +1349,26 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                     />
                   </button>
 
-                  {/* Optional Review / Duplicate Alert Line (only rendered when actually triggered) */}
-                  {(entry.needsReview ||
+                  {/* Optional Review / Task Attention / Duplicate Alert Line */}
+                  {(entry.needsAttention ||
                     entry.duplicateOccurrences.length > 0) && (
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px]">
+                      {entry.taskPendingApproval && (
+                        <span className="inline-flex items-center gap-1 font-semibold text-minh-kim-ink">
+                          <Clock className="w-3 h-3 shrink-0" />
+                          <span>Công việc chờ duyệt</span>
+                        </span>
+                      )}
+                      {entry.taskNeedsReview && (
+                        <span className="inline-flex items-center gap-1 font-medium text-minh-kim-ink">
+                          <AlertTriangle className="w-3 h-3 shrink-0" />
+                          <span>
+                            {entry.taskStatus === null
+                              ? 'Công việc chưa rõ trạng thái'
+                              : 'Công việc cần rà soát'}
+                          </span>
+                        </span>
+                      )}
                       {entry.isPlaceholderLabel && (
                         <span className="inline-flex items-center gap-1 font-medium text-minh-kim-ink">
                           <AlertTriangle className="w-3 h-3 shrink-0" />
@@ -1579,9 +1596,25 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
                           </span>
                         </div>
 
-                        {(entry.needsReview ||
+                        {(entry.needsAttention ||
                           entry.duplicateOccurrences.length > 0) && (
                           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] pt-0.5">
+                            {entry.taskPendingApproval && (
+                              <span className="inline-flex items-center gap-1 font-semibold text-minh-kim-ink">
+                                <Clock className="w-3 h-3 shrink-0" />
+                                <span>Công việc chờ duyệt</span>
+                              </span>
+                            )}
+                            {entry.taskNeedsReview && (
+                              <span className="inline-flex items-center gap-1 font-medium text-minh-kim-ink">
+                                <AlertTriangle className="w-3 h-3 shrink-0" />
+                                <span>
+                                  {entry.taskStatus === null
+                                    ? 'Công việc chưa rõ trạng thái'
+                                    : 'Công việc cần rà soát'}
+                                </span>
+                              </span>
+                            )}
                             {entry.isPlaceholderLabel && (
                               <span className="inline-flex items-center gap-1 font-medium text-minh-kim-ink">
                                 <AlertTriangle className="w-3 h-3 shrink-0" />

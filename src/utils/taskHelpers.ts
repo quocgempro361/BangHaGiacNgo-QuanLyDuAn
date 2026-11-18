@@ -568,6 +568,9 @@ export interface ProjectDocumentEntry {
   isInvalidUrl: boolean;
   needsReview: boolean;
   reviewReasons: DocumentReviewReason[];
+  taskPendingApproval: boolean;
+  taskNeedsReview: boolean;
+  needsAttention: boolean;
   normalizedUrl: string;
   duplicateOccurrences: ProjectDocumentOccurrence[];
   taskCode: string;
@@ -591,6 +594,7 @@ export interface ProjectDocumentsSummary {
   referenceCount: number;
   resultCount: number;
   reviewNeededCount: number;
+  attentionNeededCount: number;
   uniqueValidUrlCount: number;
   validUrlLinkCount: number;
   duplicateEntryCount: number;
@@ -614,6 +618,9 @@ export function buildProjectDocumentEntries(
   for (const task of activeTasks) {
     const effCat = getEffectiveCategory(task, activeTasks, categories);
     const resolvedAssignees = resolveTaskAssignees(task, members);
+    const taskPendingApproval = task.status === 'Chờ duyệt';
+    const taskNeedsReview =
+      task.status === null || (task.reviewFlags?.length ?? 0) > 0;
 
     const officialParts: string[] = resolvedAssignees.assignedMembers.map(
       (am) => (am.isActive ? am.displayName : `${am.displayName} (Đã khóa)`)
@@ -661,6 +668,10 @@ export function buildProjectDocumentEntries(
         if (isMissingUrl) reviewReasons.push('missing_url');
         if (isInvalidUrl) reviewReasons.push('invalid_url');
 
+        const needsReview = reviewReasons.length > 0;
+        const needsAttention =
+          needsReview || taskPendingApproval || taskNeedsReview;
+
         const normalizedUrl = hasValidUrl
           ? normalizeLinkUrlForComparison(trimmedUrl)
           : '';
@@ -690,8 +701,11 @@ export function buildProjectDocumentEntries(
           hasValidUrl,
           isMissingUrl,
           isInvalidUrl,
-          needsReview: reviewReasons.length > 0,
+          needsReview,
           reviewReasons,
+          taskPendingApproval,
+          taskNeedsReview,
+          needsAttention,
           normalizedUrl,
           duplicateOccurrences: [],
           taskCode: task.displayCode,
@@ -715,6 +729,7 @@ export function buildProjectDocumentEntries(
   let referenceCount = 0;
   let resultCount = 0;
   let reviewNeededCount = 0;
+  let attentionNeededCount = 0;
   let validUrlLinkCount = 0;
   let duplicateEntryCount = 0;
   let duplicateCrossTaskUrlCount = 0;
@@ -730,6 +745,7 @@ export function buildProjectDocumentEntries(
     if (entry.group === 'reference') referenceCount++;
     else resultCount++;
     if (entry.needsReview) reviewNeededCount++;
+    if (entry.needsAttention) attentionNeededCount++;
     if (entry.hasValidUrl) validUrlLinkCount++;
 
     const allOccs = entry.normalizedUrl
@@ -750,6 +766,7 @@ export function buildProjectDocumentEntries(
     referenceCount,
     resultCount,
     reviewNeededCount,
+    attentionNeededCount,
     uniqueValidUrlCount: occurrencesByUrl.size,
     validUrlLinkCount,
     duplicateEntryCount,
