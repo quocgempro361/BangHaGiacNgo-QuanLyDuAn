@@ -122,6 +122,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
   const stickyPopoverRef = useRef<HTMLDivElement | null>(null);
   const [showStickyBar, setShowStickyBar] = useState(false);
   const [showStickyColumnHeader, setShowStickyColumnHeader] = useState(false);
+  const [stickyTop, setStickyTop] = useState(0);
   const [stickyFilterOpen, setStickyFilterOpen] = useState(false);
 
   const sortedCategories = useMemo(
@@ -334,6 +335,15 @@ export const TasksView: React.FC<TasksViewProps> = ({
     const evaluateStickyState = () => {
       rafId = 0;
       const filterEl = filterBarRef.current;
+      const appHeader = document.querySelector('header');
+      const appHeaderBottom = appHeader
+        ? appHeader.getBoundingClientRect().bottom
+        : 0;
+      const nextStickyTop =
+        appHeaderBottom > 1 ? Math.max(0, Math.floor(appHeaderBottom) - 1) : 0;
+
+      setStickyTop((prev) => (prev === nextStickyTop ? prev : nextStickyTop));
+
       if (!filterEl || window.scrollY < 40) {
         setShowStickyBar(false);
         setShowStickyColumnHeader(false);
@@ -341,9 +351,11 @@ export const TasksView: React.FC<TasksViewProps> = ({
       }
 
       const filterBottom = filterEl.getBoundingClientRect().bottom;
+      const showThreshold = nextStickyTop + 12;
+      const hideThreshold = nextStickyTop + 24;
       setShowStickyBar((prev) => {
-        if (!prev && filterBottom <= 56) return true;
-        if (prev && filterBottom > 66) return false;
+        if (!prev && filterBottom <= showThreshold) return true;
+        if (prev && filterBottom > hideThreshold) return false;
         return prev;
       });
 
@@ -354,10 +366,11 @@ export const TasksView: React.FC<TasksViewProps> = ({
         return;
       }
       const headerTop = headerEl.getBoundingClientRect().top;
+      const colStickyThreshold = nextStickyTop + 44;
       setShowStickyColumnHeader((prev) => {
-        if (filterBottom > 66) return false;
-        if (!prev && headerTop <= 95) return true;
-        if (prev && headerTop > 105) return false;
+        if (filterBottom > hideThreshold) return false;
+        if (!prev && headerTop <= colStickyThreshold) return true;
+        if (prev && headerTop > colStickyThreshold + 10) return false;
         return prev;
       });
     };
@@ -559,10 +572,11 @@ export const TasksView: React.FC<TasksViewProps> = ({
 
   return (
     <>
-      {/* Sticky Compact Toolbar + Desktop Sticky Column Header (flush right under top bar) */}
+      {/* Sticky Compact Toolbar + Desktop Sticky Column Header (flush at top when scrolled) */}
       <div
         aria-hidden={!showStickyBar}
-        className={`fixed top-[51px] left-0 lg:left-60 right-0 z-20 transition-[opacity,transform] duration-150 ease-out ${
+        style={{ top: `${stickyTop}px` }}
+        className={`fixed left-0 lg:left-60 right-0 z-20 transition-[opacity,transform] duration-150 ease-out ${
           showStickyBar
             ? 'opacity-100 translate-y-0 pointer-events-auto visible'
             : 'opacity-0 -translate-y-1.5 pointer-events-none invisible'
