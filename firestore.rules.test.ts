@@ -23,6 +23,10 @@ import {
 } from '@firebase/rules-unit-testing';
 import firebaseConfig from './firebase-applet-config.json';
 import {
+  buildProjectDocumentEntries,
+  buildTaskLinkAddPatch,
+  buildTaskLinkRemovePatch,
+  buildTaskLinkUpdatePatch,
   canBeParent,
   canUserApproveTask,
   canUserCreateSubtask,
@@ -38,9 +42,11 @@ import {
   isB1TestTask,
   isGenericDocumentLabel,
   isTaskManagerRole,
+  MAX_LINKS_PER_GROUP,
   resolveTaskAssignees,
   validateHttpUrl,
 } from './src/utils/taskHelpers';
+import { DocumentLink } from './src/types/project';
 import { SEED_TASKS } from './src/data/seedTasks';
 import { buildCreateTaskPayloads, DEFAULT_TBHGN_CATEGORIES } from './src/services/firestoreService';
 import {
@@ -2196,6 +2202,271 @@ test('Case 11: Reference vs Result link helpers, validation, duplicate detection
   );
   assert.equal(preservedResultUrls, 13);
 });
+
+test('Case 12: Project Documents Center aggregation, review/duplicate classification, immutable link patches, RBAC, and UI guards', () => {
+  const baseTask = sampleTasks[0];
+  const sharedDuplicateUrl = 'https://docs.google.com/document/d/shared_doc_1/edit';
+
+  const docMembers: ProjectMember[] = [
+    adminUser,
+    moderatorUser,
+    memberUser,
+    viewerUser,
+  ];
+
+  const t1: TaskItem = {
+    ...baseTask,
+    id: 'doc_t1',
+    displayCode: '1',
+    title: 'Đầu việc 1',
+    parentId: null,
+    sortOrder: 1,
+    categoryId: 'cat_foundation',
+    category: 'Nền tảng & quy chuẩn',
+    assignees: ['Legacy Sheet Name'],
+    assigneeUids: [memberUser.uid],
+    referenceLinks: [
+      {
+        id: 'ref_1',
+        label: 'Kinh đối chiếu bản Hán',
+        url: 'https://buddhist.org/han-text',
+        type: 'reference',
+      },
+      {
+        id: 'ref_2_bad',
+        label: 'Mở tài liệu',
+        url: null,
+        type: 'reference',
+      },
+    ],
+    resultLinks: [
+      {
+        id: 'res_1',
+        label: 'Bản thảo chương 1',
+        url: sharedDuplicateUrl,
+        type: 'result',
+      },
+    ],
+    archivedAt: null,
+    isTestRecord: false,
+  };
+
+  const t2: TaskItem = {
+    ...baseTask,
+    id: 'doc_t2',
+    displayCode: '2',
+    title: 'Đầu việc 2',
+    parentId: null,
+    sortOrder: 2,
+    categoryId: 'cat_outline',
+    category: 'Đề cương',
+    assignees: [],
+    assigneeUids: [],
+    referenceLinks: [
+      {
+        id: 'ref_3_dup',
+        label: 'Bản thảo chương 1 (tham chiếu lại)',
+        url: 'HTTPS://Docs.Google.com/document/d/shared_doc_1/edit',
+        type: 'reference',
+      },
+    ],
+    resultLinks: [
+      {
+        id: 'res_2_invalid',
+        label: 'Liên kết lỗi giao thức',
+        url: 'javascript:alert(1)',
+        type: 'result',
+      },
+    ],
+    archivedAt: null,
+    isTestRecord: false,
+  };
+
+  const archivedTask: TaskItem = {
+    ...t1,
+    id: 'doc_archived',
+    displayCode: '99',
+    sortOrder: 3,
+    archivedAt: '2026-01-01T00:00:00.000Z',
+    referenceLinks: [
+      {
+        id: 'arch_ref',
+        label: 'Không được gộp',
+        url: 'https://example.com/archived',
+        type: 'reference',
+      },
+    ],
+    resultLinks: [],
+  };
+
+  const b1Task: TaskItem = {
+    ...t1,
+    id: 'b1_test_hidden',
+    displayCode: 'T1',
+    sortOrder: 4,
+    isTestRecord: true,
+    referenceLinks: [
+      {
+        id: 'b1_ref',
+        label: 'Bản ghi test B1 không được gộp',
+        url: 'https://example.com/b1',
+        type: 'reference',
+      },
+    ],
+    resultLinks: [],
+  };
+
+  // 1. Aggregation excludes archived and B1 test records, preserves order and official display names
+  const summary = buildProjectDocumentEntries(
+    [t2, archivedTask, b1Task, t1],
+    sampleCategories,
+    docMembers
+  );
+  assert.equal(summary.totalLinks, 5);
+  assert.equal(summary.referenceCount, 3);
+  assert.equal(summary.resultCount, 2);
+  assert.equal(summary.reviewNeededCount, 2); // ref_2_bad (missing_label + missing_url) and res_2_invalid (invalid_url)
+  assert.equal(summary.validUrlLinkCount, 3); // ref_1, res_1, ref_3_dup
+  assert.equal(summary.uniqueValidUrlCount, 2); // han-text + shared_doc_1
+  assert.equal(summary.duplicateEntryCount, 2); // res_1 + ref_3_dup
+  assert.equal(summary.duplicateCrossTaskUrlCount, 1);
+
+  assert.equal(summary.entries[0].taskId, 'doc_t1');
+  assert.equal(summary.entries[0].assigneeNamesText, memberUser.displayName);
+  assert.equal(summary.entries[0].assigneeSearchText.includes('Legacy Sheet Name'), false);
+
+  // 2. Review classification accuracy
+  const missingEntry = summary.entries.find((e) => e.linkId === 'ref_2_bad');
+  assert.ok(missingEntry);
+  assert.equal(missingEntry.needsReview, true);
+  assert.deepEqual(missingEntry.reviewReasons, ['missing_label', 'missing_url']);
+
+  const invalidEntry = summary.entries.find((e) => e.linkId === 'res_2_invalid');
+  assert.ok(invalidEntry);
+  assert.equal(invalidEntry.needsReview, true);
+  assert.deepEqual(invalidEntry.reviewReasons, ['invalid_url']);
+
+  const cleanEntry = summary.entries.find((e) => e.linkId === 'ref_1');
+  assert.ok(cleanEntry);
+  assert.equal(cleanEntry.needsReview, false);
+  assert.deepEqual(cleanEntry.reviewReasons, []);
+
+  // 3. Duplicate URLs across tasks are flagged for visibility, never auto-merged or deleted
+  const dupRes = summary.entries.find((e) => e.linkId === 'res_1');
+  const dupRef = summary.entries.find((e) => e.linkId === 'ref_3_dup');
+  assert.ok(dupRes && dupRef);
+  assert.equal(dupRes.duplicateOccurrences.length, 1);
+  assert.equal(dupRes.duplicateOccurrences[0].taskId, 'doc_t2');
+  assert.equal(dupRef.duplicateOccurrences.length, 1);
+  assert.equal(dupRef.duplicateOccurrences[0].taskId, 'doc_t1');
+
+  // 4. Immutable patch builders preserve siblings, handle group move, enforce limit & existence checks
+  const addedRes = buildTaskLinkAddPatch(t1, 'reference', {
+    id: 'ref_added',
+    label: 'Tài liệu bổ sung',
+    url: 'https://drive.google.com/file/d/added/view',
+    type: 'reference',
+  });
+  assert.equal(addedRes.ok, true);
+  if (addedRes.ok) {
+    assert.equal(addedRes.patch.referenceLinks?.length, 3);
+    assert.equal(addedRes.patch.referenceLinks?.[0].id, 'ref_1');
+    assert.equal(addedRes.patch.referenceLinks?.[2].id, 'ref_added');
+    assert.equal(addedRes.patch.resultLinks, undefined); // Sibling group untouched in patch
+  }
+
+  const movedRes = buildTaskLinkUpdatePatch(t1, 'result', 'res_1', {
+    label: 'Chuyển sang tham khảo',
+    url: sharedDuplicateUrl,
+    toGroup: 'reference',
+  });
+  assert.equal(movedRes.ok, true);
+  if (movedRes.ok) {
+    assert.equal(movedRes.patch.resultLinks?.length, 0);
+    assert.equal(movedRes.patch.referenceLinks?.length, 3);
+    const movedItem = movedRes.patch.referenceLinks?.find((l) => l.id === 'res_1');
+    assert.ok(movedItem);
+    assert.equal(movedItem.type, 'reference');
+    assert.equal(movedItem.label, 'Chuyển sang tham khảo');
+  }
+
+  const removedRes = buildTaskLinkRemovePatch(t1, 'reference', 'ref_2_bad');
+  assert.equal(removedRes.ok, true);
+  if (removedRes.ok) {
+    assert.equal(removedRes.patch.referenceLinks?.length, 1);
+    assert.equal(removedRes.patch.referenceLinks?.[0].id, 'ref_1');
+  }
+
+  const missingRemove = buildTaskLinkRemovePatch(t1, 'reference', 'non_existent');
+  assert.equal(missingRemove.ok, false);
+
+  const maxedLinks: DocumentLink[] = Array.from(
+    { length: MAX_LINKS_PER_GROUP },
+    (_, i) => ({
+      id: `max_${i}`,
+      label: `Link ${i}`,
+      url: `https://example.com/${i}`,
+      type: 'reference',
+    })
+  );
+  const maxTask: TaskItem = { ...t1, referenceLinks: maxedLinks };
+  const overLimit = buildTaskLinkAddPatch(maxTask, 'reference', {
+    id: 'extra',
+    label: 'Extra',
+    url: 'https://example.com/extra',
+    type: 'reference',
+  });
+  assert.equal(overLimit.ok, false);
+
+  // 5. RBAC editability matches task permissions
+  assert.equal(canUserEditTask(viewerUser, t1), false);
+  assert.equal(canUserEditTask(viewerUser, t2), false);
+  assert.equal(canUserEditTask(memberUser, t1), true);
+  assert.equal(canUserEditTask(memberUser, t2), false);
+  assert.equal(canUserEditTask(moderatorUser, t2), true);
+  assert.equal(canUserEditTask(adminUser, t2), true);
+
+  // 6. Seed tasks baseline integrity (20 tasks, 13 preserved URLs)
+  const seedDocs = buildProjectDocumentEntries(
+    SEED_TASKS,
+    sampleCategories,
+    []
+  );
+  assert.equal(seedDocs.validUrlLinkCount, 13);
+
+  // 7. Source & Navigation contracts
+  const appText = fs.readFileSync(path.join(rootDir, 'src/App.tsx'), 'utf8');
+  const docsViewText = fs.readFileSync(
+    path.join(rootDir, 'src/components/DocumentsView.tsx'),
+    'utf8'
+  );
+  const tasksViewText = fs.readFileSync(
+    path.join(rootDir, 'src/components/TasksView.tsx'),
+    'utf8'
+  );
+
+  assert.equal(appText.includes("id: 'documents'"), true);
+  assert.equal(appText.includes("label: 'Tài liệu dự án'"), true);
+  assert.equal(appText.includes('<DocumentsView'), true);
+  assert.equal(appText.includes('onNavigateToDocuments'), true);
+  assert.equal(appText.includes("label: 'Thư viện'"), false);
+  assert.equal(appText.includes('mobileMoreItems'), true);
+  assert.equal(appText.includes('Thêm'), true);
+
+  assert.equal(tasksViewText.includes('onNavigateToDocuments'), true);
+  assert.equal(tasksViewText.includes('Tài liệu dự án'), true);
+
+  assert.equal(docsViewText.includes('buildProjectDocumentEntries'), true);
+  assert.equal(docsViewText.includes('canUserEditTask'), true);
+  assert.equal(docsViewText.includes('onSaveTask'), true);
+  assert.equal(docsViewText.includes('onSelectTask'), true);
+  assert.equal(docsViewText.includes('assigneeNamesText'), true);
+  assert.equal(docsViewText.includes('openedVersion'), true);
+  assert.equal(docsViewText.includes('Tải bản mới nhất'), true);
+  assert.equal(docsViewText.includes('if (res.ok)'), true);
+  assert.equal(docsViewText.includes('Mở liên kết'), true);
+});
+
 
 
 

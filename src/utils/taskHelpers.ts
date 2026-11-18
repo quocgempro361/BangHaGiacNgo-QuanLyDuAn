@@ -504,7 +504,9 @@ export function validateHttpUrl(
   }
 }
 
-function normalizeLinkUrlForComparison(url: string | null | undefined): string {
+export function normalizeLinkUrlForComparison(
+  url: string | null | undefined
+): string {
   const trimmed = (url ?? '').trim();
   if (!trimmed) return '';
   try {
@@ -527,6 +529,313 @@ export function hasDuplicateUrlInGroup(
       l.id !== excludeLinkId &&
       normalizeLinkUrlForComparison(l.url) === target
   );
+}
+
+export type DocumentLinkGroup = 'reference' | 'result';
+
+export type DocumentReviewReason =
+  | 'missing_label'
+  | 'missing_url'
+  | 'invalid_url';
+
+export interface ProjectDocumentOccurrence {
+  key: string;
+  taskId: string;
+  linkId: string;
+  taskCode: string;
+  taskTitle: string;
+  group: DocumentLinkGroup;
+}
+
+export interface ProjectDocumentEntry {
+  key: string;
+  taskId: string;
+  linkId: string;
+  group: DocumentLinkGroup;
+  link: DocumentLink;
+  displayLabel: string;
+  isPlaceholderLabel: boolean;
+  sourceLabel: string;
+  hasValidUrl: boolean;
+  isMissingUrl: boolean;
+  isInvalidUrl: boolean;
+  needsReview: boolean;
+  reviewReasons: DocumentReviewReason[];
+  normalizedUrl: string;
+  duplicateOccurrences: ProjectDocumentOccurrence[];
+  taskCode: string;
+  taskTitle: string;
+  taskStatus: TaskItem['status'];
+  taskVersion: number;
+  categoryId: string | null;
+  categoryName: string;
+  categoryColor?: string;
+  assigneeNamesText: string;
+  assigneeSearchText: string;
+  task: TaskItem;
+}
+
+export interface ProjectDocumentsSummary {
+  entries: ProjectDocumentEntry[];
+  totalLinks: number;
+  referenceCount: number;
+  resultCount: number;
+  reviewNeededCount: number;
+  uniqueValidUrlCount: number;
+  validUrlLinkCount: number;
+  duplicateEntryCount: number;
+  duplicateCrossTaskUrlCount: number;
+}
+
+export function buildProjectDocumentEntries(
+  tasks: TaskItem[],
+  categories: CategoryItem[] = [],
+  members: Array<
+    Pick<ProjectMember, 'uid' | 'displayName' | 'email' | 'isActive'>
+  > = []
+): ProjectDocumentsSummary {
+  const activeTasks = tasks
+    .filter((t) => !t.archivedAt && !isB1TestTask(t))
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+
+  const rawEntries: ProjectDocumentEntry[] = [];
+  const occurrencesByUrl = new Map<string, ProjectDocumentOccurrence[]>();
+
+  for (const task of activeTasks) {
+    const effCat = getEffectiveCategory(task, activeTasks, categories);
+    const resolvedAssignees = resolveTaskAssignees(task, members);
+
+    const groups: Array<{ group: DocumentLinkGroup; links: DocumentLink[] }> = [
+      { group: 'reference', links: task.referenceLinks ?? [] },
+      { group: 'result', links: task.resultLinks ?? [] },
+    ];
+
+    for (const { group, links } of groups) {
+      for (const link of links) {
+        const key = `${task.id}:${group}:${link.id}`;
+        const labelInfo = getDocumentDisplayLabel(link);
+        const trimmedUrl = (link.url ?? '').trim();
+        const isMissingUrl = trimmedUrl === '';
+        const urlCheck = isMissingUrl ? null : validateHttpUrl(trimmedUrl);
+        const hasValidUrl = Boolean(urlCheck && urlCheck.ok);
+        const isInvalidUrl = !isMissingUrl && !hasValidUrl;
+
+        const reviewReasons: DocumentReviewReason[] = [];
+        if (labelInfo.isPlaceholder) reviewReasons.push('missing_label');
+        if (isMissingUrl) reviewReasons.push('missing_url');
+        if (isInvalidUrl) reviewReasons.push('invalid_url');
+
+        const normalizedUrl = hasValidUrl
+          ? normalizeLinkUrlForComparison(trimmedUrl)
+          : '';
+
+        if (normalizedUrl) {
+          const list = occurrencesByUrl.get(normalizedUrl) ?? [];
+          list.push({
+            key,
+            taskId: task.id,
+            linkId: link.id,
+            taskCode: task.displayCode,
+            taskTitle: task.title,
+            group,
+          });
+          occurrencesByUrl.set(normalizedUrl, list);
+        }
+
+        rawEntries.push({
+          key,
+          taskId: task.id,
+          linkId: link.id,
+          group,
+          link,
+          displayLabel: labelInfo.text,
+          isPlaceholderLabel: labelInfo.isPlaceholder,
+          sourceLabel: getDocumentSourceLabel(link.url),
+          hasValidUrl,
+          isMissingUrl,
+          isInvalidUrl,
+          needsReview: reviewReasons.length > 0,
+          reviewReasons,
+          normalizedUrl,
+          duplicateOccurrences: [],
+          taskCode: task.displayCode,
+          taskTitle: task.title,
+          taskStatus: task.status,
+          taskVersion: task.version,
+          categoryId: effCat.categoryId,
+          categoryName: effCat.category || 'Chưa phân hạng mục',
+          categoryColor: effCat.color,
+          assigneeNamesText: resolvedAssignees.displayText,
+          assigneeSearchText: resolvedAssignees.searchText,
+          task,
+        });
+      }
+    }
+  }
+
+  let referenceCount = 0;
+  let resultCount = 0;
+  let reviewNeededCount = 0;
+  let validUrlLinkCount = 0;
+  let duplicateEntryCount = 0;
+  let duplicateCrossTaskUrlCount = 0;
+
+  for (const [, occs] of occurrencesByUrl) {
+    const distinctTasks = new Set(occs.map((o) => o.taskId));
+    if (distinctTasks.size > 1) {
+      duplicateCrossTaskUrlCount++;
+    }
+  }
+
+  const entries = rawEntries.map((entry) => {
+    if (entry.group === 'reference') referenceCount++;
+    else resultCount++;
+    if (entry.needsReview) reviewNeededCount++;
+    if (entry.hasValidUrl) validUrlLinkCount++;
+
+    const allOccs = entry.normalizedUrl
+      ? occurrencesByUrl.get(entry.normalizedUrl) ?? []
+      : [];
+    const others = allOccs.filter((o) => o.key !== entry.key);
+    if (others.length > 0) duplicateEntryCount++;
+
+    return {
+      ...entry,
+      duplicateOccurrences: others,
+    };
+  });
+
+  return {
+    entries,
+    totalLinks: entries.length,
+    referenceCount,
+    resultCount,
+    reviewNeededCount,
+    uniqueValidUrlCount: occurrencesByUrl.size,
+    validUrlLinkCount,
+    duplicateEntryCount,
+    duplicateCrossTaskUrlCount,
+  };
+}
+
+export function buildTaskLinkAddPatch(
+  task: TaskItem,
+  group: DocumentLinkGroup,
+  newLink: DocumentLink
+): { ok: true; patch: Partial<TaskItem> } | { ok: false; error: string } {
+  const existing = group === 'reference' ? task.referenceLinks : task.resultLinks;
+  if (existing.length >= MAX_LINKS_PER_GROUP) {
+    return {
+      ok: false,
+      error: `Công việc ${task.displayCode} đã đạt giới hạn ${MAX_LINKS_PER_GROUP} liên kết trong nhóm này.`,
+    };
+  }
+  const normalizedItem: DocumentLink = {
+    ...newLink,
+    type: group === 'reference' ? 'reference' : 'result',
+    needsUrlExtraction: !newLink.url,
+  };
+  if (group === 'reference') {
+    return {
+      ok: true,
+      patch: { referenceLinks: [...task.referenceLinks, normalizedItem] },
+    };
+  }
+  return {
+    ok: true,
+    patch: { resultLinks: [...task.resultLinks, normalizedItem] },
+  };
+}
+
+export function buildTaskLinkUpdatePatch(
+  task: TaskItem,
+  fromGroup: DocumentLinkGroup,
+  linkId: string,
+  updates: {
+    label: string;
+    url: string | null;
+    toGroup: DocumentLinkGroup;
+  }
+): { ok: true; patch: Partial<TaskItem> } | { ok: false; error: string } {
+  const fromList =
+    fromGroup === 'reference' ? task.referenceLinks : task.resultLinks;
+  const target = fromList.find((l) => l.id === linkId);
+  if (!target) {
+    return {
+      ok: false,
+      error: 'Liên kết này không còn tồn tại trong công việc gốc.',
+    };
+  }
+
+  const cleanUrl = updates.url ? updates.url.trim() || null : null;
+  const nextType: DocumentLink['type'] =
+    updates.toGroup === 'reference'
+      ? 'reference'
+      : target.type === 'google_drive_link'
+      ? 'google_drive_link'
+      : 'result';
+
+  const updatedItem: DocumentLink = {
+    ...target,
+    label: updates.label.trim(),
+    url: cleanUrl,
+    type: nextType,
+    needsUrlExtraction: !cleanUrl,
+  };
+
+  if (updates.toGroup === fromGroup) {
+    const nextList = fromList.map((l) => (l.id === linkId ? updatedItem : l));
+    return {
+      ok: true,
+      patch:
+        fromGroup === 'reference'
+          ? { referenceLinks: nextList }
+          : { resultLinks: nextList },
+    };
+  }
+
+  const toList =
+    updates.toGroup === 'reference' ? task.referenceLinks : task.resultLinks;
+  if (toList.length >= MAX_LINKS_PER_GROUP) {
+    return {
+      ok: false,
+      error: `Nhóm đích trên công việc ${task.displayCode} đã đạt giới hạn ${MAX_LINKS_PER_GROUP} liên kết.`,
+    };
+  }
+
+  const nextFromList = fromList.filter((l) => l.id !== linkId);
+  const nextToList = [...toList, updatedItem];
+
+  return {
+    ok: true,
+    patch:
+      fromGroup === 'reference'
+        ? { referenceLinks: nextFromList, resultLinks: nextToList }
+        : { resultLinks: nextFromList, referenceLinks: nextToList },
+  };
+}
+
+export function buildTaskLinkRemovePatch(
+  task: TaskItem,
+  group: DocumentLinkGroup,
+  linkId: string
+): { ok: true; patch: Partial<TaskItem> } | { ok: false; error: string } {
+  const fromList =
+    group === 'reference' ? task.referenceLinks : task.resultLinks;
+  if (!fromList.some((l) => l.id === linkId)) {
+    return {
+      ok: false,
+      error: 'Liên kết này không còn tồn tại trong công việc gốc.',
+    };
+  }
+  const nextList = fromList.filter((l) => l.id !== linkId);
+  return {
+    ok: true,
+    patch:
+      group === 'reference'
+        ? { referenceLinks: nextList }
+        : { resultLinks: nextList },
+  };
 }
 
 export function exportTasksToCSV(

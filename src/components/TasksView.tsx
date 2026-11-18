@@ -11,6 +11,7 @@ import {
   CornerDownRight,
   ExternalLink,
   FileCheck2,
+  Library,
   Link2Off,
   ListChecks,
   Plus,
@@ -46,6 +47,7 @@ interface TasksViewProps {
   initialReviewOnly?: boolean;
   onSelectTask: (taskId: string) => void;
   onOpenNewTask: (defaultParentId?: string | null) => void;
+  onNavigateToDocuments?: () => void;
 }
 
 interface CategoryTheme {
@@ -106,6 +108,7 @@ export const TasksView: React.FC<TasksViewProps> = ({
   initialReviewOnly = false,
   onSelectTask,
   onOpenNewTask,
+  onNavigateToDocuments,
 }) => {
   const isManager =
     (currentUser.role === 'admin' || currentUser.role === 'moderator') &&
@@ -1185,6 +1188,18 @@ export const TasksView: React.FC<TasksViewProps> = ({
         </div>
 
         <div className="flex items-center gap-2 shrink-0 flex-wrap">
+          {onNavigateToDocuments && (
+            <button
+              type="button"
+              onClick={onNavigateToDocuments}
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-[#DDD6C7] bg-trang-nga text-huyen-lam text-xs sm:text-[13px] font-medium hover:bg-[#F4F0E6] hover:border-[#CCC3B0] transition-colors whitespace-nowrap min-h-[42px]"
+            >
+              <Library className="w-4 h-4 shrink-0 text-lam-sang" />
+              <span className="hidden sm:inline">Tài liệu dự án</span>
+              <span className="sm:hidden">Tài liệu</span>
+            </button>
+          )}
+
           {parentsWithVisibleChildren.length > 0 && !hasActiveFilter && (
             <button
               type="button"

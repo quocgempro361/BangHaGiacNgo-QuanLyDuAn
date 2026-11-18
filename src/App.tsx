@@ -16,7 +16,9 @@ import {
   FileJson,
   FolderKanban,
   LayoutDashboard,
+  Library,
   LogOut,
+  MoreHorizontal,
   Settings,
   UserCheck,
   Users,
@@ -74,6 +76,7 @@ import { AuthGate } from './components/AuthGate';
 import { OverviewView } from './components/OverviewView';
 import { TasksView } from './components/TasksView';
 import { MyTasksView } from './components/MyTasksView';
+import { DocumentsView } from './components/DocumentsView';
 import { MembersView } from './components/MembersView';
 import { CategoriesView } from './components/CategoriesView';
 import { ImportPreviewView } from './components/ImportPreviewView';
@@ -133,6 +136,7 @@ export default function App() {
   });
 
   const [route, setRoute] = useState<AppRoute>('overview');
+  const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [newTaskParentId, setNewTaskParentId] = useState<
     string | null | undefined
@@ -144,6 +148,32 @@ export default function App() {
     key: number;
   }>({ key: 0 });
   const [toast, setToast] = useState<ToastMessage | null>(null);
+
+  useEffect(() => {
+    setMobileMoreOpen(false);
+  }, [route]);
+
+  useEffect(() => {
+    if (!mobileMoreOpen) return;
+    const handlePointerDown = (e: PointerEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && target.closest('[data-mobile-more-root]')) {
+        return;
+      }
+      setMobileMoreOpen(false);
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setMobileMoreOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [mobileMoreOpen]);
 
   const showToast = useCallback((type: 'success' | 'error', text: string) => {
     const id = Date.now();
@@ -770,6 +800,12 @@ export default function App() {
       shortLabel: 'Của tôi',
       icon: UserCheck,
     },
+    {
+      id: 'documents',
+      label: 'Tài liệu dự án',
+      shortLabel: 'Tài liệu',
+      icon: Library,
+    },
     ...(canManage
       ? [
           {
@@ -787,6 +823,46 @@ export default function App() {
       icon: Users,
     },
   ];
+
+  const mobilePrimaryNavItems = navItems.filter(
+    (item) =>
+      item.id === 'overview' ||
+      item.id === 'tasks' ||
+      item.id === 'my-tasks' ||
+      item.id === 'documents'
+  );
+
+  const mobileMoreItems: Array<{
+    id: AppRoute;
+    label: string;
+    icon: React.FC<{ className?: string }>;
+  }> = [
+    {
+      id: 'members',
+      label: 'Thành viên',
+      icon: Users,
+    },
+    ...(canManage
+      ? [
+          {
+            id: 'categories' as AppRoute,
+            label: 'Quản lý hạng mục',
+            icon: FolderKanban,
+          },
+        ]
+      : []),
+    ...(isAdmin
+      ? [
+          {
+            id: 'admin-settings' as AppRoute,
+            label: 'Cài đặt quản trị',
+            icon: Settings,
+          },
+        ]
+      : []),
+  ];
+
+  const isMobileMoreActive = mobileMoreItems.some((item) => item.id === route);
 
   const roleDisplay =
     currentUser.role === 'admin'
@@ -1067,6 +1143,7 @@ export default function App() {
               initialReviewOnly={tasksFilterPreset.reviewOnly ?? false}
               onSelectTask={(id) => setSelectedTaskId(id)}
               onOpenNewTask={(parentId) => setNewTaskParentId(parentId ?? null)}
+              onNavigateToDocuments={() => setRoute('documents')}
             />
           )}
 
@@ -1079,6 +1156,18 @@ export default function App() {
               onSelectTask={(id) => setSelectedTaskId(id)}
               onNavigateToTasks={() => setRoute('tasks')}
               onQuickUpdate={handleQuickUpdate}
+            />
+          )}
+
+          {route === 'documents' && (
+            <DocumentsView
+              tasks={tasks}
+              categories={categories}
+              members={members}
+              currentUser={currentUser}
+              onSelectTask={(id) => setSelectedTaskId(id)}
+              onNavigateToTasks={() => setRoute('tasks')}
+              onSaveTask={handleSaveTask}
             />
           )}
 
@@ -1136,45 +1225,109 @@ export default function App() {
         </main>
       </div>
 
-      {/* Mobile Bottom Navigation Bar */}
-      <nav
-        aria-label="Điều hướng di động"
-        className={`lg:hidden fixed bottom-0 left-0 right-0 z-30 min-h-[56px] pb-[env(safe-area-inset-bottom)] bg-white/95 backdrop-blur-sm border-t border-nga-xam grid ${
-          canManage ? 'grid-cols-5' : 'grid-cols-4'
-        }`}
-      >
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const active = route === item.id;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => setRoute(item.id)}
-              className={`relative min-h-[54px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition-colors ${
-                active
-                  ? 'text-huyen-lam font-semibold'
-                  : 'text-ink-muted hover:text-huyen-lam'
-              }`}
-            >
-              {active && (
-                <span
-                  aria-hidden="true"
-                  className="absolute top-0 inset-x-4 h-0.5 rounded-full bg-minh-kim"
-                />
-              )}
-              <Icon
-                className={`w-[18px] h-[18px] shrink-0 ${
-                  active ? 'text-huyen-lam' : 'text-ink-muted'
+      {/* Mobile Bottom Navigation Bar (5 clean slots + Thêm overflow menu) */}
+      <div className="lg:hidden" data-mobile-more-root>
+        {mobileMoreOpen && (
+          <div
+            role="menu"
+            aria-label="Menu điều hướng mở rộng"
+            className="fixed bottom-[calc(env(safe-area-inset-bottom)+64px)] right-2.5 z-40 min-w-[206px] bg-trang-nga border border-[#DFD8CA] rounded-2xl shadow-[0_14px_34px_-10px_rgba(20,36,63,0.22)] p-1.5 space-y-0.5"
+          >
+            {mobileMoreItems.map((item) => {
+              const Icon = item.icon;
+              const active = route === item.id;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setRoute(item.id);
+                    setMobileMoreOpen(false);
+                  }}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-[13px] font-medium transition-colors min-h-[44px] ${
+                    active
+                      ? 'bg-[#F5EFE0] text-huyen-lam font-semibold'
+                      : 'text-huyen-lam hover:bg-[#FAF8F3]'
+                  }`}
+                >
+                  <Icon
+                    className={`w-4 h-4 shrink-0 ${
+                      active ? 'text-minh-kim-ink' : 'text-[#6E7889]'
+                    }`}
+                  />
+                  <span className="truncate">{item.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        <nav
+          aria-label="Điều hướng di động"
+          className="fixed bottom-0 left-0 right-0 z-30 min-h-[56px] pb-[env(safe-area-inset-bottom)] bg-white/95 backdrop-blur-sm border-t border-nga-xam grid grid-cols-5"
+        >
+          {mobilePrimaryNavItems.map((item) => {
+            const Icon = item.icon;
+            const active = route === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setRoute(item.id)}
+                className={`relative min-h-[54px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition-colors ${
+                  active
+                    ? 'text-huyen-lam font-semibold'
+                    : 'text-ink-muted hover:text-huyen-lam'
                 }`}
+              >
+                {active && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute top-0 inset-x-3 h-0.5 rounded-full bg-minh-kim"
+                  />
+                )}
+                <Icon
+                  className={`w-[18px] h-[18px] shrink-0 ${
+                    active ? 'text-huyen-lam' : 'text-ink-muted'
+                  }`}
+                />
+                <span className="truncate max-w-full px-1">
+                  {item.shortLabel}
+                </span>
+              </button>
+            );
+          })}
+
+          <button
+            type="button"
+            onClick={() => setMobileMoreOpen((v) => !v)}
+            aria-expanded={mobileMoreOpen}
+            aria-haspopup="menu"
+            aria-label="Mở thêm trang quản lý"
+            className={`relative min-h-[54px] flex flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition-colors ${
+              mobileMoreOpen || isMobileMoreActive
+                ? 'text-huyen-lam font-semibold'
+                : 'text-ink-muted hover:text-huyen-lam'
+            }`}
+          >
+            {isMobileMoreActive && (
+              <span
+                aria-hidden="true"
+                className="absolute top-0 inset-x-3 h-0.5 rounded-full bg-minh-kim"
               />
-              <span className="truncate max-w-full px-1">
-                {item.shortLabel}
-              </span>
-            </button>
-          );
-        })}
-      </nav>
+            )}
+            <MoreHorizontal
+              className={`w-[18px] h-[18px] shrink-0 ${
+                mobileMoreOpen || isMobileMoreActive
+                  ? 'text-huyen-lam'
+                  : 'text-ink-muted'
+              }`}
+            />
+            <span className="truncate max-w-full px-1">Thêm</span>
+          </button>
+        </nav>
+      </div>
 
       {/* Task Detail Slide-Over / Sheet */}
       <TaskDetailDrawer

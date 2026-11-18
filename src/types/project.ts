@@ -144,6 +144,7 @@ export type AppRoute =
   | 'overview'
   | 'tasks'
   | 'my-tasks'
+  | 'documents'
   | 'categories'
   | 'members'
   | 'admin-settings';
