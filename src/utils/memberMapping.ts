@@ -11,7 +11,45 @@ export interface ExpectedAccountSpec {
   note: string;
 }
 
+export interface ReplacedTemporaryAccountSpec {
+  oldEmail: string;
+  newEmail: string;
+  originalName: string;
+  displayName: string;
+}
+
 export const COLLECTIVE_GROUP_LABEL = 'Nhóm';
+
+/**
+ * 4 legacy temporary Gmail accounts replaced by official Google accounts.
+ * Kept strictly for cleanup/audit of existing Firestore invites/profiles (NOT in EXPECTED_TBHGN_ACCOUNTS).
+ */
+export const REPLACED_TEMPORARY_ACCOUNTS: ReplacedTemporaryAccountSpec[] = [
+  {
+    oldEmail: 'filmfata02@gmail.com',
+    newEmail: 'khanhqn312@gmail.com',
+    originalName: 'Khánh',
+    displayName: 'Khánh',
+  },
+  {
+    oldEmail: 'filmfata04@gmail.com',
+    newEmail: 'thumyho42@gmail.com',
+    originalName: 'Mỵ',
+    displayName: 'Mỵ',
+  },
+  {
+    oldEmail: 'filmfata05@gmail.com',
+    newEmail: 'linhgiangtu1991@gmail.com',
+    originalName: 'Sư Pháp Tín',
+    displayName: 'Sư Tín',
+  },
+  {
+    oldEmail: 'filmfata01@gmail.com',
+    newEmail: 'ngaothuyet2023@gmail.com',
+    originalName: 'Sư Phụ',
+    displayName: 'Sư Phụ',
+  },
+];
 
 /**
  * 6 standardized project members sourced strictly from the 20 official TBHGN tasks.
@@ -24,23 +62,23 @@ export const EXPECTED_TBHGN_ACCOUNTS: ExpectedAccountSpec[] = [
     displayName: 'Quốc',
     sheetAlias: 'Quốc',
     isTemporary: false,
-    note: 'Tài khoản chính thức (đã đăng nhập)',
+    note: 'Tài khoản Google chính thức',
   },
   {
-    email: 'filmfata02@gmail.com',
+    email: 'khanhqn312@gmail.com',
     originalName: 'Khánh',
     displayName: 'Khánh',
     sheetAlias: 'Khánh',
-    isTemporary: true,
-    note: 'Gmail dự kiến tạm thời · chỉ Member, không cấp Admin/quyền duyệt',
+    isTemporary: false,
+    note: 'Tài khoản Google chính thức (thay filmfata02@gmail.com)',
   },
   {
-    email: 'filmfata04@gmail.com',
+    email: 'thumyho42@gmail.com',
     originalName: 'Mỵ',
     displayName: 'Mỵ',
     sheetAlias: 'Mỵ',
-    isTemporary: true,
-    note: 'Gmail dự kiến tạm thời · chỉ Member, không cấp Admin/quyền duyệt',
+    isTemporary: false,
+    note: 'Tài khoản Google chính thức (thay filmfata04@gmail.com)',
   },
   {
     email: 'filmfata03@gmail.com',
@@ -48,24 +86,24 @@ export const EXPECTED_TBHGN_ACCOUNTS: ExpectedAccountSpec[] = [
     displayName: 'Tuấn',
     sheetAlias: 'Khả Tuệ',
     isTemporary: true,
-    note: 'Khả Tuệ (tên gọi: Tuấn) · Gmail dự kiến tạm thời, không cấp Admin/quyền duyệt',
+    note: 'Khả Tuệ (tên gọi: Tuấn) · Gmail tạm giữ nguyên, chưa có Gmail chính thức; chỉ Member, không cấp Admin/quyền duyệt',
   },
   {
-    email: 'filmfata01@gmail.com',
+    email: 'ngaothuyet2023@gmail.com',
     originalName: 'Sư Phụ',
     displayName: 'Sư Phụ',
     sheetAlias: 'Sư Phụ',
     legacyAliases: ['Sư Minh Hạnh'],
-    isTemporary: true,
-    note: 'Gmail dự kiến tạm thời · chỉ Member, không cấp Admin/quyền duyệt',
+    isTemporary: false,
+    note: 'Tài khoản Admin chính thức của Sư Phụ (Sư Minh Hạnh · thay filmfata01@gmail.com)',
   },
   {
-    email: 'filmfata05@gmail.com',
+    email: 'linhgiangtu1991@gmail.com',
     originalName: 'Sư Pháp Tín',
-    displayName: 'Sư Pháp Tín',
+    displayName: 'Sư Tín',
     sheetAlias: 'Sư Pháp Tín',
-    isTemporary: true,
-    note: 'Gmail dự kiến tạm thời · chỉ Member, không cấp Admin/quyền duyệt',
+    isTemporary: false,
+    note: 'Tài khoản Google chính thức · hiển thị ngắn là Sư Tín, đối chiếu tên gốc Sư Pháp Tín (thay filmfata05@gmail.com)',
   },
 ];
 
@@ -73,9 +111,28 @@ export function normalizeTextKey(value: string | null | undefined): string {
   return (value ?? '').trim().toLowerCase();
 }
 
+export function getReplacedTemporaryAccount(
+  email: string | null | undefined
+): ReplacedTemporaryAccountSpec | null {
+  const norm = normalizeTextKey(email);
+  if (!norm) return null;
+  return (
+    REPLACED_TEMPORARY_ACCOUNTS.find(
+      (acc) => normalizeTextKey(acc.oldEmail) === norm
+    ) ?? null
+  );
+}
+
+export function isReplacedTemporaryAccountEmail(
+  email: string | null | undefined
+): boolean {
+  return Boolean(getReplacedTemporaryAccount(email));
+}
+
 export function isTemporaryAccountEmail(email: string | null | undefined): boolean {
   const norm = normalizeTextKey(email);
   if (!norm) return false;
+  if (isReplacedTemporaryAccountEmail(norm)) return true;
   return EXPECTED_TBHGN_ACCOUNTS.some(
     (acc) => acc.isTemporary && normalizeTextKey(acc.email) === norm
   );
@@ -88,7 +145,7 @@ export function getSafeInviteDefaults(account: ExpectedAccountSpec): {
   role: UserRole;
   canApprove: boolean;
 } {
-  // Never auto-grant admin or canApprove (especially for temporary accounts)
+  // Never auto-grant admin or canApprove
   return {
     displayName: account.displayName,
     email: account.email.toLowerCase(),
@@ -124,30 +181,59 @@ export function doesTaskMatchExpectedAccount(
 
 /**
  * Matches a signed-in member profile to one of the 6 standardized project people.
- * - Requires exact confirmed sheetAlias matching spec.originalName or legacyAliases (never auto-matches Admin by displayName similarity)
- * - Or expectedEmail when sheetAlias is unset
+ * - Never pairs replaced legacy temporary accounts (filmfata01/02/04/05) as current expected accounts
+ * - Matches exact official email (even if Admin still has sheetAlias="Admin")
+ * - Or matches confirmed sheetAlias against spec.originalName / displayName / legacyAliases
  */
 export function doesMemberMatchProjectPerson(
   member: Pick<ProjectMember, 'email' | 'sheetAlias'>,
-  spec: Pick<ExpectedAccountSpec, 'email' | 'originalName' | 'legacyAliases'>
+  spec: Pick<ExpectedAccountSpec, 'email' | 'originalName' | 'displayName' | 'legacyAliases'>
 ): boolean {
-  const saTrim = (member.sheetAlias ?? '').trim();
-  if (saTrim) {
-    if (saTrim === spec.originalName) return true;
-    return (spec.legacyAliases ?? []).some((la) => la === saTrim);
+  if (isReplacedTemporaryAccountEmail(member.email)) {
+    return false;
   }
-  return normalizeTextKey(member.email) === normalizeTextKey(spec.email);
+  if (normalizeTextKey(member.email) === normalizeTextKey(spec.email)) {
+    return true;
+  }
+  const saNorm = normalizeTextKey(member.sheetAlias);
+  if (!saNorm) {
+    return false;
+  }
+  return getExpectedAccountAliases(spec).some(
+    (alias) => normalizeTextKey(alias) === saNorm
+  );
 }
 
 export function doesPersonMatchAlias(
-  person: { displayName?: string; sheetAlias?: string },
+  person: { email?: string; displayName?: string; sheetAlias?: string },
   alias: string
 ): boolean {
   const target = normalizeTextKey(alias);
   if (!target) return false;
   const dn = normalizeTextKey(person.displayName);
   const sa = normalizeTextKey(person.sheetAlias);
-  return target === sa || target === dn;
+  if (target === sa || target === dn) return true;
+
+  if (!isReplacedTemporaryAccountEmail(person.email)) {
+    const matchedExpected = EXPECTED_TBHGN_ACCOUNTS.find(
+      (acc) =>
+        (person.email && normalizeTextKey(person.email) === normalizeTextKey(acc.email)) ||
+        (sa &&
+          getExpectedAccountAliases(acc).some(
+            (candidate) => normalizeTextKey(candidate) === sa
+          ))
+    );
+    if (
+      matchedExpected &&
+      getExpectedAccountAliases(matchedExpected).some(
+        (candidate) => normalizeTextKey(candidate) === target
+      )
+    ) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 export type ExpectedAccountSignInStatus =
@@ -225,10 +311,10 @@ export function buildMemberMappingPreview(
   const accountRows: ExpectedAccountPreviewRow[] = expectedAccounts.map(
     (account) => {
       const emailKey = normalizeTextKey(account.email);
-      const pairedMember =
-        members.find((m) => doesMemberMatchProjectPerson(m, account)) ?? null;
       const matchedByEmail = memberByEmail.get(emailKey) ?? null;
-      const matchedMember = pairedMember ?? matchedByEmail;
+      const pairedByAlias =
+        members.find((m) => doesMemberMatchProjectPerson(m, account)) ?? null;
+      const matchedMember = matchedByEmail ?? pairedByAlias;
       const matchedInvite = inviteByEmail.get(emailKey) ?? null;
 
       const signInStatus: ExpectedAccountSignInStatus = matchedMember
@@ -237,7 +323,7 @@ export function buildMemberMappingPreview(
         ? 'invited_pending'
         : 'not_invited';
 
-      // Match tasks by exact originalName or legacyAliases stored on tasks (e.g. "Khả Tuệ", "Sư Phụ" / "Sư Minh Hạnh")
+      // Match tasks by exact originalName, displayName, or legacyAliases stored on tasks
       const matchingTasks = scopeTasks.filter((t) =>
         doesTaskMatchExpectedAccount(t, account)
       );
@@ -316,12 +402,12 @@ export function buildMemberMappingPreview(
           )
         ) ?? null;
 
-      // Match signed-in members strictly via doesMemberMatchProjectPerson when this is one of the 6 people,
-      // avoiding false match by displayName (e.g. "Sư phụ" vs "Sư Minh Hạnh")
       const matchedMembers = expectedAccount
         ? members.filter((m) => doesMemberMatchProjectPerson(m, expectedAccount))
-        : members.filter((m) =>
-            normalizeTextKey(m.sheetAlias) === normalizeTextKey(displayAlias)
+        : members.filter(
+            (m) =>
+              !isReplacedTemporaryAccountEmail(m.email) &&
+              normalizeTextKey(m.sheetAlias) === normalizeTextKey(displayAlias)
           );
 
       const activeMatchedUids = new Set(
@@ -333,6 +419,7 @@ export function buildMemberMappingPreview(
 
       const matchedPendingInvites = invites.filter(
         (inv) =>
+          !isReplacedTemporaryAccountEmail(inv.email) &&
           !matchedEmails.has(normalizeTextKey(inv.email)) &&
           (normalizeTextKey(inv.sheetAlias) === normalizeTextKey(displayAlias) ||
             (expectedAccount
@@ -407,9 +494,78 @@ export function buildMemberMappingPreview(
   };
 }
 
+export interface ReplacedTemporaryAuditItem {
+  spec: ReplacedTemporaryAccountSpec;
+  oldInvite: MemberInvite | null;
+  oldMember: ProjectMember | null;
+  newMember: ProjectMember | null;
+  newInvite: MemberInvite | null;
+  tasksHoldingOldUid: TaskItem[];
+  canTransferNow: boolean;
+  recommendLockOldMember: boolean;
+}
+
+/**
+ * Audits the 4 replaced temporary Gmail accounts against live Firestore invites, users, and tasks.
+ * Never mutates anything; surfaces old invites to remove, old UIDs needing Admin-confirmed transfer,
+ * and old signed-in profiles eligible to be locked after verification.
+ */
+export function buildReplacedAccountAudit(
+  members: ProjectMember[],
+  invites: MemberInvite[],
+  tasks: TaskItem[]
+): ReplacedTemporaryAuditItem[] {
+  const activeNonTestTasks = tasks.filter(
+    (t) => !t.archivedAt && !isB1TestTask(t)
+  );
+  const memberByEmail = new Map(
+    members.map((m) => [normalizeTextKey(m.email), m])
+  );
+  const inviteByEmail = new Map(
+    invites.map((inv) => [normalizeTextKey(inv.email), inv])
+  );
+
+  return REPLACED_TEMPORARY_ACCOUNTS.map((spec) => {
+    const oldInvite = inviteByEmail.get(normalizeTextKey(spec.oldEmail)) ?? null;
+    const oldMember = memberByEmail.get(normalizeTextKey(spec.oldEmail)) ?? null;
+    const newMember = memberByEmail.get(normalizeTextKey(spec.newEmail)) ?? null;
+    const newInvite = inviteByEmail.get(normalizeTextKey(spec.newEmail)) ?? null;
+
+    const tasksHoldingOldUid = oldMember
+      ? activeNonTestTasks.filter(
+          (t) =>
+            t.assigneeUids.includes(oldMember.uid) ||
+            (t.approverUids ?? []).includes(oldMember.uid)
+        )
+      : [];
+
+    const canTransferNow = Boolean(
+      oldMember &&
+        tasksHoldingOldUid.length > 0 &&
+        newMember &&
+        newMember.isActive
+    );
+
+    const recommendLockOldMember = Boolean(
+      oldMember && oldMember.isActive && tasksHoldingOldUid.length === 0
+    );
+
+    return {
+      spec,
+      oldInvite,
+      oldMember,
+      newMember,
+      newInvite,
+      tasksHoldingOldUid,
+      canTransferNow,
+      recommendLockOldMember,
+    };
+  });
+}
+
 /**
  * Safely updates comma-separated display names when Admin checks/unchecks a UID
- * in TaskDetailDrawer without wiping unrelated text aliases (e.g. "Khả Tuệ") or
+ * in TaskDetailDrawer without wiping unrelated text aliases (e.g. "Khả Tuệ", "Sư Minh Hạnh", "Sư Pháp Tín") or
  * erasing the display name when revoking the last UID to keep "Chưa liên kết tài khoản".
  */
 export function computeUpdatedAssigneeNamesOnUidToggle(
@@ -490,4 +646,3 @@ export function buildConfirmedAssignmentUpdates(
 
   return updates;
 }
-

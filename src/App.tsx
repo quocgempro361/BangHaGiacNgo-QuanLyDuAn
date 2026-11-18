@@ -54,6 +54,7 @@ import {
   subscribeTasks,
   subscribeUsers,
   swapCategoryOrderInFirestore,
+  transferTaskUidInFirestore,
   updateCategoryInFirestore,
   updateInviteInFirestore,
   updateMemberInFirestore,
@@ -631,6 +632,37 @@ export default function App() {
     }
   };
 
+  const handleTransferTaskUid = async (
+    oldMember: ProjectMember,
+    newMember: ProjectMember,
+    taskIds: string[]
+  ): Promise<{ updatedCount: number; skippedCount: number }> => {
+    if (!currentUser || currentUser.role !== 'admin' || !currentUser.isActive) {
+      throw new Error('Chỉ Quản trị viên đang hoạt động mới được chuyển UID công việc.');
+    }
+    try {
+      const result = await transferTaskUidInFirestore(
+        oldMember,
+        newMember,
+        taskIds,
+        currentUser
+      );
+      if (result.updatedCount > 0) {
+        showToast(
+          'success',
+          `Đã chuyển UID ${result.updatedCount} công việc từ ${oldMember.email} sang ${newMember.email}`
+        );
+      } else {
+        showToast('success', 'Không có công việc nào cần chuyển UID thêm.');
+      }
+      return result;
+    } catch (err) {
+      const msg = formatActionError(err);
+      showToast('error', msg);
+      throw new Error(msg);
+    }
+  };
+
   const handleExportCSV = () => {
     const csv = exportTasksToCSV(tasks, categories);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -1049,6 +1081,7 @@ export default function App() {
               tasks={tasks}
               currentUser={currentUser}
               onAssignTasksToMember={handleAssignTasksToMember}
+              onTransferTaskUid={handleTransferTaskUid}
               onAddInvite={handleAddInvite}
               onUpdateMember={handleUpdateMember}
               onUpdateInvite={handleUpdateInvite}

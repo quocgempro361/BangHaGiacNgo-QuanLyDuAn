@@ -1502,3 +1502,129 @@ export async function assignMemberToTasksInFirestore(
   }
 }
 
+/**
+ * Admin-only explicit confirmation: transfers task UID ownership from an old/replaced
+ * temporary account to a newly signed-in official account inside one atomic transaction.
+ * Preserves original `assignees` text, statuses, links, and existing activityLogs.
+ */
+export async function transferTaskUidInFirestore(
+  oldMember: ProjectMember,
+  newMember: ProjectMember,
+  selectedTaskIds: string[],
+  adminUser: ProjectMember
+): Promise<{ updatedCount: number; skippedCount: number }> {
+  if (adminUser.role !== 'admin' || !adminUser.isActive) {
+    throw new Error('Chỉ Quản trị viên đang hoạt động mới được chuyển UID công việc.');
+  }
+  if (!newMember.isActive) {
+    throw new Error('Không thể chuyển công việc sang tài khoản đang bị khóa.');
+  }
+  if (oldMember.uid === newMember.uid) {
+    return { updatedCount: 0, skippedCount: selectedTaskIds.length };
+  }
+  const uniqueTaskIds = Array.from(new Set(selectedTaskIds)).filter(Boolean);
+  if (uniqueTaskIds.length === 0) {
+    return { updatedCount: 0, skippedCount: 0 };
+  }
+
+  const actorName = (
+    adminUser.displayName ||
+    adminUser.sheetAlias ||
+    adminUser.email ||
+    'Admin'
+  )
+    .trim()
+    .slice(0, 120);
+
+  try {
+    const result = await runTransaction(db, async (tx) => {
+      const snaps = await Promise.all(
+        uniqueTaskIds.map((id) => tx.get(doc(db, 'tasks', id)))
+      );
+
+      let updatedCount = 0;
+      let skippedCount = 0;
+      const nowTs = serverTimestamp();
+      const logPrefix = `log_xfer_${Date.now().toString(36)}`;
+
+      snaps.forEach((snap, idx) => {
+        if (!snap.exists()) {
+          skippedCount++;
+          return;
+        }
+        const existing = mapTaskDoc(
+          snap.id,
+          snap.data() as Record<string, unknown>
+        );
+        const hasOldAssignee = existing.assigneeUids.includes(oldMember.uid);
+        const hasOldApprover = (existing.approverUids ?? []).includes(oldMember.uid);
+        if (existing.archivedAt || (!hasOldAssignee && !hasOldApprover)) {
+          skippedCount++;
+          return;
+        }
+
+        const updatePayload: Record<string, unknown> = {
+          version: existing.version + 1,
+          updatedAt: nowTs,
+          updatedBy: actorName,
+          updatedByUid: adminUser.uid,
+        };
+
+        if (hasOldAssignee) {
+          const replacedUids = existing.assigneeUids.map((u) =>
+            u === oldMember.uid ? newMember.uid : u
+          );
+          const nextAssigneeUids = Array.from(new Set(replacedUids));
+          updatePayload.assigneeUids = nextAssigneeUids;
+          if (
+            nextAssigneeUids.length > 0 &&
+            existing.reviewFlags.includes('missing_assignee')
+          ) {
+            updatePayload.reviewFlags = existing.reviewFlags.filter(
+              (f) => f !== 'missing_assignee'
+            );
+          }
+        }
+
+        if (hasOldApprover && Array.isArray(existing.approverUids)) {
+          const replacedApprovers = existing.approverUids.map((u) =>
+            u === oldMember.uid ? newMember.uid : u
+          );
+          updatePayload.approverUids = Array.from(new Set(replacedApprovers));
+        }
+
+        const taskRef = doc(db, 'tasks', snap.id);
+        const logId = `${logPrefix}_${idx}`;
+        const logRef = doc(db, 'tasks', snap.id, 'activityLogs', logId);
+
+        tx.update(taskRef, updatePayload);
+        tx.set(logRef, {
+          id: logId,
+          taskId: snap.id,
+          actorUid: adminUser.uid,
+          actorName,
+          action: 'update',
+          summary: `Chuyển phân công UID từ ${oldMember.email} sang ${newMember.email} (giữ nguyên tên gốc và lịch sử)`.slice(
+            0,
+            500
+          ),
+          createdAt: nowTs,
+        });
+
+        updatedCount++;
+      });
+
+      return { updatedCount, skippedCount };
+    });
+
+    return result;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, 'tasks (batch uid transfer)', {
+      oldUid: oldMember.uid,
+      newUid: newMember.uid,
+      taskCount: uniqueTaskIds.length,
+    });
+  }
+}
+
+

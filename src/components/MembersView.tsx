@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   AlertTriangle,
+  ArrowRightLeft,
   CheckCircle2,
   ClipboardCheck,
   Clock,
@@ -12,6 +13,7 @@ import {
   Trash2,
   Unlock,
   UserCheck,
+  UserPlus,
   Users,
 } from 'lucide-react';
 import {
@@ -22,14 +24,19 @@ import {
 } from '../types/project';
 import {
   buildMemberMappingPreview,
+  buildReplacedAccountAudit,
   COLLECTIVE_GROUP_LABEL,
   doesTaskMatchExpectedAccount,
   EXPECTED_TBHGN_ACCOUNTS,
   ExpectedAccountSpec,
   formatStandardMemberLabel,
   getExpectedAccountAliases,
+  getReplacedTemporaryAccount,
+  getSafeInviteDefaults,
+  isReplacedTemporaryAccountEmail,
   isTemporaryAccountEmail,
   normalizeTextKey,
+  ReplacedTemporaryAuditItem,
 } from '../utils/memberMapping';
 import { isB1TestTask } from '../utils/taskHelpers';
 
@@ -40,6 +47,11 @@ interface MembersViewProps {
   currentUser: ProjectMember;
   onAssignTasksToMember?: (
     member: ProjectMember,
+    taskIds: string[]
+  ) => Promise<{ updatedCount: number; skippedCount: number }>;
+  onTransferTaskUid?: (
+    oldMember: ProjectMember,
+    newMember: ProjectMember,
     taskIds: string[]
   ) => Promise<{ updatedCount: number; skippedCount: number }>;
   onAddInvite: (input: {
@@ -69,6 +81,7 @@ export const MembersView: React.FC<MembersViewProps> = ({
   tasks = [],
   currentUser,
   onAssignTasksToMember,
+  onTransferTaskUid,
   onAddInvite,
   onUpdateMember,
   onUpdateInvite,
@@ -82,6 +95,19 @@ export const MembersView: React.FC<MembersViewProps> = ({
   const [role, setRole] = useState<UserRole>('member');
   const [canApprove, setCanApprove] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [invitingEmail, setInvitingEmail] = useState<string | null>(null);
+  const [removingOldInvites, setRemovingOldInvites] = useState(false);
+  const [transferPreviewEmail, setTransferPreviewEmail] = useState<string | null>(
+    null
+  );
+  const [transferTaskIds, setTransferTaskIds] = useState<string[]>([]);
+  const [transferringUid, setTransferringUid] = useState(false);
+  const [transferFeedback, setTransferFeedback] = useState<{
+    email: string;
+    type: 'success' | 'error';
+    text: string;
+  } | null>(null);
   const [assignPreviewKey, setAssignPreviewKey] = useState<string | null>(null);
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
   const [assigningTasks, setAssigningTasks] = useState(false);
@@ -93,10 +119,28 @@ export const MembersView: React.FC<MembersViewProps> = ({
 
   const activeEmails = new Set(members.map((m) => m.email.toLowerCase()));
   const pendingInvites = invites.filter(
-    (inv) => !activeEmails.has(inv.email.toLowerCase())
+    (inv) =>
+      !activeEmails.has(inv.email.toLowerCase()) &&
+      !isReplacedTemporaryAccountEmail(inv.email)
   );
 
   const isEmailTemporary = isTemporaryAccountEmail(email);
+  const isEmailReplacedTemp = isReplacedTemporaryAccountEmail(email);
+
+  const replacedAudit = useMemo(
+    () => buildReplacedAccountAudit(members, invites, tasks),
+    [members, invites, tasks]
+  );
+  const replacedOldInvites = useMemo(
+    () => replacedAudit.filter((item) => Boolean(item.oldInvite)),
+    [replacedAudit]
+  );
+  const replacedOldProfiles = useMemo(
+    () => replacedAudit.filter((item) => Boolean(item.oldMember)),
+    [replacedAudit]
+  );
+  const hasReplacedItems =
+    replacedOldInvites.length > 0 || replacedOldProfiles.length > 0;
 
   const mappingPreview = useMemo(
     () =>
@@ -172,9 +216,87 @@ export const MembersView: React.FC<MembersViewProps> = ({
 
   const handleEmailChange = (nextEmail: string) => {
     setEmail(nextEmail);
+    setFormError(null);
     if (isTemporaryAccountEmail(nextEmail)) {
       if (role === 'admin') setRole('member');
       setCanApprove(false);
+    }
+  };
+
+  const handleQuickInviteExpected = async (account: ExpectedAccountSpec) => {
+    if (!isAdmin || invitingEmail) return;
+    if (activeEmails.has(account.email.toLowerCase())) return;
+    setInvitingEmail(account.email);
+    try {
+      await onAddInvite(getSafeInviteDefaults(account));
+    } finally {
+      setInvitingEmail(null);
+    }
+  };
+
+  const handleDeleteAllReplacedInvites = async () => {
+    if (!isAdmin || removingOldInvites || replacedOldInvites.length === 0) {
+      return;
+    }
+    setRemovingOldInvites(true);
+    try {
+      for (const item of replacedOldInvites) {
+        if (item.oldInvite) {
+          await onDeleteInvite(item.oldInvite.email);
+        }
+      }
+    } finally {
+      setRemovingOldInvites(false);
+    }
+  };
+
+  const openTransferPreview = (item: ReplacedTemporaryAuditItem) => {
+    const key = item.spec.oldEmail;
+    if (transferPreviewEmail === key) {
+      setTransferPreviewEmail(null);
+      return;
+    }
+    setTransferPreviewEmail(key);
+    setTransferTaskIds(item.tasksHoldingOldUid.map((t) => t.id));
+    setTransferFeedback(null);
+  };
+
+  const handleConfirmTransferUid = async (item: ReplacedTemporaryAuditItem) => {
+    if (
+      !onTransferTaskUid ||
+      !item.oldMember ||
+      !item.newMember ||
+      transferringUid ||
+      transferTaskIds.length === 0
+    ) {
+      return;
+    }
+    setTransferringUid(true);
+    setTransferFeedback(null);
+    try {
+      const res = await onTransferTaskUid(
+        item.oldMember,
+        item.newMember,
+        transferTaskIds
+      );
+      setTransferFeedback({
+        email: item.spec.oldEmail,
+        type: 'success',
+        text: `Đã chuyển UID ${res.updatedCount} công việc từ ${item.oldMember.email} sang ${item.newMember.email} (giữ nguyên tên gốc và lịch sử).`,
+      });
+      setTransferTaskIds([]);
+      setTransferPreviewEmail(null);
+    } catch (err) {
+      setTransferFeedback({
+        email: item.spec.oldEmail,
+        type: 'error',
+        text:
+          err instanceof Error
+            ? err.message
+            : 'Không thể chuyển UID công việc.',
+      });
+    } finally {
+      setTransferringUid(false);
     }
   };
 
@@ -182,6 +304,20 @@ export const MembersView: React.FC<MembersViewProps> = ({
     e.preventDefault();
     if (!isAdmin || !displayName.trim() || !email.trim() || submitting) return;
     const cleanEmail = email.trim().toLowerCase();
+    const replacedSpec = getReplacedTemporaryAccount(cleanEmail);
+    if (replacedSpec) {
+      setFormError(
+        `Email tạm ${cleanEmail} đã được thay thế bởi ${replacedSpec.newEmail}. Vui lòng mời Gmail chính thức.`
+      );
+      return;
+    }
+    if (activeEmails.has(cleanEmail)) {
+      setFormError(
+        `Tài khoản ${cleanEmail} đã tồn tại trong danh sách thành viên — chỉnh sửa trực tiếp ở Bước 1, không tạo lời mời trùng.`
+      );
+      return;
+    }
+
     const tempEmail = isTemporaryAccountEmail(cleanEmail);
     const safeRole: UserRole = tempEmail && role === 'admin' ? 'member' : role;
     const safeCanApprove =
@@ -191,6 +327,7 @@ export const MembersView: React.FC<MembersViewProps> = ({
         ? false
         : canApprove;
 
+    setFormError(null);
     setSubmitting(true);
     try {
       await onAddInvite({
@@ -277,7 +414,20 @@ export const MembersView: React.FC<MembersViewProps> = ({
               <div className="text-sm font-semibold text-huyen-lam">
                 Mời &amp; cấp quyền trước cho email Google
               </div>
-              {isEmailTemporary && (
+              {formError && (
+                <div className="p-2.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-800">
+                  {formError}
+                </div>
+              )}
+              {isEmailReplacedTemp && (
+                <div className="p-2.5 bg-red-50 border border-red-200 rounded-lg text-xs text-red-800 flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>
+                    Email tạm này đã bị loại khỏi danh sách dự kiến. Vui lòng dùng Gmail chính thức mới thay thế.
+                  </span>
+                </div>
+              )}
+              {isEmailTemporary && !isEmailReplacedTemp && (
                 <div className="p-2.5 bg-minh-kim-soft border border-minh-kim-border rounded-lg text-xs text-minh-kim-ink flex items-start gap-2">
                   <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
                   <span>
@@ -407,14 +557,26 @@ export const MembersView: React.FC<MembersViewProps> = ({
             {members.map((m) => {
               const isSelf = m.uid === currentUser.uid;
               const isTemp = isTemporaryAccountEmail(m.email);
-              const matchedSpec = EXPECTED_TBHGN_ACCOUNTS.find((acc) =>
-                getExpectedAccountAliases(acc).some(
-                  (alias) => normalizeTextKey(alias) === normalizeTextKey(m.sheetAlias)
-                )
-              );
-              const matchedPreviewRow = matchedSpec
+              const replacedTempSpec = getReplacedTemporaryAccount(m.email);
+              const matchedSpec = !replacedTempSpec
+                ? EXPECTED_TBHGN_ACCOUNTS.find((acc) =>
+                    getExpectedAccountAliases(acc).some(
+                      (alias) =>
+                        normalizeTextKey(alias) === normalizeTextKey(m.sheetAlias)
+                    )
+                  )
+                : undefined;
+              const emailMatchedSpec =
+                !replacedTempSpec && !matchedSpec
+                  ? EXPECTED_TBHGN_ACCOUNTS.find(
+                      (acc) =>
+                        normalizeTextKey(acc.email) === normalizeTextKey(m.email)
+                    )
+                  : undefined;
+              const effectiveSpec = matchedSpec ?? emailMatchedSpec;
+              const matchedPreviewRow = effectiveSpec
                 ? mappingPreview.accountRows.find(
-                    (r) => r.account.originalName === matchedSpec.originalName
+                    (r) => r.account.originalName === effectiveSpec.originalName
                   )
                 : undefined;
               return (
@@ -434,10 +596,16 @@ export const MembersView: React.FC<MembersViewProps> = ({
                           (Bạn)
                         </span>
                       )}
-                      {isTemp && (
-                        <span className="text-[11px] font-medium text-minh-kim-ink">
-                          (Tạm thời)
+                      {replacedTempSpec ? (
+                        <span className="text-[11px] font-medium text-chu-sa">
+                          (Gmail tạm cũ · đã thay bằng {replacedTempSpec.newEmail})
                         </span>
+                      ) : (
+                        isTemp && (
+                          <span className="text-[11px] font-medium text-minh-kim-ink">
+                            (Tạm thời)
+                          </span>
+                        )
                       )}
                       {!m.isActive && (
                         <span className="text-[11px] font-medium text-red-700">
@@ -452,12 +620,37 @@ export const MembersView: React.FC<MembersViewProps> = ({
                     </div>
                     <div className="text-xs text-ink-muted mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
                       <span className="font-mono-tabular break-all">{m.email}</span>
-                      {matchedSpec ? (
+                      {replacedTempSpec ? (
+                        <>
+                          <span aria-hidden="true">·</span>
+                          <span className="text-minh-kim-ink">
+                            Nhân sự cũ: {replacedTempSpec.originalName} (giữ lịch sử, đối chiếu bên dưới)
+                          </span>
+                        </>
+                      ) : matchedSpec ? (
                         <>
                           <span aria-hidden="true">·</span>
                           <span className="text-emerald-800 font-medium">
                             Đã xác nhận nhân sự: {formatStandardMemberLabel(matchedSpec)}
                           </span>
+                        </>
+                      ) : emailMatchedSpec ? (
+                        <>
+                          <span aria-hidden="true">·</span>
+                          <span className="text-lam-tri-tue font-medium">
+                            Khớp email với {formatStandardMemberLabel(emailMatchedSpec)}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              onUpdateMember(m.uid, m.email, {
+                                sheetAlias: emailMatchedSpec.originalName,
+                              })
+                            }
+                            className="inline-flex items-center px-2 py-0.5 rounded border border-lam-tri-tue/40 bg-nga-thien text-[11px] font-semibold text-huyen-lam hover:bg-surface-muted transition-colors"
+                          >
+                            Xác nhận gắn &ldquo;{emailMatchedSpec.originalName}&rdquo; (giữ nguyên quyền)
+                          </button>
                         </>
                       ) : m.sheetAlias ? (
                         <>
@@ -473,7 +666,11 @@ export const MembersView: React.FC<MembersViewProps> = ({
                     </div>
                     {matchedPreviewRow && m.isActive && matchedPreviewRow.readyToConfirmCount > 0 && (
                       <div className="mt-1.5 text-[11px] text-huyen-lam">
-                        Có <strong>{matchedPreviewRow.readyToConfirmCount}</strong> công việc mang tên &ldquo;{matchedSpec?.originalName}&rdquo; chưa gán tài khoản này — xác nhận ở Bước 2 bên dưới.
+                        Có <strong>{matchedPreviewRow.readyToConfirmCount}</strong> công việc mang tên &ldquo;
+                        {effectiveSpec?.legacyAliases?.length
+                          ? `${effectiveSpec.originalName} / ${effectiveSpec.legacyAliases.join(', ')}`
+                          : effectiveSpec?.originalName}
+                        &rdquo; chưa gán tài khoản này — xác nhận ở Bước 2 bên dưới.
                       </div>
                     )}
                   </div>
@@ -482,13 +679,14 @@ export const MembersView: React.FC<MembersViewProps> = ({
                     <select
                       aria-label={`Xác nhận nhân sự cho ${m.displayName}`}
                       value={matchedSpec ? matchedSpec.originalName : ''}
+                      disabled={Boolean(replacedTempSpec)}
                       onChange={(e) => {
                         const nextAlias = e.target.value;
                         onUpdateMember(m.uid, m.email, {
                           sheetAlias: nextAlias,
                         });
                       }}
-                      className="col-span-2 sm:col-span-1 px-2.5 py-2 text-xs bg-white border border-nga-xam rounded-lg text-huyen-lam min-h-[42px]"
+                      className="col-span-2 sm:col-span-1 px-2.5 py-2 text-xs bg-white border border-nga-xam rounded-lg text-huyen-lam disabled:bg-surface-muted min-h-[42px]"
                     >
                       <option value="">-- Xác nhận nhân sự --</option>
                       {EXPECTED_TBHGN_ACCOUNTS.map((acc) => (
@@ -664,6 +862,256 @@ export const MembersView: React.FC<MembersViewProps> = ({
             </div>
           )}
 
+          {/* Audit & Cleanup for Replaced Legacy Temporary Gmail Accounts (filmfata01/02/04/05) */}
+          {hasReplacedItems && (
+            <div className="bg-white border border-minh-kim-border rounded-xl overflow-hidden">
+              <div className="px-4 py-3 bg-minh-kim-soft/70 border-b border-minh-kim-border flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h2 className="text-sm font-semibold text-huyen-lam flex items-center gap-1.5">
+                    <AlertTriangle className="w-4 h-4 text-minh-kim-ink shrink-0" />
+                    <span>Đối chiếu Gmail tạm cũ đã được thay thế</span>
+                  </h2>
+                  <p className="text-[11px] text-ink-muted mt-0.5">
+                    Không tự xóa hồ sơ, lịch sử hay UID đang gắn trên công việc. Có thể xóa các lời mời tạm cũ còn sót và kiểm tra chuyển UID khi Gmail mới đã đăng nhập.
+                  </p>
+                </div>
+                {replacedOldInvites.length > 0 && (
+                  <button
+                    type="button"
+                    disabled={removingOldInvites}
+                    onClick={handleDeleteAllReplacedInvites}
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-red-700 bg-white border border-red-200 rounded-lg hover:bg-red-50 disabled:opacity-50 whitespace-nowrap shrink-0 min-h-[38px]"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                    <span>
+                      {removingOldInvites
+                        ? 'Đang xóa...'
+                        : `Xóa ${replacedOldInvites.length} lời mời tạm cũ`}
+                    </span>
+                  </button>
+                )}
+              </div>
+
+              <div className="divide-y divide-nga-xam/60">
+                {replacedAudit
+                  .filter((item) => item.oldInvite || item.oldMember)
+                  .map((item) => {
+                    const {
+                      spec,
+                      oldInvite,
+                      oldMember,
+                      newMember,
+                      tasksHoldingOldUid,
+                      canTransferNow,
+                      recommendLockOldMember,
+                    } = item;
+                    const isTransferOpen =
+                      transferPreviewEmail === spec.oldEmail;
+                    const fb =
+                      transferFeedback?.email === spec.oldEmail
+                        ? transferFeedback
+                        : null;
+
+                    return (
+                      <div key={spec.oldEmail} className="p-3.5 sm:p-4 space-y-2.5 text-xs">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5">
+                          <div className="min-w-0 space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-semibold text-huyen-lam">
+                                {spec.originalName !== spec.displayName
+                                  ? `${spec.originalName} (${spec.displayName})`
+                                  : spec.displayName}
+                              </span>
+                              <span className="font-mono-tabular text-red-700 line-through">
+                                {spec.oldEmail}
+                              </span>
+                              <span aria-hidden="true">→</span>
+                              <span className="font-mono-tabular font-semibold text-emerald-800">
+                                {spec.newEmail}
+                              </span>
+                            </div>
+
+                            <div className="text-[11px] text-ink-muted flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                              {oldInvite && (
+                                <span className="text-minh-kim-ink font-medium">
+                                  Còn lời mời tạm trong /invites
+                                </span>
+                              )}
+                              {oldInvite && oldMember && <span aria-hidden="true">·</span>}
+                              {oldMember && (
+                                <span>
+                                  Hồ sơ cũ:{' '}
+                                  <strong className="text-huyen-lam">
+                                    {oldMember.isActive ? 'Đang hoạt động' : 'Đã khóa'}
+                                  </strong>{' '}
+                                  · Đang gắn{' '}
+                                  <strong className="text-huyen-lam">
+                                    {tasksHoldingOldUid.length}
+                                  </strong>{' '}
+                                  công việc
+                                  {tasksHoldingOldUid.length > 0
+                                    ? ` (${tasksHoldingOldUid
+                                        .map((t) => t.displayCode)
+                                        .join(', ')})`
+                                    : ''}
+                                </span>
+                              )}
+                            </div>
+
+                            {oldMember && tasksHoldingOldUid.length > 0 && !newMember && (
+                              <div className="text-[11px] text-minh-kim-ink">
+                                Chờ <strong>{spec.newEmail}</strong> đăng nhập Google lần đầu để có UID thật trước khi Admin xác nhận chuyển {tasksHoldingOldUid.length} công việc.
+                              </div>
+                            )}
+
+                            {recommendLockOldMember && (
+                              <div className="text-[11px] text-emerald-800 font-medium">
+                                Đã đối chiếu xong (0 công việc còn gắn UID cũ) — Đề xuất Admin khóa tài khoản cũ này (vẫn giữ nguyên hồ sơ &amp; lịch sử).
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-2 shrink-0">
+                            {oldInvite && (
+                              <button
+                                type="button"
+                                onClick={() => onDeleteInvite(oldInvite.email)}
+                                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-red-700 border border-red-200 rounded-lg hover:bg-red-50 min-h-[38px]"
+                              >
+                                <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                                <span>Xóa lời mời cũ</span>
+                              </button>
+                            )}
+
+                            {canTransferNow && onTransferTaskUid && (
+                              <button
+                                type="button"
+                                onClick={() => openTransferPreview(item)}
+                                className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border min-h-[38px] transition-colors ${
+                                  isTransferOpen
+                                    ? 'bg-huyen-lam text-white border-huyen-lam'
+                                    : 'bg-white text-huyen-lam border-huyen-lam hover:bg-nga-thien'
+                                }`}
+                              >
+                                <ArrowRightLeft className="w-3.5 h-3.5 shrink-0" />
+                                <span>
+                                  {isTransferOpen
+                                    ? 'Đóng xem trước'
+                                    : `Chuyển UID (${tasksHoldingOldUid.length} việc)`}
+                                </span>
+                              </button>
+                            )}
+
+                            {recommendLockOldMember && oldMember && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  onUpdateMember(oldMember.uid, oldMember.email, {
+                                    isActive: false,
+                                  })
+                                }
+                                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-huyen-lam bg-nga-thien border border-nga-xam rounded-lg hover:bg-red-50 hover:text-red-700 hover:border-red-200 min-h-[38px]"
+                              >
+                                <Lock className="w-3.5 h-3.5 shrink-0" />
+                                <span>Khóa tài khoản cũ</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {fb && (
+                          <div
+                            className={`p-2.5 rounded-lg border text-xs ${
+                              fb.type === 'success'
+                                ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                                : 'bg-red-50 border-red-200 text-red-800'
+                            }`}
+                          >
+                            {fb.text}
+                          </div>
+                        )}
+
+                        {isTransferOpen && oldMember && newMember && (
+                          <div className="bg-nga-thien border border-nga-xam rounded-lg p-3 space-y-2.5">
+                            <div>
+                              <div className="font-semibold text-huyen-lam">
+                                Xác nhận chuyển UID công việc từ {oldMember.email} sang {newMember.email}
+                              </div>
+                              <p className="text-[11px] text-ink-muted mt-0.5">
+                                Hệ thống sẽ thay UID cũ bằng UID mới trên các công việc bạn chọn; toàn bộ tên phụ trách gốc, trạng thái, liên kết và lịch sử cập nhật được giữ nguyên.
+                              </p>
+                            </div>
+
+                            <div className="bg-white border border-nga-xam rounded-lg divide-y divide-nga-xam/60">
+                              {tasksHoldingOldUid.map((t) => {
+                                const checked = transferTaskIds.includes(t.id);
+                                return (
+                                  <label
+                                    key={t.id}
+                                    className="p-2.5 flex items-start gap-2.5 cursor-pointer hover:bg-nga-thien"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      disabled={transferringUid}
+                                      onChange={() =>
+                                        setTransferTaskIds((prev) =>
+                                          prev.includes(t.id)
+                                            ? prev.filter((id) => id !== t.id)
+                                            : [...prev, t.id]
+                                        )
+                                      }
+                                      className="mt-0.5 w-4 h-4 rounded border-nga-xam accent-huyen-lam"
+                                    />
+                                    <div className="min-w-0">
+                                      <div className="font-medium text-huyen-lam">
+                                        <span className="font-mono-tabular font-bold mr-1.5">
+                                          {t.displayCode}
+                                        </span>
+                                        {t.title}
+                                      </div>
+                                      <div className="text-[11px] text-ink-muted">
+                                        Tên gốc: {t.assignees.join(', ') || 'Chưa gắn tên'} · Trạng thái: {t.status ?? 'Cần rà soát'}
+                                      </div>
+                                    </div>
+                                  </label>
+                                );
+                              })}
+                            </div>
+
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setTransferPreviewEmail(null)}
+                                className="px-3 py-1.5 text-xs font-medium text-ink-muted hover:text-huyen-lam min-h-[38px]"
+                              >
+                                Hủy
+                              </button>
+                              <button
+                                type="button"
+                                disabled={
+                                  transferringUid || transferTaskIds.length === 0
+                                }
+                                onClick={() => handleConfirmTransferUid(item)}
+                                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold bg-huyen-lam text-white rounded-lg hover:bg-lam-tri-tue disabled:opacity-50 min-h-[38px]"
+                              >
+                                <ArrowRightLeft className="w-3.5 h-3.5 shrink-0" />
+                                <span>
+                                  {transferringUid
+                                    ? 'Đang chuyển UID...'
+                                    : `Xác nhận chuyển UID (${transferTaskIds.length} việc)`}
+                                </span>
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
+
           {/* 6 Standardized Project Members & Task Pairing Overview */}
           <div className="bg-white border border-nga-xam rounded-xl overflow-hidden">
             <div className="px-4 py-3 bg-nga-thien border-b border-nga-xam flex flex-col sm:flex-row sm:items-center justify-between gap-2">
@@ -773,7 +1221,11 @@ export const MembersView: React.FC<MembersViewProps> = ({
                             </div>
                             <div className="text-[11px] text-ink-muted flex flex-wrap items-center gap-x-2 gap-y-0.5">
                               <span>
-                                Công việc mang tên &ldquo;{account.originalName}&rdquo;:{' '}
+                                Công việc mang tên &ldquo;
+                                {account.legacyAliases?.length
+                                  ? `${account.originalName} / ${account.legacyAliases.join(', ')}`
+                                  : account.originalName}
+                                &rdquo;:{' '}
                                 <strong className="text-huyen-lam">
                                   {matchingTaskCodes.length} việc
                                 </strong>
@@ -798,9 +1250,15 @@ export const MembersView: React.FC<MembersViewProps> = ({
                                 </>
                               )}
                             </div>
+                            <div className="text-[11px] text-ink-muted/90">
+                              {account.note}
+                            </div>
                             {hasPrivilegeWarning && (
-                              <div className="text-[11px] text-red-700 font-medium">
-                                Cảnh báo: Tài khoản tạm đang có quyền Admin hoặc Duyệt — nên hạ về Member và tắt quyền duyệt.
+                              <div className="mt-1 p-2 rounded-lg bg-minh-kim-soft border border-minh-kim-border text-[11px] text-minh-kim-ink flex items-start gap-1.5">
+                                <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                                <span>
+                                  Cảnh báo: Tài khoản tạm thời đang có quyền Admin hoặc quyền duyệt. Nên hạ về Member và tắt quyền duyệt ở Bước 1.
+                                </span>
                               </div>
                             )}
                           </div>
@@ -853,10 +1311,30 @@ export const MembersView: React.FC<MembersViewProps> = ({
                                 <span>Đã mời · Chờ đăng nhập Google</span>
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1.5 text-minh-kim-ink font-medium">
-                                <Link2Off className="w-3.5 h-3.5 shrink-0" />
-                                <span>Chưa liên kết tài khoản</span>
-                              </span>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="inline-flex items-center gap-1.5 text-minh-kim-ink font-medium">
+                                  <Link2Off className="w-3.5 h-3.5 shrink-0" />
+                                  <span>Chưa mời / Chưa đăng nhập</span>
+                                </span>
+                                {normalizeTextKey(account.email) !==
+                                  'ngaothuyet2023@gmail.com' && (
+                                  <button
+                                    type="button"
+                                    disabled={invitingEmail === account.email}
+                                    onClick={() =>
+                                      handleQuickInviteExpected(account)
+                                    }
+                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-huyen-lam bg-white text-huyen-lam text-xs font-medium hover:bg-nga-thien disabled:opacity-50 min-h-[38px]"
+                                  >
+                                    <UserPlus className="w-3.5 h-3.5 shrink-0" />
+                                    <span>
+                                      {invitingEmail === account.email
+                                        ? 'Đang mời...'
+                                        : 'Tạo lời mời (Member)'}
+                                    </span>
+                                  </button>
+                                )}
+                              </div>
                             )}
                           </div>
                         </div>
