@@ -2512,7 +2512,7 @@ test('Case 12: Project Documents Center aggregation, review/duplicate classifica
   assert.equal(docsViewText.includes('even:bg-'), false);
   assert.equal(docsViewText.includes('border-l-4'), false);
   assert.equal(docsViewText.includes('border-l-2'), false);
-  assert.equal(docsViewText.includes("useState<ViewMode>('cards')"), true);
+  assert.equal(docsViewText.includes("useState<ViewMode>('list')"), true);
   assert.equal(docsViewText.includes('md:grid-cols-2'), true);
   assert.equal(docsViewText.includes('getDocumentKindInfo'), true);
   assert.equal(docsViewText.includes('MoreHorizontal'), true);

@@ -159,7 +159,7 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
   onNavigateToTasks,
   onSaveTask,
 }) => {
-  const [viewMode, setViewMode] = useState<ViewMode>('cards');
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [searchQuery, setSearchQuery] = useState('');
   const [groupFilter, setGroupFilter] = useState<'all' | DocumentLinkGroup>(
     'all'
@@ -887,25 +887,12 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
               </button>
             )}
 
-            {/* View Mode Toggle: Thẻ | Danh sách */}
+            {/* View Mode Toggle: Danh sách | Thẻ */}
             <div
               role="group"
               aria-label="Chế độ hiển thị tài liệu"
               className="inline-flex items-center p-1 bg-[#F3EFE4] border border-[#E2DBCC] rounded-xl shrink-0"
             >
-              <button
-                type="button"
-                onClick={() => setViewMode('cards')}
-                aria-pressed={viewMode === 'cards'}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap min-h-[32px] ${
-                  viewMode === 'cards'
-                    ? 'bg-white text-huyen-lam font-semibold shadow-xs'
-                    : 'text-[#5E6673] hover:text-huyen-lam'
-                }`}
-              >
-                <LayoutGrid className="w-3.5 h-3.5 shrink-0" />
-                <span>Thẻ</span>
-              </button>
               <button
                 type="button"
                 onClick={() => setViewMode('list')}
@@ -918,6 +905,19 @@ export const DocumentsView: React.FC<DocumentsViewProps> = ({
               >
                 <List className="w-3.5 h-3.5 shrink-0" />
                 <span>Danh sách</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('cards')}
+                aria-pressed={viewMode === 'cards'}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap min-h-[32px] ${
+                  viewMode === 'cards'
+                    ? 'bg-white text-huyen-lam font-semibold shadow-xs'
+                    : 'text-[#5E6673] hover:text-huyen-lam'
+                }`}
+              >
+                <LayoutGrid className="w-3.5 h-3.5 shrink-0" />
+                <span>Thẻ</span>
               </button>
             </div>
           </div>
